@@ -7,11 +7,11 @@ export const api = {
       
       const mockUser: User = {
         id: `user-${Date.now()}`,
-        email: 'demo@goldengoosetees.com',
-        name: 'Demo User',
-        avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=demo',
-        ageVerified: false,
-        role: 'user',
+        email: 'admin@goldengoosetees.com',
+        name: 'Admin User',
+        avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=admin',
+        ageVerified: true,
+        role: 'admin',
         createdAt: new Date().toISOString()
       }
       

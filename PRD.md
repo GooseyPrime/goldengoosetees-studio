@@ -75,12 +75,16 @@ This is a multi-phase application with guest sessions, authentication gating, pa
 - **Progression**: Login → View account → See order history with tracking → See saved designs → Click design to view → Option to "Reorder" or "Remix Design" → Enters design flow with prefilled data
 - **Success criteria**: All user orders displayed with current status; designs retrievable; reorder creates new Printful order; remix loads design into AI session
 
-### 10. Admin Product Management
-- **Functionality**: Admin interface to configure Printful products, set constraints, manage catalog sections
-- **Purpose**: Non-developer product updates and constraint management
-- **Trigger**: Admin user accesses "/admin" route
-- **Progression**: Admin login → View product list → Add/edit product → Set Printful SKU → Define print areas → Set DPI/format constraints → Configure pricing → Save → Product available in kiosk
-- **Success criteria**: Product changes reflected immediately; constraints enforced by AI; SKU mapping correct for Printful API
+### 10. Admin Dashboard
+- **Functionality**: Comprehensive admin interface for managing products, orders, and design approvals with real-time statistics and bulk operations
+- **Purpose**: Centralized control panel for store operators to manage inventory, fulfill orders, and moderate community designs
+- **Trigger**: Admin user clicks "Admin" button in header navigation
+- **Progression**: Click Admin → Dashboard overview with key metrics → Switch between Products/Orders/Design Approvals tabs → Manage individual items → Update status → Save changes → Changes reflected immediately
+- **Success criteria**: 
+  - **Statistics Dashboard**: Real-time metrics showing total revenue, active products, pending orders, and pending design approvals with trend indicators
+  - **Product Management**: Full CRUD operations on products including SKU mapping, print area configuration, DPI constraints, and availability toggling
+  - **Order Management**: Search and filter orders by status, view detailed order information, update order status (pending → processing → fulfilled → shipped → delivered), add tracking numbers
+  - **Design Approvals**: Review designs submitted for catalog publication, preview all print areas, flag NSFW content, approve for catalog sections, or reject with reason
 
 ## Edge Case Handling
 
