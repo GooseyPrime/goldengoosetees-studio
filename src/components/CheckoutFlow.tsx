@@ -1,0 +1,391 @@
+import { useState } from 'react'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Separator } from '@/components/ui/separator'
+import { Progress } from '@/components/ui/progress'
+import { Design, Product, User } from '@/lib/types'
+import { api } from '@/lib/api'
+import { 
+  CreditCard, 
+  Package, 
+  CheckCircle, 
+  Warning,
+  Truck
+} from '@phosphor-icons/react'
+import { toast } from 'sonner'
+import { motion, AnimatePresence } from 'framer-motion'
+
+interface CheckoutFlowProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  design: Design
+  product: Product
+  user: User
+  onComplete: (orderId: string) => void
+}
+
+type CheckoutStep = 'shipping' | 'payment' | 'processing' | 'complete'
+
+export function CheckoutFlow({
+  open,
+  onOpenChange,
+  design,
+  product,
+  user,
+  onComplete
+}: CheckoutFlowProps) {
+  const [step, setStep] = useState<CheckoutStep>('shipping')
+  const [isProcessing, setIsProcessing] = useState(false)
+  const [orderId, setOrderId] = useState<string>()
+  const [estimatedDelivery, setEstimatedDelivery] = useState<string>()
+
+  const [shippingData, setShippingData] = useState({
+    name: user.name,
+    line1: '',
+    line2: '',
+    city: '',
+    state: '',
+    postal_code: '',
+    country: 'US'
+  })
+
+  const [cardData, setCardData] = useState({
+    number: '',
+    expiry: '',
+    cvc: ''
+  })
+
+  const handleShippingSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    setStep('payment')
+  }
+
+  const handlePaymentSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setStep('processing')
+    setIsProcessing(true)
+
+    try {
+      const order = await api.orders.create({
+        userId: user.id,
+        designId: design.id,
+        productId: product.id,
+        totalAmount: product.basePrice,
+        shippingAddress: shippingData
+      })
+
+      const paymentId = await api.orders.processPayment(order.id, 'mock_payment_method')
+      
+      const { printfulOrderId, estimatedDelivery } = await api.orders.submitToPrintful(order.id)
+      
+      setOrderId(order.id)
+      setEstimatedDelivery(estimatedDelivery)
+      setStep('complete')
+      
+      toast.success('Order placed successfully!')
+      
+      setTimeout(() => {
+        onComplete(order.id)
+        onOpenChange(false)
+      }, 5000)
+    } catch (error) {
+      toast.error('Payment failed. Please try again.')
+      setStep('payment')
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  const getStepProgress = () => {
+    switch (step) {
+      case 'shipping': return 25
+      case 'payment': return 50
+      case 'processing': return 75
+      case 'complete': return 100
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="text-2xl">Complete Your Order</DialogTitle>
+          <DialogDescription>
+            Review your design and complete payment
+          </DialogDescription>
+        </DialogHeader>
+
+        <Progress value={getStepProgress()} className="my-4" />
+
+        <AnimatePresence mode="wait">
+          {step === 'shipping' && (
+            <motion.div
+              key="shipping"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+            >
+              <Alert className="mb-4 border-accent bg-accent/10">
+                <Warning size={20} className="text-accent" />
+                <AlertDescription>
+                  <strong>No refunds or cancellations</strong> after order completion. Please review carefully.
+                </AlertDescription>
+              </Alert>
+
+              <div className="mb-6 p-4 bg-muted/50 rounded-lg">
+                <div className="flex items-center gap-4">
+                  <img 
+                    src={product.imageUrl} 
+                    alt={product.name}
+                    className="w-20 h-20 object-cover rounded"
+                  />
+                  <div className="flex-1">
+                    <h4 className="font-semibold">{product.name}</h4>
+                    <p className="text-sm text-muted-foreground">{design.title}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-mono text-xl font-semibold">${product.basePrice}</p>
+                    <p className="text-xs text-muted-foreground">+ shipping</p>
+                  </div>
+                </div>
+              </div>
+
+              <form onSubmit={handleShippingSubmit} className="space-y-4">
+                <h3 className="font-semibold flex items-center gap-2">
+                  <Package size={20} />
+                  Shipping Address
+                </h3>
+
+                <div className="space-y-3">
+                  <div>
+                    <Label htmlFor="name">Full Name</Label>
+                    <Input
+                      id="name"
+                      value={shippingData.name}
+                      onChange={(e) => setShippingData({ ...shippingData, name: e.target.value })}
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="line1">Address Line 1</Label>
+                    <Input
+                      id="line1"
+                      value={shippingData.line1}
+                      onChange={(e) => setShippingData({ ...shippingData, line1: e.target.value })}
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="line2">Address Line 2 (Optional)</Label>
+                    <Input
+                      id="line2"
+                      value={shippingData.line2}
+                      onChange={(e) => setShippingData({ ...shippingData, line2: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label htmlFor="city">City</Label>
+                      <Input
+                        id="city"
+                        value={shippingData.city}
+                        onChange={(e) => setShippingData({ ...shippingData, city: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="state">State</Label>
+                      <Input
+                        id="state"
+                        value={shippingData.state}
+                        onChange={(e) => setShippingData({ ...shippingData, state: e.target.value })}
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="postal_code">ZIP Code</Label>
+                    <Input
+                      id="postal_code"
+                      value={shippingData.postal_code}
+                      onChange={(e) => setShippingData({ ...shippingData, postal_code: e.target.value })}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <Button type="submit" className="w-full" size="lg">
+                  Continue to Payment
+                </Button>
+              </form>
+            </motion.div>
+          )}
+
+          {step === 'payment' && (
+            <motion.div
+              key="payment"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+            >
+              <form onSubmit={handlePaymentSubmit} className="space-y-4">
+                <h3 className="font-semibold flex items-center gap-2">
+                  <CreditCard size={20} />
+                  Payment Information
+                </h3>
+
+                <div className="space-y-3">
+                  <div>
+                    <Label htmlFor="card-number">Card Number</Label>
+                    <Input
+                      id="card-number"
+                      placeholder="1234 5678 9012 3456"
+                      value={cardData.number}
+                      onChange={(e) => setCardData({ ...cardData, number: e.target.value })}
+                      required
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label htmlFor="expiry">Expiry Date</Label>
+                      <Input
+                        id="expiry"
+                        placeholder="MM/YY"
+                        value={cardData.expiry}
+                        onChange={(e) => setCardData({ ...cardData, expiry: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="cvc">CVC</Label>
+                      <Input
+                        id="cvc"
+                        placeholder="123"
+                        value={cardData.cvc}
+                        onChange={(e) => setCardData({ ...cardData, cvc: e.target.value })}
+                        required
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <Separator className="my-4" />
+
+                <div className="space-y-2 p-4 bg-muted/50 rounded-lg">
+                  <div className="flex justify-between text-sm">
+                    <span>Subtotal</span>
+                    <span className="font-mono">${product.basePrice}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span>Shipping</span>
+                    <span className="font-mono">$5.99</span>
+                  </div>
+                  <Separator className="my-2" />
+                  <div className="flex justify-between font-semibold text-lg">
+                    <span>Total</span>
+                    <span className="font-mono">${(product.basePrice + 5.99).toFixed(2)}</span>
+                  </div>
+                </div>
+
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setStep('shipping')}
+                    className="flex-1"
+                  >
+                    Back
+                  </Button>
+                  <Button type="submit" className="flex-1" size="lg">
+                    Place Order
+                  </Button>
+                </div>
+              </form>
+            </motion.div>
+          )}
+
+          {step === 'processing' && (
+            <motion.div
+              key="processing"
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="py-12 text-center space-y-6"
+            >
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                className="w-16 h-16 mx-auto"
+              >
+                <Package size={64} weight="duotone" className="text-primary" />
+              </motion.div>
+              <div>
+                <h3 className="text-xl font-semibold mb-2">Processing Your Order</h3>
+                <p className="text-muted-foreground">
+                  Please wait while we process your payment and submit your order to Printful...
+                </p>
+              </div>
+            </motion.div>
+          )}
+
+          {step === 'complete' && (
+            <motion.div
+              key="complete"
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="py-8 text-center space-y-6"
+            >
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ type: "spring", delay: 0.2 }}
+              >
+                <CheckCircle size={80} weight="duotone" className="text-green-500 mx-auto" />
+              </motion.div>
+              
+              <div>
+                <h3 className="text-2xl font-bold mb-2">Order Confirmed!</h3>
+                <p className="text-muted-foreground">
+                  Your custom T-shirt is being prepared for production
+                </p>
+              </div>
+
+              <div className="p-6 bg-muted/50 rounded-lg space-y-3 text-left">
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Order Number</span>
+                  <span className="font-mono font-semibold">{orderId?.slice(-8).toUpperCase()}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">Estimated Delivery</span>
+                  <span className="flex items-center gap-1 font-semibold">
+                    <Truck size={16} />
+                    {estimatedDelivery ? new Date(estimatedDelivery).toLocaleDateString() : '7-10 days'}
+                  </span>
+                </div>
+              </div>
+
+              <Alert>
+                <AlertDescription className="text-sm">
+                  A confirmation email has been sent to <strong>{user.email}</strong> with tracking information.
+                </AlertDescription>
+              </Alert>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </DialogContent>
+    </Dialog>
+  )
+}
