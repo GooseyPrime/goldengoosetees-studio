@@ -8,12 +8,14 @@ import { ProductManager } from '@/components/admin/ProductManager'
 import { OrderManager } from '@/components/admin/OrderManager'
 import { DesignApprovals } from '@/components/admin/DesignApprovals'
 import { AdminStats } from '@/components/admin/AdminStats'
+import { PrintfulConfig } from '@/components/admin/PrintfulConfig'
 import { 
   ChartBar, 
   Package, 
   ShoppingCart, 
   CheckCircle,
-  XCircle
+  XCircle,
+  Gear
 } from '@phosphor-icons/react'
 import { Product, Order, Design } from '@/lib/types'
 
@@ -49,7 +51,7 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
 
       <div className="container mx-auto px-6 py-8">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-4 mb-8">
+          <TabsList className="grid w-full grid-cols-5 mb-8">
             <TabsTrigger value="stats" className="gap-2">
               <ChartBar size={20} />
               Overview
@@ -75,6 +77,10 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
                   {pendingDesignsCount}
                 </Badge>
               )}
+            </TabsTrigger>
+            <TabsTrigger value="settings" className="gap-2">
+              <Gear size={20} />
+              Settings
             </TabsTrigger>
           </TabsList>
 
@@ -107,6 +113,10 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
               onDesignsChange={setPendingDesigns}
               products={products || []}
             />
+          </TabsContent>
+
+          <TabsContent value="settings" className="space-y-6">
+            <PrintfulConfig />
           </TabsContent>
         </Tabs>
       </div>

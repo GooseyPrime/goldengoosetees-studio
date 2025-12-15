@@ -12,9 +12,11 @@ import {
   Truck,
   CheckCircle,
   XCircle,
-  Eye
+  Eye,
+  ArrowsClockwise
 } from '@phosphor-icons/react'
 import { Order, Product, OrderStatus } from '@/lib/types'
+import { api } from '@/lib/api'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 
@@ -28,6 +30,7 @@ export function OrderManager({ orders, onOrdersChange, products }: OrderManagerP
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<OrderStatus | 'all'>('all')
   const [viewingOrder, setViewingOrder] = useState<Order | null>(null)
+  const [isSyncing, setIsSyncing] = useState(false)
 
   const filteredOrders = orders.filter(order => {
     const matchesSearch = 
@@ -39,6 +42,26 @@ export function OrderManager({ orders, onOrdersChange, products }: OrderManagerP
 
     return matchesSearch && matchesStatus
   })
+
+  const handleSyncWithPrintful = async (orderId: string) => {
+    setIsSyncing(true)
+    try {
+      const updatedOrder = await api.orders.syncWithPrintful(orderId)
+      if (updatedOrder) {
+        onOrdersChange((prev) =>
+          prev.map(o => o.id === orderId ? updatedOrder : o)
+        )
+        toast.success('Order synced with Printful')
+      } else {
+        toast.error('Order not found or has no Printful order ID')
+      }
+    } catch (error) {
+      toast.error('Failed to sync with Printful')
+      console.error(error)
+    } finally {
+      setIsSyncing(false)
+    }
+  }
 
   const handleUpdateStatus = (orderId: string, newStatus: OrderStatus) => {
     onOrdersChange((prev) =>
@@ -252,6 +275,23 @@ export function OrderManager({ orders, onOrdersChange, products }: OrderManagerP
                 <div className="space-y-2">
                   <Label className="text-muted-foreground">Estimated Delivery</Label>
                   <p>{format(new Date(viewingOrder.estimatedDelivery), 'PPP')}</p>
+                </div>
+              )}
+
+              {viewingOrder.printfulOrderId && (
+                <div className="space-y-2">
+                  <Label className="text-muted-foreground">Printful Order ID</Label>
+                  <div className="flex items-center gap-2">
+                    <p className="font-mono">{viewingOrder.printfulOrderId}</p>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleSyncWithPrintful(viewingOrder.id)}
+                      disabled={isSyncing}
+                    >
+                      <ArrowsClockwise size={16} className={isSyncing ? 'animate-spin' : ''} />
+                    </Button>
+                  </div>
                 </div>
               )}
 

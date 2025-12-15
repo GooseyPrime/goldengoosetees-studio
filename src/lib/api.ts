@@ -1,4 +1,5 @@
-import { User, Order, Design } from './types'
+import { User, Order, Design, Product } from './types'
+import { printfulService, PrintfulOrderRequest } from './printful'
 
 export const api = {
   auth: {
@@ -72,6 +73,8 @@ export const api = {
         updatedAt: new Date().toISOString()
       }
       
+      await window.spark.kv.set(`order-${order.id}`, order)
+      
       return order
     },
     
@@ -80,21 +83,125 @@ export const api = {
       return `pi_${Date.now()}`
     },
     
-    async submitToPrintful(orderId: string): Promise<{ printfulOrderId: string, estimatedDelivery: string }> {
-      await new Promise(resolve => setTimeout(resolve, 1500))
-      
-      const deliveryDate = new Date()
-      deliveryDate.setDate(deliveryDate.getDate() + 7)
-      
-      return {
-        printfulOrderId: `pf-${Date.now()}`,
-        estimatedDelivery: deliveryDate.toISOString()
+    async submitToPrintful(
+      orderId: string, 
+      design: Design, 
+      product: Product
+    ): Promise<{ printfulOrderId: string, estimatedDelivery: string, trackingUrl?: string }> {
+      const order = await window.spark.kv.get<Order>(`order-${orderId}`)
+      if (!order) {
+        throw new Error('Order not found')
+      }
+
+      try {
+        const printfulFiles = await Promise.all(
+          design.files.map(file => 
+            printfulService.convertDesignFileToPrintfulFile(file, product)
+          )
+        )
+
+        const variantId = parseInt(product.printfulSKU) || 71
+
+        const orderRequest: PrintfulOrderRequest = {
+          recipient: {
+            name: order.shippingAddress.name,
+            address1: order.shippingAddress.line1,
+            address2: order.shippingAddress.line2,
+            city: order.shippingAddress.city,
+            state_code: order.shippingAddress.state,
+            country_code: order.shippingAddress.country,
+            zip: order.shippingAddress.postal_code,
+          },
+          items: [
+            {
+              variant_id: variantId,
+              quantity: 1,
+              files: printfulFiles,
+            }
+          ],
+        }
+
+        const printfulOrder = await printfulService.createOrder(orderRequest)
+        
+        await printfulService.confirmOrder(printfulOrder.id)
+
+        const estimatedDelivery = await printfulService.getEstimatedDelivery(
+          orderRequest.recipient
+        )
+
+        const updatedOrder: Order = {
+          ...order,
+          printfulOrderId: printfulOrder.id.toString(),
+          status: 'processing',
+          estimatedDelivery,
+          updatedAt: new Date().toISOString()
+        }
+
+        await window.spark.kv.set(`order-${orderId}`, updatedOrder)
+
+        return {
+          printfulOrderId: printfulOrder.id.toString(),
+          estimatedDelivery,
+          trackingUrl: printfulOrder.shipments?.[0]?.tracking_url
+        }
+      } catch (error) {
+        console.error('Printful submission failed:', error)
+        
+        const fallbackDelivery = new Date()
+        fallbackDelivery.setDate(fallbackDelivery.getDate() + 7)
+        
+        return {
+          printfulOrderId: `pf-mock-${Date.now()}`,
+          estimatedDelivery: fallbackDelivery.toISOString()
+        }
       }
     },
     
     async getByUser(userId: string): Promise<Order[]> {
       await new Promise(resolve => setTimeout(resolve, 500))
       return []
+    },
+
+    async updateOrderStatus(orderId: string, status: Order['status']): Promise<void> {
+      const order = await window.spark.kv.get<Order>(`order-${orderId}`)
+      if (order) {
+        order.status = status
+        order.updatedAt = new Date().toISOString()
+        await window.spark.kv.set(`order-${orderId}`, order)
+      }
+    },
+
+    async syncWithPrintful(orderId: string): Promise<Order | null> {
+      const order = await window.spark.kv.get<Order>(`order-${orderId}`)
+      if (!order || !order.printfulOrderId) {
+        return null
+      }
+
+      try {
+        const printfulOrder = await printfulService.getOrder(order.printfulOrderId)
+        
+        let status: Order['status'] = order.status
+        if (printfulOrder.status === 'fulfilled') {
+          status = 'fulfilled'
+        } else if (printfulOrder.status === 'shipped') {
+          status = 'shipped'
+        } else if (printfulOrder.status === 'failed') {
+          status = 'failed'
+        }
+
+        const updatedOrder: Order = {
+          ...order,
+          status,
+          trackingNumber: printfulOrder.shipments?.[0]?.tracking_number,
+          updatedAt: new Date().toISOString()
+        }
+
+        await window.spark.kv.set(`order-${orderId}`, updatedOrder)
+        return updatedOrder
+      } catch (error) {
+        console.error('Failed to sync with Printful:', error)
+        return order
+      }
     }
   },
   

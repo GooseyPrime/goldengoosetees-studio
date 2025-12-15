@@ -85,7 +85,11 @@ export function CheckoutFlow({
 
       const paymentId = await api.orders.processPayment(order.id, 'mock_payment_method')
       
-      const { printfulOrderId, estimatedDelivery } = await api.orders.submitToPrintful(order.id)
+      const { printfulOrderId, estimatedDelivery, trackingUrl } = await api.orders.submitToPrintful(
+        order.id,
+        design,
+        product
+      )
       
       setOrderId(order.id)
       setEstimatedDelivery(estimatedDelivery)

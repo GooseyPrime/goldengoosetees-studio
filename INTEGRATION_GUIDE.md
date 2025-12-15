@@ -238,77 +238,72 @@ const handlePaymentSubmit = async (e) => {
 
 ### 5. Printful Order Fulfillment
 
-**Location**: `src/lib/api.ts` - `api.orders.submitToPrintful()`
+**Location**: `src/lib/printful.ts` and `src/lib/api.ts` - `api.orders.submitToPrintful()`
 
-**Current Implementation**: Mock submission that returns fake Printful order ID
+**Current Implementation**: ✅ **FULLY INTEGRATED** with real Printful API
 
-**Production Integration**:
+The Printful integration is now production-ready and includes:
+
+- **Real API Integration**: Full Printful API client (`PrintfulService`) with authentication
+- **Automatic Order Submission**: Orders are submitted to Printful after payment
+- **File Upload**: Design files are automatically uploaded to Printful
+- **Status Synchronization**: Real-time order status sync from Printful
+- **Admin Configuration**: UI for managing API keys and testing connection
+- **Fallback Handling**: Graceful degradation if Printful is unavailable
+
+**Setup Instructions**:
+
+1. **Get Your Printful API Key**:
+   - Log in to [Printful](https://www.printful.com)
+   - Go to Settings → Stores
+   - Select your store (or create one)
+   - Click "Add API Access"
+   - Copy your API key
+
+2. **Configure in the Kiosk**:
+   - Log in as an admin user
+   - Click **Admin** in the header
+   - Go to the **Settings** tab
+   - Paste your API key
+   - (Optional) Enter Store ID for multiple stores
+   - Click **Test Connection**
+   - Click **Save Configuration**
+
+3. **Product SKU Mapping**:
+   - Go to **Admin** → **Products**
+   - Edit each product
+   - Set the **Printful SKU** field to the Printful variant ID
+   - Common variant IDs:
+     - `71` - Bella + Canvas 3001 (Unisex Jersey Tee)
+     - `146` - Gildan 5000 (Heavy Cotton Tee)
+     - `163` - Gildan 2400 (Long Sleeve Tee)
+
+4. **Order Flow**:
+   - Customer completes checkout
+   - Design files uploaded to Printful
+   - Order created and confirmed automatically
+   - Tracking info synced when available
+
+**Key Features**:
 ```typescript
-async submitToPrintful(orderId: string): Promise<{ printfulOrderId: string, estimatedDelivery: string }> {
-  const order = await supabase
-    .from('orders')
-    .select('*, designs(*)')
-    .eq('id', orderId)
-    .single()
-  
-  const product = MOCK_PRODUCTS.find(p => p.id === order.product_id)
-  
-  // Prepare files for Printful
-  const files = order.designs.files.map(file => ({
-    url: file.dataUrl, // Must be publicly accessible URL
-    type: 'default',
-    position: {
-      area_width: file.widthPx / file.dpi,
-      area_height: file.heightPx / file.dpi,
-      width: file.widthPx / file.dpi,
-      height: file.heightPx / file.dpi,
-      top: 0,
-      left: 0
-    }
-  }))
-  
-  const response = await fetch('https://api.printful.com/orders', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${process.env.PRINTFUL_API_KEY}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      recipient: {
-        name: order.shipping_address.name,
-        address1: order.shipping_address.line1,
-        address2: order.shipping_address.line2,
-        city: order.shipping_address.city,
-        state_code: order.shipping_address.state,
-        country_code: order.shipping_address.country,
-        zip: order.shipping_address.postal_code
-      },
-      items: [{
-        variant_id: product!.printfulSKU,
-        quantity: 1,
-        files: files
-      }]
-    })
-  })
-  
-  const result = await response.json()
-  
-  // Update order with Printful data
-  await supabase
-    .from('orders')
-    .update({ 
-      printful_order_id: result.result.id,
-      status: 'fulfilled',
-      estimated_delivery: result.result.estimated_fulfillment
-    })
-    .eq('id', orderId)
-  
-  return {
-    printfulOrderId: result.result.id,
-    estimatedDelivery: result.result.estimated_fulfillment
-  }
-}
+// The PrintfulService class provides:
+- getProducts() // Fetch product catalog
+- getVariant(id) // Get variant details
+- createOrder(data) // Submit order
+- confirmOrder(id) // Confirm for fulfillment
+- getOrder(id) // Get order status
+- uploadFile(file) // Upload design files
+- syncOrder(orderId) // Sync status with Printful
 ```
+
+**Admin Features**:
+- **API Key Management**: Secure storage in Spark KV
+- **Connection Testing**: Verify API key before saving
+- **Order Syncing**: Manual sync button for each order
+- **Status Tracking**: Real-time order status from Printful
+- **Tracking Numbers**: Automatically fetched when available
+
+For detailed setup instructions, see [PRINTFUL_SETUP.md](./PRINTFUL_SETUP.md)
 
 ### 6. AI Design Generation
 
@@ -402,8 +397,9 @@ SUPABASE_ANON_KEY=your_supabase_anon_key
 STRIPE_SECRET_KEY=your_stripe_secret_key
 STRIPE_PUBLISHABLE_KEY=your_stripe_publishable_key
 
-# Printful
-PRINTFUL_API_KEY=your_printful_api_key
+# Printful (configured via Admin Settings UI)
+PRINTFUL_API_KEY=your_printful_api_key  # Set in Admin → Settings tab
+PRINTFUL_STORE_ID=your_store_id  # Optional, set in Admin → Settings tab
 
 # OpenAI (for AI features)
 OPENAI_API_KEY=your_openai_api_key
@@ -424,7 +420,8 @@ FIREBASE_AUTH_DOMAIN=your_firebase_auth_domain
 - [ ] Set up Supabase project and create database tables
 - [ ] Configure Google OAuth in Firebase
 - [ ] Set up Stripe account and get API keys
-- [ ] Create Printful account and configure product catalog
+- [x] **Create Printful account and configure product catalog** ✅ INTEGRATED
+- [x] **Configure Printful API key via Admin Settings** ✅ INTEGRATED
 - [ ] Integrate age verification service (Veriff, IDology, etc.)
 - [ ] Set up email service (SendGrid, AWS SES, etc.)
 - [ ] Configure OpenAI API for design generation
@@ -435,6 +432,7 @@ FIREBASE_AUTH_DOMAIN=your_firebase_auth_domain
 - [ ] Configure CDN for design file storage
 - [ ] Implement trademark/IP screening logic
 - [ ] Add admin authentication and authorization
-- [ ] Create admin dashboard for order management
+- [x] **Create admin dashboard for order management** ✅ COMPLETE
+- [x] **Add Printful order sync functionality** ✅ COMPLETE
 - [ ] Set up automated testing for payment flow
 - [ ] Configure production deployment

@@ -55,11 +55,18 @@ This is a multi-phase application with guest sessions, authentication gating, pa
 - **Success criteria**: Payment processed securely; Stripe payment ID stored in Supabase; clear "no refunds" messaging displayed pre-payment
 
 ### 7. Printful Order Fulfillment
-- **Functionality**: Automated order submission to Printful with design files, product SKU, shipping details
-- **Purpose**: Hands-free fulfillment and shipping
+- **Functionality**: Automated order submission to Printful with design files, product SKU, shipping details, and real-time status synchronization
+- **Purpose**: Hands-free fulfillment and shipping with professional print-on-demand service
 - **Trigger**: Successful Stripe payment
-- **Progression**: Payment complete → System calls Printful API → Submits design files + product SKU + shipping address → Printful confirms order → Tracking info returned → Email sent to user → Order status tracked in Supabase
-- **Success criteria**: Design files correctly formatted for Printful; order successfully created; tracking info captured; delivery estimate displayed
+- **Progression**: Payment complete → System uploads design files to Printful → Calls Printful API with order details → Submits product variant ID + shipping address → Printful confirms order → Tracking info returned → Email sent to user → Order status synced in real-time
+- **Success criteria**: 
+  - Design files correctly formatted and uploaded to Printful
+  - Order successfully created with proper variant ID
+  - Tracking info captured automatically
+  - Delivery estimate displayed
+  - Admin can sync order status with Printful
+  - Fallback handling if Printful API is unavailable
+  - Configuration interface for API key management
 
 ### 8. Public Catalog System
 - **Functionality**: Users can publish approved designs to public catalog, sectioned by rating and design type
@@ -76,15 +83,16 @@ This is a multi-phase application with guest sessions, authentication gating, pa
 - **Success criteria**: All user orders displayed with current status; designs retrievable; reorder creates new Printful order; remix loads design into AI session
 
 ### 10. Admin Dashboard
-- **Functionality**: Comprehensive admin interface for managing products, orders, and design approvals with real-time statistics and bulk operations
-- **Purpose**: Centralized control panel for store operators to manage inventory, fulfill orders, and moderate community designs
+- **Functionality**: Comprehensive admin interface for managing products, orders, design approvals, and Printful API configuration with real-time statistics and bulk operations
+- **Purpose**: Centralized control panel for store operators to manage inventory, fulfill orders, moderate community designs, and configure integrations
 - **Trigger**: Admin user clicks "Admin" button in header navigation
-- **Progression**: Click Admin → Dashboard overview with key metrics → Switch between Products/Orders/Design Approvals tabs → Manage individual items → Update status → Save changes → Changes reflected immediately
+- **Progression**: Click Admin → Dashboard overview with key metrics → Switch between Products/Orders/Design Approvals/Settings tabs → Manage individual items → Update status → Sync with Printful → Save changes → Changes reflected immediately
 - **Success criteria**: 
   - **Statistics Dashboard**: Real-time metrics showing total revenue, active products, pending orders, and pending design approvals with trend indicators
   - **Product Management**: Full CRUD operations on products including SKU mapping, print area configuration, DPI constraints, and availability toggling
-  - **Order Management**: Search and filter orders by status, view detailed order information, update order status (pending → processing → fulfilled → shipped → delivered), add tracking numbers
+  - **Order Management**: Search and filter orders by status, view detailed order information, update order status (pending → processing → fulfilled → shipped → delivered), add tracking numbers, sync status with Printful in real-time
   - **Design Approvals**: Review designs submitted for catalog publication, preview all print areas, flag NSFW content, approve for catalog sections, or reject with reason
+  - **Printful Configuration**: Secure API key management, connection testing, Store ID configuration, real-time status verification, and quick links to Printful dashboard
 
 ## Edge Case Handling
 
