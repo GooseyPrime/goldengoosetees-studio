@@ -66,6 +66,11 @@ function App() {
       if (!pendingDesigns) {
         await window.spark.kv.set('pending-designs', MOCK_PENDING_DESIGNS)
       }
+
+      const existingUser = await api.auth.getCurrentUser()
+      if (existingUser && !currentUser) {
+        setCurrentUser(existingUser)
+      }
     }
 
     initializeAdminData()
@@ -76,7 +81,7 @@ function App() {
       const initialMessage: ChatMessage = {
         id: `msg-${Date.now()}`,
         role: 'assistant',
-        content: `Great choice! You've selected the ${selectedProduct.name}. This product has ${selectedProduct.printAreas.length} print area${selectedProduct.printAreas.length !== 1 ? 's' : ''} available: ${selectedProduct.printAreas.map(a => a.name).join(', ')}.\n\nTell me what kind of design you'd like to create! I can help with graphics, text, patterns, or combinations. What's your vision?`,
+        content: api.ai.getInitialMessage(selectedProduct),
         timestamp: new Date().toISOString()
       }
       setMessages([initialMessage])
@@ -103,7 +108,11 @@ function App() {
     setIsAILoading(true)
 
     try {
-      const response = await api.ai.chat([...messages, userMessage])
+      const response = await api.ai.chat(
+        [...messages, userMessage],
+        selectedProduct || undefined,
+        currentPrintArea
+      )
       
       const assistantMessage: ChatMessage = {
         id: `msg-${Date.now() + 1}`,
@@ -114,8 +123,16 @@ function App() {
       
       setMessages((prev) => [...prev, assistantMessage])
 
-      if (content.toLowerCase().includes('generate') || content.toLowerCase().includes('create')) {
+      if (api.ai.shouldGenerateDesign(content)) {
         await generateDesign(content)
+      } else if (api.ai.shouldShowApproval(content) && designFiles.length > 0) {
+        const approvalMessage: ChatMessage = {
+          id: `msg-${Date.now() + 2}`,
+          role: 'assistant',
+          content: api.ai.getApprovalMessage(),
+          timestamp: new Date().toISOString()
+        }
+        setMessages((prev) => [...prev, approvalMessage])
       }
     } catch (error) {
       toast.error('Failed to get AI response')

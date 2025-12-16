@@ -1,10 +1,44 @@
-import { User, Order, Design, Product } from './types'
+import { User, Order, Design, Product, ChatMessage } from './types'
 import { printfulService, PrintfulOrderRequest } from './printful'
 import { stripeService } from './stripe'
+import { supabaseService } from './supabase'
+import { SALES_SCRIPT } from './sales-script'
 
 export const api = {
   auth: {
     async loginWithGoogle(): Promise<User> {
+      await supabaseService.initialize()
+      
+      if (supabaseService.isConfigured()) {
+        try {
+          const { url } = await supabaseService.signInWithGoogle()
+          
+          if (url) {
+            window.location.href = url
+            await new Promise(() => {})
+          }
+          
+          const supabaseUser = await supabaseService.getUser()
+          if (supabaseUser) {
+            const userData = await supabaseService.saveUser(supabaseUser)
+            
+            const user: User = {
+              id: userData.id,
+              email: userData.email,
+              name: userData.name,
+              avatar: userData.avatar,
+              ageVerified: userData.age_verified || false,
+              role: userData.role as 'guest' | 'user' | 'admin',
+              createdAt: userData.created_at
+            }
+            
+            return user
+          }
+        } catch (error) {
+          console.error('Google OAuth failed, falling back to mock:', error)
+        }
+      }
+      
       await new Promise(resolve => setTimeout(resolve, 1000))
       
       const mockUser: User = {
@@ -23,11 +57,85 @@ export const api = {
     async verifyAge(userId: string, verificationData: any): Promise<boolean> {
       await new Promise(resolve => setTimeout(resolve, 1500))
       return true
+    },
+
+    async getCurrentUser(): Promise<User | null> {
+      await supabaseService.initialize()
+      
+      if (supabaseService.isConfigured()) {
+        try {
+          const session = await supabaseService.getSession()
+          if (session?.user) {
+            const supabaseUser = session.user
+            const userData = await supabaseService.saveUser(supabaseUser)
+            
+            return {
+              id: userData.id,
+              email: userData.email,
+              name: userData.name,
+              avatar: userData.avatar,
+              ageVerified: userData.age_verified || false,
+              role: userData.role as 'guest' | 'user' | 'admin',
+              createdAt: userData.created_at
+            }
+          }
+        } catch (error) {
+          console.error('Failed to get current user:', error)
+        }
+      }
+      
+      return null
+    },
+
+    async signOut(): Promise<void> {
+      await supabaseService.initialize()
+      
+      if (supabaseService.isConfigured()) {
+        await supabaseService.signOut()
+      }
     }
   },
   
   designs: {
     async save(design: Partial<Design>): Promise<Design> {
+      await supabaseService.initialize()
+      
+      if (supabaseService.isConfigured()) {
+        try {
+          const designData = {
+            id: design.id || `design-${Date.now()}`,
+            user_id: design.userId,
+            product_id: design.productId,
+            files: design.files,
+            is_public: design.isPublic || false,
+            is_nsfw: design.isNSFW || false,
+            title: design.title || 'Untitled Design',
+            description: design.description,
+            catalog_section: design.catalogSection,
+            created_at: design.createdAt || new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          }
+          
+          const saved = await supabaseService.saveDesign(designData)
+          
+          return {
+            id: saved.id,
+            userId: saved.user_id,
+            productId: saved.product_id,
+            files: saved.files,
+            isPublic: saved.is_public,
+            isNSFW: saved.is_nsfw,
+            title: saved.title,
+            description: saved.description,
+            catalogSection: saved.catalog_section,
+            createdAt: saved.created_at,
+            updatedAt: saved.updated_at
+          }
+        } catch (error) {
+          console.error('Failed to save to Supabase, using fallback:', error)
+        }
+      }
+      
       await new Promise(resolve => setTimeout(resolve, 500))
       
       const savedDesign: Design = {
@@ -48,11 +156,57 @@ export const api = {
     },
     
     async getByUser(userId: string): Promise<Design[]> {
+      await supabaseService.initialize()
+      
+      if (supabaseService.isConfigured()) {
+        try {
+          const designs = await supabaseService.getDesignsByUser(userId)
+          return designs.map((d: any) => ({
+            id: d.id,
+            userId: d.user_id,
+            productId: d.product_id,
+            files: d.files,
+            isPublic: d.is_public,
+            isNSFW: d.is_nsfw,
+            title: d.title,
+            description: d.description,
+            catalogSection: d.catalog_section,
+            createdAt: d.created_at,
+            updatedAt: d.updated_at
+          }))
+        } catch (error) {
+          console.error('Failed to get designs from Supabase:', error)
+        }
+      }
+      
       await new Promise(resolve => setTimeout(resolve, 500))
       return []
     },
     
     async getCatalog(section?: string): Promise<Design[]> {
+      await supabaseService.initialize()
+      
+      if (supabaseService.isConfigured()) {
+        try {
+          const designs = await supabaseService.getCatalogDesigns(section)
+          return designs.map((d: any) => ({
+            id: d.id,
+            userId: d.user_id,
+            productId: d.product_id,
+            files: d.files,
+            isPublic: d.is_public,
+            isNSFW: d.is_nsfw,
+            title: d.title,
+            description: d.description,
+            catalogSection: d.catalog_section,
+            createdAt: d.created_at,
+            updatedAt: d.updated_at
+          }))
+        } catch (error) {
+          console.error('Failed to get catalog from Supabase:', error)
+        }
+      }
+      
       await new Promise(resolve => setTimeout(resolve, 500))
       return []
     }
@@ -277,24 +431,59 @@ export const api = {
       `)}`
     },
     
-    async chat(messages: Array<{ role: string, content: string }>): Promise<string> {
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      
-      const lastMessage = messages[messages.length - 1]?.content.toLowerCase() || ''
-      
-      if (lastMessage.includes('hello') || lastMessage.includes('hi') || messages.length === 1) {
-        return "Hey there! 👋 I'm your AI design assistant. I'll help you create an awesome custom T-shirt design. Tell me what kind of design you're imagining - any theme, style, colors, or message you want to see on your shirt?"
+    async chat(
+      messages: ChatMessage[], 
+      product?: Product,
+      currentPrintArea?: string
+    ): Promise<string> {
+      if (!product) {
+        return "Please select a product first to start designing!"
       }
-      
-      if (lastMessage.includes('price') || lastMessage.includes('cost')) {
-        return "Great question! Pricing depends on the product you choose. Our Classic Cotton Tee starts at $24.99, Premium Heavyweight at $29.99, and Long Sleeve at $32.99. The final price includes the custom print!"
+
+      try {
+        const conversationHistory = messages.map(msg => ({
+          role: msg.role,
+          content: msg.content
+        }))
+
+        const contextPrompt = SALES_SCRIPT.getContextPrompt(
+          product,
+          currentPrintArea || product.printAreas[0]?.id || '',
+          conversationHistory
+        )
+
+        const fullPromptText = `${SALES_SCRIPT.system}
+
+${contextPrompt}
+
+USER'S LATEST MESSAGE: ${messages[messages.length - 1]?.content || ''}
+
+Respond as the AI design assistant. Keep it natural, enthusiastic, and helpful. Remember your role is to guide them through the design process following the sales script methodology.`
+
+        const response = await window.spark.llm(fullPromptText, 'gpt-4o')
+        
+        return response
+      } catch (error) {
+        console.error('LLM chat failed:', error)
+        
+        return "I'm having trouble connecting right now. Could you try rephrasing that? I'm here to help you create an awesome design! 🎨"
       }
-      
-      if (lastMessage.includes('approve') || lastMessage.includes('looks good')) {
-        return "Awesome! Your design looks great. When you're ready, click the 'Proceed to Checkout' button to complete your order, or 'Publish to Catalog' to share it with the community!"
-      }
-      
-      return `I love the idea of "${lastMessage}"! Let me create a design based on that. I'll make sure it meets all the print requirements for your selected product. Give me just a moment...`
+    },
+
+    shouldGenerateDesign(message: string): boolean {
+      return SALES_SCRIPT.detectGenerationIntent(message)
+    },
+
+    shouldShowApproval(message: string): boolean {
+      return SALES_SCRIPT.detectApprovalIntent(message)
+    },
+
+    getInitialMessage(product: Product): string {
+      return SALES_SCRIPT.getInitialMessage(product)
+    },
+
+    getApprovalMessage(): string {
+      return SALES_SCRIPT.getApprovalResponse()
     }
   }
 }
