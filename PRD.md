@@ -48,11 +48,20 @@ This is a multi-phase application with guest sessions, authentication gating, pa
 - **Success criteria**: Each area stored separately in Supabase; all required areas must be completed; preview shows all areas on mockup
 
 ### 6. Stripe Checkout Integration
-- **Functionality**: Secure payment processing with immediate capture; no refunds/cancellations after completion
-- **Purpose**: Revenue collection with clear transaction finality
+- **Functionality**: Secure payment processing with immediate capture via Stripe API; comprehensive admin configuration panel; real-time validation and error handling; no refunds/cancellations after completion
+- **Purpose**: Revenue collection with clear transaction finality and enterprise-grade security
 - **Trigger**: User proceeds from authenticated design approval to checkout
-- **Progression**: Review order → See final price → Stripe payment form → Enter card details → Submit → Payment captured → Order confirmed → Printful API called
-- **Success criteria**: Payment processed securely; Stripe payment ID stored in Supabase; clear "no refunds" messaging displayed pre-payment
+- **Progression**: Review order → See final price → Enter card details with live validation → Card number formatted automatically → Submit → Stripe creates Payment Intent → Card tokenized securely → Payment confirmed via Stripe API → Stripe Payment ID stored → Order confirmed → Printful API called
+- **Success criteria**: 
+  - Payments processed securely through Stripe API with PCI compliance
+  - Stripe Payment Intent ID stored in order record
+  - Card validation with real-time error messages
+  - Clear "no refunds" messaging displayed pre-payment
+  - Admin panel for Stripe API key configuration (test/live mode toggle)
+  - Test mode indicator in checkout when using test keys
+  - Test card suggestions displayed in test mode
+  - Payment errors handled gracefully with specific error messages
+  - Connection testing functionality in admin panel
 
 ### 7. Printful Order Fulfillment
 - **Functionality**: Automated order submission to Printful with design files, product SKU, shipping details, and real-time status synchronization

@@ -1,5 +1,6 @@
 import { User, Order, Design, Product } from './types'
 import { printfulService, PrintfulOrderRequest } from './printful'
+import { stripeService } from './stripe'
 
 export const api = {
   auth: {
@@ -78,9 +79,59 @@ export const api = {
       return order
     },
     
-    async processPayment(orderId: string, paymentMethodId: string): Promise<string> {
-      await new Promise(resolve => setTimeout(resolve, 2000))
-      return `pi_${Date.now()}`
+    async processPayment(
+      orderId: string,
+      cardDetails: {
+        number: string
+        exp_month: number
+        exp_year: number
+        cvc: string
+      },
+      billingDetails: {
+        name: string
+        email: string
+        address?: {
+          line1: string
+          line2?: string
+          city: string
+          state: string
+          postal_code: string
+          country: string
+        }
+      }
+    ): Promise<string> {
+      await stripeService.initialize()
+      
+      if (!stripeService.isConfigured()) {
+        throw new Error('Stripe is not configured. Please contact support.')
+      }
+
+      const order = await window.spark.kv.get<Order>(`order-${orderId}`)
+      if (!order) {
+        throw new Error('Order not found')
+      }
+
+      const paymentIntent = await stripeService.createPaymentIntent(order)
+
+      const result = await stripeService.confirmCardPayment(
+        paymentIntent.clientSecret,
+        cardDetails,
+        billingDetails
+      )
+
+      if (!result.success) {
+        throw new Error(result.error || 'Payment failed')
+      }
+
+      const updatedOrder: Order = {
+        ...order,
+        stripePaymentId: result.paymentIntentId,
+        updatedAt: new Date().toISOString()
+      }
+
+      await window.spark.kv.set(`order-${orderId}`, updatedOrder)
+
+      return result.paymentIntentId!
     },
     
     async submitToPrintful(

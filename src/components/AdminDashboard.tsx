@@ -9,6 +9,7 @@ import { OrderManager } from '@/components/admin/OrderManager'
 import { DesignApprovals } from '@/components/admin/DesignApprovals'
 import { AdminStats } from '@/components/admin/AdminStats'
 import { PrintfulConfig } from '@/components/admin/PrintfulConfig'
+import { StripeConfig } from '@/components/admin/StripeConfig'
 import { 
   ChartBar, 
   Package, 
@@ -116,6 +117,7 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
           </TabsContent>
 
           <TabsContent value="settings" className="space-y-6">
+            <StripeConfig />
             <PrintfulConfig />
           </TabsContent>
         </Tabs>

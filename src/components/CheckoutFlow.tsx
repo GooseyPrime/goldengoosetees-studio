@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -47,6 +47,7 @@ export function CheckoutFlow({
   const [isProcessing, setIsProcessing] = useState(false)
   const [orderId, setOrderId] = useState<string>()
   const [estimatedDelivery, setEstimatedDelivery] = useState<string>()
+  const [isTestMode, setIsTestMode] = useState(false)
 
   const [shippingData, setShippingData] = useState({
     name: user.name,
@@ -64,6 +65,92 @@ export function CheckoutFlow({
     cvc: ''
   })
 
+  const [cardErrors, setCardErrors] = useState({
+    number: '',
+    expiry: '',
+    cvc: ''
+  })
+
+  const formatCardNumber = (value: string) => {
+    const cleaned = value.replace(/\s/g, '')
+    const groups = cleaned.match(/.{1,4}/g) || []
+    return groups.join(' ').substring(0, 19)
+  }
+
+  const formatExpiry = (value: string) => {
+    const cleaned = value.replace(/\D/g, '')
+    if (cleaned.length >= 2) {
+      return `${cleaned.substring(0, 2)}/${cleaned.substring(2, 4)}`
+    }
+    return cleaned
+  }
+
+  const validateCardNumber = (number: string): boolean => {
+    const cleaned = number.replace(/\s/g, '')
+    if (cleaned.length < 13 || cleaned.length > 19) {
+      setCardErrors(prev => ({ ...prev, number: 'Invalid card number length' }))
+      return false
+    }
+    setCardErrors(prev => ({ ...prev, number: '' }))
+    return true
+  }
+
+  const validateExpiry = (expiry: string): boolean => {
+    const [month, year] = expiry.split('/').map(s => s.trim())
+    if (!month || !year) {
+      setCardErrors(prev => ({ ...prev, expiry: 'Invalid expiry format' }))
+      return false
+    }
+    const monthNum = parseInt(month)
+    if (monthNum < 1 || monthNum > 12) {
+      setCardErrors(prev => ({ ...prev, expiry: 'Invalid month' }))
+      return false
+    }
+    const currentYear = new Date().getFullYear() % 100
+    const currentMonth = new Date().getMonth() + 1
+    const yearNum = parseInt(year)
+    if (yearNum < currentYear || (yearNum === currentYear && monthNum < currentMonth)) {
+      setCardErrors(prev => ({ ...prev, expiry: 'Card has expired' }))
+      return false
+    }
+    setCardErrors(prev => ({ ...prev, expiry: '' }))
+    return true
+  }
+
+  const validateCVC = (cvc: string): boolean => {
+    if (cvc.length < 3 || cvc.length > 4) {
+      setCardErrors(prev => ({ ...prev, cvc: 'Invalid CVC' }))
+      return false
+    }
+    setCardErrors(prev => ({ ...prev, cvc: '' }))
+    return true
+  }
+
+  const handleCardNumberChange = (value: string) => {
+    const formatted = formatCardNumber(value)
+    setCardData({ ...cardData, number: formatted })
+  }
+
+  const handleExpiryChange = (value: string) => {
+    const formatted = formatExpiry(value)
+    setCardData({ ...cardData, expiry: formatted })
+  }
+
+  const handleCVCChange = (value: string) => {
+    const cleaned = value.replace(/\D/g, '').substring(0, 4)
+    setCardData({ ...cardData, cvc: cleaned })
+  }
+
+  useEffect(() => {
+    const checkTestMode = async () => {
+      const config = await window.spark.kv.get<{ isTestMode: boolean }>('stripe-config')
+      if (config) {
+        setIsTestMode(config.isTestMode)
+      }
+    }
+    checkTestMode()
+  }, [])
+
   const handleShippingSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     setStep('payment')
@@ -71,19 +158,49 @@ export function CheckoutFlow({
 
   const handlePaymentSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    if (!validateCardNumber(cardData.number)) return
+    if (!validateExpiry(cardData.expiry)) return
+    if (!validateCVC(cardData.cvc)) return
+
     setStep('processing')
     setIsProcessing(true)
 
     try {
+      const totalWithShipping = product.basePrice + 5.99
+
       const order = await api.orders.create({
         userId: user.id,
         designId: design.id,
         productId: product.id,
-        totalAmount: product.basePrice,
+        totalAmount: totalWithShipping,
         shippingAddress: shippingData
       })
 
-      const paymentId = await api.orders.processPayment(order.id, 'mock_payment_method')
+      const [expMonth, expYear] = cardData.expiry.split('/').map(s => s.trim())
+      const fullYear = expYear.length === 2 ? `20${expYear}` : expYear
+
+      const paymentId = await api.orders.processPayment(
+        order.id,
+        {
+          number: cardData.number,
+          exp_month: parseInt(expMonth),
+          exp_year: parseInt(fullYear),
+          cvc: cardData.cvc
+        },
+        {
+          name: shippingData.name,
+          email: user.email,
+          address: {
+            line1: shippingData.line1,
+            line2: shippingData.line2,
+            city: shippingData.city,
+            state: shippingData.state,
+            postal_code: shippingData.postal_code,
+            country: shippingData.country
+          }
+        }
+      )
       
       const { printfulOrderId, estimatedDelivery, trackingUrl } = await api.orders.submitToPrintful(
         order.id,
@@ -102,7 +219,8 @@ export function CheckoutFlow({
         onOpenChange(false)
       }, 5000)
     } catch (error) {
-      toast.error('Payment failed. Please try again.')
+      const errorMessage = error instanceof Error ? error.message : 'Payment failed. Please try again.'
+      toast.error(errorMessage)
       setStep('payment')
     } finally {
       setIsProcessing(false)
@@ -251,6 +369,15 @@ export function CheckoutFlow({
                   Payment Information
                 </h3>
 
+                {isTestMode && (
+                  <Alert className="border-accent bg-accent/10">
+                    <Warning size={20} className="text-accent" />
+                    <AlertDescription>
+                      <strong>Test Mode:</strong> Use card 4242 4242 4242 4242 with any future date and CVC.
+                    </AlertDescription>
+                  </Alert>
+                )}
+
                 <div className="space-y-3">
                   <div>
                     <Label htmlFor="card-number">Card Number</Label>
@@ -258,9 +385,13 @@ export function CheckoutFlow({
                       id="card-number"
                       placeholder="1234 5678 9012 3456"
                       value={cardData.number}
-                      onChange={(e) => setCardData({ ...cardData, number: e.target.value })}
+                      onChange={(e) => handleCardNumberChange(e.target.value)}
+                      className={cardErrors.number ? 'border-destructive' : ''}
                       required
                     />
+                    {cardErrors.number && (
+                      <p className="text-xs text-destructive mt-1">{cardErrors.number}</p>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
@@ -270,9 +401,14 @@ export function CheckoutFlow({
                         id="expiry"
                         placeholder="MM/YY"
                         value={cardData.expiry}
-                        onChange={(e) => setCardData({ ...cardData, expiry: e.target.value })}
+                        onChange={(e) => handleExpiryChange(e.target.value)}
+                        className={cardErrors.expiry ? 'border-destructive' : ''}
+                        maxLength={5}
                         required
                       />
+                      {cardErrors.expiry && (
+                        <p className="text-xs text-destructive mt-1">{cardErrors.expiry}</p>
+                      )}
                     </div>
                     <div>
                       <Label htmlFor="cvc">CVC</Label>
@@ -280,9 +416,14 @@ export function CheckoutFlow({
                         id="cvc"
                         placeholder="123"
                         value={cardData.cvc}
-                        onChange={(e) => setCardData({ ...cardData, cvc: e.target.value })}
+                        onChange={(e) => handleCVCChange(e.target.value)}
+                        className={cardErrors.cvc ? 'border-destructive' : ''}
+                        maxLength={4}
                         required
                       />
+                      {cardErrors.cvc && (
+                        <p className="text-xs text-destructive mt-1">{cardErrors.cvc}</p>
+                      )}
                     </div>
                   </div>
                 </div>
