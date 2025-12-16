@@ -1,5 +1,17 @@
 # GoldenGooseTees Kiosk - Product Requirements Document
 
+> **Iteration 6 Updates (Latest):**
+> - ✅ Multi-agent AI system with content moderation, IP checking, and design assistance
+> - ✅ Birthday collection and age verification during authentication
+> - ✅ Product configuration system for multiple print location combinations
+> - ✅ Google OAuth configuration panel in admin settings
+> - ✅ Fixed chat system to use dynamic LLM responses (no hardcoded messages)
+> - ✅ Content violations now show specific error messages with alternatives
+> - 🚧 Configuration selector UI (component created, integration pending)
+> - 🚧 Design bin/gallery UI (component created, integration pending)
+>
+> See `IMPLEMENTATION_NOTES.md` and `AI_SYSTEM_GUIDE.md` for technical details.
+
 A sophisticated AI-powered T-shirt design kiosk that enables guest users to create custom designs with conversational guidance, then seamlessly transitions to authenticated checkout with Printful fulfillment and catalog publication.
 
 **Experience Qualities**:

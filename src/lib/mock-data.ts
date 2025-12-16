@@ -39,6 +39,26 @@ export const MOCK_PRODUCTS: Product[] = [
           colorMode: 'RGB'
         }
       }
+    ],
+    configurations: [
+      {
+        id: 'config-front-only',
+        name: 'Front Only',
+        printAreas: ['area-front'],
+        priceModifier: 0
+      },
+      {
+        id: 'config-back-only',
+        name: 'Back Only',
+        printAreas: ['area-back'],
+        priceModifier: 0
+      },
+      {
+        id: 'config-front-and-back',
+        name: 'Front & Back',
+        printAreas: ['area-front', 'area-back'],
+        priceModifier: 8.00
+      }
     ]
   },
   {
@@ -64,6 +84,14 @@ export const MOCK_PRODUCTS: Product[] = [
           maxFileSizeMB: 50,
           colorMode: 'RGB'
         }
+      }
+    ],
+    configurations: [
+      {
+        id: 'config-front-only-2',
+        name: 'Front Only',
+        printAreas: ['area-front-2'],
+        priceModifier: 0
       }
     ]
   },
@@ -119,6 +147,20 @@ export const MOCK_PRODUCTS: Product[] = [
           colorMode: 'RGB'
         }
       }
+    ],
+    configurations: [
+      {
+        id: 'config-front-only-3',
+        name: 'Front Only',
+        printAreas: ['area-front-3'],
+        priceModifier: 0
+      },
+      {
+        id: 'config-front-sleeves',
+        name: 'Front + Sleeves',
+        printAreas: ['area-front-3', 'area-left-sleeve', 'area-right-sleeve'],
+        priceModifier: 6.00
+      }
     ]
   },
   {
@@ -144,6 +186,14 @@ export const MOCK_PRODUCTS: Product[] = [
           maxFileSizeMB: 50,
           colorMode: 'RGB'
         }
+      }
+    ],
+    configurations: [
+      {
+        id: 'config-back-only-4',
+        name: 'Back Only',
+        printAreas: ['area-back-4'],
+        priceModifier: 0
       }
     ]
   }

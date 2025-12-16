@@ -6,6 +6,7 @@ export interface User {
   name: string
   avatar?: string
   ageVerified: boolean
+  birthdate?: string
   role: UserRole
   createdAt: string
 }
@@ -27,6 +28,13 @@ export interface PrintArea {
   constraints: ProductConstraints
 }
 
+export interface ProductConfiguration {
+  id: string
+  name: string
+  printAreas: string[]
+  priceModifier: number
+}
+
 export interface Product {
   id: string
   name: string
@@ -35,6 +43,7 @@ export interface Product {
   basePrice: number
   imageUrl: string
   printAreas: PrintArea[]
+  configurations: ProductConfiguration[]
   category: string
   available: boolean
 }

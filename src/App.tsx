@@ -78,14 +78,18 @@ function App() {
 
   useEffect(() => {
     if (selectedProduct && messages.length === 0) {
-      const initialMessage: ChatMessage = {
-        id: `msg-${Date.now()}`,
-        role: 'assistant',
-        content: api.ai.getInitialMessage(selectedProduct),
-        timestamp: new Date().toISOString()
+      const loadInitialMessage = async () => {
+        const content = await api.ai.getInitialMessage(selectedProduct)
+        const initialMessage: ChatMessage = {
+          id: `msg-${Date.now()}`,
+          role: 'assistant',
+          content,
+          timestamp: new Date().toISOString()
+        }
+        setMessages([initialMessage])
+        setCurrentPrintArea(selectedProduct.printAreas[0]?.id)
       }
-      setMessages([initialMessage])
-      setCurrentPrintArea(selectedProduct.printAreas[0]?.id)
+      loadInitialMessage()
     }
   }, [selectedProduct, messages.length])
 
@@ -111,7 +115,8 @@ function App() {
       const response = await api.ai.chat(
         [...messages, userMessage],
         selectedProduct || undefined,
-        currentPrintArea
+        currentPrintArea,
+        currentUser
       )
       
       const assistantMessage: ChatMessage = {
@@ -126,16 +131,17 @@ function App() {
       if (api.ai.shouldGenerateDesign(content)) {
         await generateDesign(content)
       } else if (api.ai.shouldShowApproval(content) && designFiles.length > 0) {
+        const approvalContent = await api.ai.getApprovalMessage()
         const approvalMessage: ChatMessage = {
           id: `msg-${Date.now() + 2}`,
           role: 'assistant',
-          content: api.ai.getApprovalMessage(),
+          content: approvalContent,
           timestamp: new Date().toISOString()
         }
         setMessages((prev) => [...prev, approvalMessage])
       }
-    } catch (error) {
-      toast.error('Failed to get AI response')
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to get AI response')
     } finally {
       setIsAILoading(false)
     }
@@ -150,7 +156,7 @@ function App() {
       const printArea = selectedProduct.printAreas.find(pa => pa.id === currentPrintArea)
       if (!printArea) return
 
-      const designUrl = await api.ai.generateDesign(prompt, printArea.constraints)
+      const designUrl = await api.ai.generateDesign(prompt, printArea.constraints, currentUser || null)
       
       const newDesign: DesignFile = {
         id: `design-${Date.now()}`,
@@ -169,8 +175,8 @@ function App() {
       })
 
       toast.success('Design generated! Check the preview.')
-    } catch (error) {
-      toast.error('Failed to generate design')
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to generate design')
     }
   }
 

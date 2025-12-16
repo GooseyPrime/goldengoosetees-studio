@@ -11,6 +11,7 @@ import { AdminStats } from '@/components/admin/AdminStats'
 import { PrintfulConfig } from '@/components/admin/PrintfulConfig'
 import { StripeConfig } from '@/components/admin/StripeConfig'
 import { SupabaseConfig } from '@/components/admin/SupabaseConfig'
+import { GoogleOAuthConfig } from '@/components/admin/GoogleOAuthConfig'
 import { 
   ChartBar, 
   Package, 
@@ -119,6 +120,7 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
 
           <TabsContent value="settings" className="space-y-6">
             <SupabaseConfig />
+            <GoogleOAuthConfig />
             <StripeConfig />
             <PrintfulConfig />
           </TabsContent>

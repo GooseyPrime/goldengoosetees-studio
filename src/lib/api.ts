@@ -2,7 +2,7 @@ import { User, Order, Design, Product, ChatMessage } from './types'
 import { printfulService, PrintfulOrderRequest } from './printful'
 import { stripeService } from './stripe'
 import { supabaseService } from './supabase'
-import { SALES_SCRIPT } from './sales-script'
+import { aiAgents } from './ai-agents'
 
 export const api = {
   auth: {
@@ -411,7 +411,31 @@ export const api = {
   },
   
   ai: {
-    async generateDesign(prompt: string, constraints: any): Promise<string> {
+    async generateDesign(prompt: string, constraints: any, user: User | null): Promise<string> {
+      const moderationResult = await aiAgents.contentModerator.moderate(prompt, user)
+      
+      if (!moderationResult.approved) {
+        throw new Error(
+          `Content not approved: ${moderationResult.violations.join(', ')}. ${
+            moderationResult.suggestions?.length
+              ? `Try: ${moderationResult.suggestions[0]}`
+              : ''
+          }`
+        )
+      }
+
+      const ipResult = await aiAgents.ipChecker.check(prompt)
+      
+      if (ipResult.hasViolation && ipResult.riskLevel === 'high') {
+        throw new Error(
+          `Potential trademark/copyright issue detected: ${ipResult.detectedItems.join(', ')}. ${
+            ipResult.recommendations?.length
+              ? `Try: ${ipResult.recommendations[0]}`
+              : ''
+          }`
+        )
+      }
+
       await new Promise(resolve => setTimeout(resolve, 3000))
       
       const colors = ['FF6B6B', '4ECDC4', 'FFD93D', '95E1D3', 'F38181']
@@ -434,33 +458,20 @@ export const api = {
     async chat(
       messages: ChatMessage[], 
       product?: Product,
-      currentPrintArea?: string
+      currentPrintArea?: string,
+      user?: User | null
     ): Promise<string> {
-      if (!product) {
+      if (!product || !currentPrintArea) {
         return "Please select a product first to start designing!"
       }
 
       try {
-        const conversationHistory = messages.map(msg => ({
-          role: msg.role,
-          content: msg.content
-        }))
-
-        const contextPrompt = SALES_SCRIPT.getContextPrompt(
+        const response = await aiAgents.designAssistant.chat(
+          messages,
           product,
-          currentPrintArea || product.printAreas[0]?.id || '',
-          conversationHistory
+          currentPrintArea,
+          user || null
         )
-
-        const fullPromptText = `${SALES_SCRIPT.system}
-
-${contextPrompt}
-
-USER'S LATEST MESSAGE: ${messages[messages.length - 1]?.content || ''}
-
-Respond as the AI design assistant. Keep it natural, enthusiastic, and helpful. Remember your role is to guide them through the design process following the sales script methodology.`
-
-        const response = await window.spark.llm(fullPromptText, 'gpt-4o')
         
         return response
       } catch (error) {
@@ -471,19 +482,19 @@ Respond as the AI design assistant. Keep it natural, enthusiastic, and helpful. 
     },
 
     shouldGenerateDesign(message: string): boolean {
-      return SALES_SCRIPT.detectGenerationIntent(message)
+      return aiAgents.designAssistant.detectGenerationIntent(message)
     },
 
     shouldShowApproval(message: string): boolean {
-      return SALES_SCRIPT.detectApprovalIntent(message)
+      return aiAgents.designAssistant.detectApprovalIntent(message)
     },
 
-    getInitialMessage(product: Product): string {
-      return SALES_SCRIPT.getInitialMessage(product)
+    async getInitialMessage(product: Product): Promise<string> {
+      return await aiAgents.designAssistant.getInitialMessage(product)
     },
 
-    getApprovalMessage(): string {
-      return SALES_SCRIPT.getApprovalResponse()
+    async getApprovalMessage(): Promise<string> {
+      return await aiAgents.designAssistant.getApprovalMessage()
     }
   }
 }

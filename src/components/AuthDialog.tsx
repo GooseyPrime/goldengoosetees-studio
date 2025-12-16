@@ -31,20 +31,15 @@ export function AuthDialog({
   const [isLoading, setIsLoading] = useState(false)
   const [needsAgeVerification, setNeedsAgeVerification] = useState(false)
   const [tempUser, setTempUser] = useState<User | null>(null)
+  const [birthdate, setBirthdate] = useState('')
 
   const handleGoogleLogin = async () => {
     setIsLoading(true)
     try {
       const user = await api.auth.loginWithGoogle()
       
-      if (requiresAgeVerification) {
-        setTempUser(user)
-        setNeedsAgeVerification(true)
-      } else {
-        onAuthenticated(user)
-        onOpenChange(false)
-        toast.success('Welcome! You\'re now logged in.')
-      }
+      setTempUser(user)
+      setNeedsAgeVerification(true)
     } catch (error) {
       toast.error('Login failed. Please try again.')
     } finally {
@@ -52,22 +47,50 @@ export function AuthDialog({
     }
   }
 
+  const calculateAge = (birthdate: string): number => {
+    const today = new Date()
+    const birth = new Date(birthdate)
+    let age = today.getFullYear() - birth.getFullYear()
+    const monthDiff = today.getMonth() - birth.getMonth()
+    
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+      age--
+    }
+    
+    return age
+  }
+
   const handleAgeVerification = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!tempUser) return
+    if (!tempUser || !birthdate) return
 
     setIsLoading(true)
     try {
-      const verified = await api.auth.verifyAge(tempUser.id, {})
+      const age = calculateAge(birthdate)
       
-      if (verified) {
-        const verifiedUser = { ...tempUser, ageVerified: true }
-        onAuthenticated(verifiedUser)
-        onOpenChange(false)
-        toast.success('Age verified! You can now proceed.')
-      } else {
-        toast.error('Age verification failed. You must be 18+ for NSFW content.')
+      if (age < 13) {
+        toast.error('You must be at least 13 years old to use this service.')
+        setIsLoading(false)
+        return
       }
+
+      const ageVerified = age >= 18
+      
+      const verifiedUser = { 
+        ...tempUser, 
+        ageVerified,
+        birthdate 
+      }
+      
+      if (requiresAgeVerification && !ageVerified) {
+        toast.error('You must be 18+ to access NSFW content.')
+        setIsLoading(false)
+        return
+      }
+
+      onAuthenticated(verifiedUser)
+      onOpenChange(false)
+      toast.success(ageVerified ? 'Age verified! You\'re all set.' : 'Welcome! Account created.')
     } catch (error) {
       toast.error('Verification failed. Please try again.')
     } finally {
@@ -83,10 +106,7 @@ export function AuthDialog({
             <DialogHeader>
               <DialogTitle className="text-2xl">Sign in to continue</DialogTitle>
               <DialogDescription>
-                {requiresAgeVerification 
-                  ? 'This design contains NSFW content. You must be 18+ to proceed.'
-                  : 'Create an account or sign in to publish your design or place an order.'
-                }
+                Create an account or sign in to publish your design or place an order. We'll collect your birthdate for age verification.
               </DialogDescription>
             </DialogHeader>
 
@@ -94,7 +114,7 @@ export function AuthDialog({
               <Alert className="border-accent bg-accent/10">
                 <Warning size={20} className="text-accent" />
                 <AlertDescription className="text-sm">
-                  Age verification is required for NSFW content. You'll need to verify you're 18 or older.
+                  This design contains NSFW content. You must be 18+ to proceed.
                 </AlertDescription>
               </Alert>
             )}
@@ -122,10 +142,13 @@ export function AuthDialog({
             <DialogHeader>
               <DialogTitle className="text-2xl flex items-center gap-2">
                 <ShieldCheck size={28} className="text-primary" />
-                Age Verification Required
+                Complete Your Profile
               </DialogTitle>
               <DialogDescription>
-                This design contains NSFW content. Please verify you're 18 or older to continue.
+                {requiresAgeVerification 
+                  ? 'Please confirm your birthdate. You must be 18+ to access NSFW content.'
+                  : 'Please confirm your birthdate to complete account setup.'
+                }
               </DialogDescription>
             </DialogHeader>
 
@@ -136,23 +159,29 @@ export function AuthDialog({
                   id="dob"
                   type="date"
                   required
-                  max={new Date(Date.now() - 567648000000).toISOString().split('T')[0]}
+                  value={birthdate}
+                  onChange={(e) => setBirthdate(e.target.value)}
+                  max={new Date().toISOString().split('T')[0]}
+                  className="w-full"
                 />
+                <p className="text-xs text-muted-foreground">
+                  You must be at least 13 years old to use this service.
+                </p>
               </div>
 
               <Alert className="border-muted">
                 <AlertDescription className="text-xs">
-                  We use a secure third-party service to verify your age. Your information is encrypted and not stored on our servers.
+                  Your birthdate is used for age verification and is stored securely. It will not be shared publicly.
                 </AlertDescription>
               </Alert>
 
               <Button
                 type="submit"
-                disabled={isLoading}
+                disabled={isLoading || !birthdate}
                 className="w-full"
                 size="lg"
               >
-                {isLoading ? 'Verifying...' : 'Verify Age & Continue'}
+                {isLoading ? 'Verifying...' : 'Confirm & Continue'}
               </Button>
             </form>
           </>
