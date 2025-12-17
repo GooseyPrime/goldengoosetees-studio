@@ -33,6 +33,14 @@ export interface ProductConfiguration {
   name: string
   printAreas: string[]
   priceModifier: number
+  size?: string
+  color?: string
+}
+
+export interface ProductColor {
+  name: string
+  hexCode: string
+  available: boolean
 }
 
 export interface Product {
@@ -44,6 +52,8 @@ export interface Product {
   imageUrl: string
   printAreas: PrintArea[]
   configurations: ProductConfiguration[]
+  availableSizes: string[]
+  availableColors: ProductColor[]
   category: string
   available: boolean
 }
@@ -63,6 +73,9 @@ export interface Design {
   id: string
   userId?: string
   productId: string
+  configurationId?: string
+  size?: string
+  color?: string
   files: DesignFile[]
   isPublic: boolean
   isNSFW: boolean
@@ -80,6 +93,8 @@ export interface Order {
   userId: string
   designId: string
   productId: string
+  size: string
+  color: string
   stripePaymentId?: string
   printfulOrderId?: string
   status: OrderStatus

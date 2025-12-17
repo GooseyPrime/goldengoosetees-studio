@@ -10,6 +10,16 @@ export const MOCK_PRODUCTS: Product[] = [
     imageUrl: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=800&q=80',
     category: 'T-Shirts',
     available: true,
+    availableSizes: ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'],
+    availableColors: [
+      { name: 'White', hexCode: '#FFFFFF', available: true },
+      { name: 'Black', hexCode: '#000000', available: true },
+      { name: 'Navy', hexCode: '#1E3A8A', available: true },
+      { name: 'Heather Gray', hexCode: '#9CA3AF', available: true },
+      { name: 'Forest Green', hexCode: '#166534', available: true },
+      { name: 'Red', hexCode: '#DC2626', available: true },
+      { name: 'Royal Blue', hexCode: '#2563EB', available: true },
+    ],
     printAreas: [
       {
         id: 'area-front',
@@ -70,6 +80,14 @@ export const MOCK_PRODUCTS: Product[] = [
     imageUrl: 'https://images.unsplash.com/photo-1583743814966-8936f5b7be1a?w=800&q=80',
     category: 'T-Shirts',
     available: true,
+    availableSizes: ['S', 'M', 'L', 'XL', '2XL'],
+    availableColors: [
+      { name: 'Black', hexCode: '#000000', available: true },
+      { name: 'White', hexCode: '#FFFFFF', available: true },
+      { name: 'Charcoal', hexCode: '#374151', available: true },
+      { name: 'Navy', hexCode: '#1E3A8A', available: true },
+      { name: 'Olive', hexCode: '#65A30D', available: true },
+    ],
     printAreas: [
       {
         id: 'area-front-2',
@@ -104,6 +122,14 @@ export const MOCK_PRODUCTS: Product[] = [
     imageUrl: 'https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=800&q=80',
     category: 'T-Shirts',
     available: true,
+    availableSizes: ['XS', 'S', 'M', 'L', 'XL', '2XL'],
+    availableColors: [
+      { name: 'White', hexCode: '#FFFFFF', available: true },
+      { name: 'Black', hexCode: '#000000', available: true },
+      { name: 'Gray', hexCode: '#6B7280', available: true },
+      { name: 'Navy', hexCode: '#1E3A8A', available: true },
+      { name: 'Burgundy', hexCode: '#991B1B', available: true },
+    ],
     printAreas: [
       {
         id: 'area-front-3',
@@ -172,6 +198,13 @@ export const MOCK_PRODUCTS: Product[] = [
     imageUrl: 'https://images.unsplash.com/photo-1562157873-818bc0726f68?w=800&q=80',
     category: 'T-Shirts',
     available: true,
+    availableSizes: ['S', 'M', 'L', 'XL', '2XL', '3XL'],
+    availableColors: [
+      { name: 'White', hexCode: '#FFFFFF', available: true },
+      { name: 'Black', hexCode: '#000000', available: true },
+      { name: 'Heather Gray', hexCode: '#9CA3AF', available: true },
+      { name: 'Navy', hexCode: '#1E3A8A', available: true },
+    ],
     printAreas: [
       {
         id: 'area-back-4',

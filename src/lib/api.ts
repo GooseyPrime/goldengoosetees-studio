@@ -221,6 +221,8 @@ export const api = {
         userId: orderData.userId!,
         designId: orderData.designId!,
         productId: orderData.productId!,
+        size: orderData.size || 'M',
+        color: orderData.color || 'White',
         status: 'pending',
         totalAmount: orderData.totalAmount || 0,
         shippingAddress: orderData.shippingAddress!,

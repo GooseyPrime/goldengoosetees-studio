@@ -37,6 +37,11 @@ export function ProductManager({ products, onProductsChange }: ProductManagerPro
       imageUrl: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=800&q=80',
       category: 'T-Shirts',
       available: true,
+      availableSizes: ['S', 'M', 'L', 'XL'],
+      availableColors: [
+        { name: 'White', hexCode: '#FFFFFF', available: true },
+        { name: 'Black', hexCode: '#000000', available: true }
+      ],
       printAreas: [],
       configurations: []
     }

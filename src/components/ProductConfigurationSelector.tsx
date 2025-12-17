@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Product, ProductConfiguration } from '@/lib/types'
+import { Product, ProductConfiguration, ProductColor } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -21,11 +21,18 @@ export function ProductConfigurationSelector({
   onBack 
 }: ProductConfigurationSelectorProps) {
   const [selectedConfig, setSelectedConfig] = useState<string>(product.configurations[0]?.id || '')
+  const [selectedSize, setSelectedSize] = useState<string>(product.availableSizes[0] || '')
+  const [selectedColor, setSelectedColor] = useState<ProductColor>(product.availableColors[0])
 
   const handleContinue = () => {
     const config = product.configurations.find(c => c.id === selectedConfig)
     if (config) {
-      onSelect(config)
+      const configWithSelections: ProductConfiguration = {
+        ...config,
+        size: selectedSize,
+        color: selectedColor.name
+      }
+      onSelect(configWithSelections)
     }
   }
 
@@ -43,7 +50,7 @@ export function ProductConfigurationSelector({
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
-      className="max-w-4xl mx-auto"
+      className="max-w-5xl mx-auto"
     >
       <Button
         variant="outline"
@@ -53,9 +60,9 @@ export function ProductConfigurationSelector({
         ← Back to Products
       </Button>
 
-      <div className="grid md:grid-cols-2 gap-8">
-        <div>
-          <Card className="overflow-hidden border-2">
+      <div className="grid md:grid-cols-5 gap-8">
+        <div className="md:col-span-2">
+          <Card className="overflow-hidden border-2 sticky top-24">
             <div className="aspect-square overflow-hidden bg-muted">
               <img
                 src={product.imageUrl}
@@ -79,77 +86,138 @@ export function ProductConfigurationSelector({
           </Card>
         </div>
 
-        <div>
-          <div className="mb-6">
-            <h2 className="text-3xl font-bold mb-2">Choose Print Location</h2>
-            <p className="text-muted-foreground">
-              Select where you'd like your custom design printed
+        <div className="md:col-span-3 space-y-8">
+          <div>
+            <h2 className="text-2xl font-bold mb-2">Select Size</h2>
+            <p className="text-sm text-muted-foreground mb-4">
+              Choose your preferred size
             </p>
+            
+            <div className="flex flex-wrap gap-2">
+              {product.availableSizes.map((size) => (
+                <motion.button
+                  key={size}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setSelectedSize(size)}
+                  className={cn(
+                    "px-5 py-3 rounded-lg border-2 font-medium transition-all min-w-[70px]",
+                    selectedSize === size
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-border hover:border-primary/50"
+                  )}
+                >
+                  {size}
+                </motion.button>
+              ))}
+            </div>
           </div>
 
-          <RadioGroup value={selectedConfig} onValueChange={setSelectedConfig}>
-            <div className="space-y-3">
-              {product.configurations.map((config) => {
-                const price = getConfigurationPrice(config)
-                const isSelected = selectedConfig === config.id
-                
-                return (
-                  <motion.div
-                    key={config.id}
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                  >
-                    <Label
-                      htmlFor={config.id}
-                      className={cn(
-                        "flex items-center justify-between p-4 rounded-lg border-2 cursor-pointer transition-all",
-                        isSelected 
-                          ? "border-primary bg-primary/5" 
-                          : "border-border hover:border-primary/50"
-                      )}
+          <div>
+            <h2 className="text-2xl font-bold mb-2">Select Color</h2>
+            <p className="text-sm text-muted-foreground mb-4">
+              Choose your preferred color
+            </p>
+            
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {product.availableColors.map((color) => (
+                <motion.button
+                  key={color.name}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => setSelectedColor(color)}
+                  disabled={!color.available}
+                  className={cn(
+                    "flex items-center gap-3 p-3 rounded-lg border-2 transition-all",
+                    selectedColor.name === color.name
+                      ? "border-primary bg-primary/5"
+                      : "border-border hover:border-primary/50",
+                    !color.available && "opacity-50 cursor-not-allowed"
+                  )}
+                >
+                  <div
+                    className="w-8 h-8 rounded-full border-2 border-border shrink-0"
+                    style={{ backgroundColor: color.hexCode }}
+                  />
+                  <span className="font-medium text-sm">{color.name}</span>
+                  {selectedColor.name === color.name && (
+                    <Check size={16} weight="bold" className="ml-auto text-primary" />
+                  )}
+                </motion.button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <h2 className="text-2xl font-bold mb-2">Choose Print Location</h2>
+            <p className="text-sm text-muted-foreground mb-4">
+              Select where you'd like your custom design printed
+            </p>
+
+            <RadioGroup value={selectedConfig} onValueChange={setSelectedConfig}>
+              <div className="space-y-3">
+                {product.configurations.map((config) => {
+                  const price = getConfigurationPrice(config)
+                  const isSelected = selectedConfig === config.id
+                  
+                  return (
+                    <motion.div
+                      key={config.id}
+                      whileHover={{ scale: 1.01 }}
+                      whileTap={{ scale: 0.99 }}
                     >
-                      <div className="flex items-start gap-4 flex-1">
-                        <RadioGroupItem value={config.id} id={config.id} />
-                        <div className="flex-1">
-                          <div className="font-semibold text-lg mb-1">
-                            {config.name}
-                          </div>
-                          <div className="text-sm text-muted-foreground">
-                            {getPrintAreasDescription(config)}
-                          </div>
-                          {config.priceModifier > 0 && (
-                            <div className="text-xs text-accent mt-1 font-medium">
-                              +${config.priceModifier.toFixed(2)} additional
+                      <Label
+                        htmlFor={config.id}
+                        className={cn(
+                          "flex items-center justify-between p-4 rounded-lg border-2 cursor-pointer transition-all",
+                          isSelected 
+                            ? "border-primary bg-primary/5" 
+                            : "border-border hover:border-primary/50"
+                        )}
+                      >
+                        <div className="flex items-start gap-4 flex-1">
+                          <RadioGroupItem value={config.id} id={config.id} />
+                          <div className="flex-1">
+                            <div className="font-semibold text-base mb-1">
+                              {config.name}
                             </div>
+                            <div className="text-sm text-muted-foreground">
+                              {getPrintAreasDescription(config)}
+                            </div>
+                            {config.priceModifier > 0 && (
+                              <div className="text-xs text-accent mt-1 font-medium">
+                                +${config.priceModifier.toFixed(2)} additional
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center gap-3">
+                          <Badge 
+                            variant={isSelected ? "default" : "secondary"} 
+                            className="font-mono px-3 py-1"
+                          >
+                            ${price.toFixed(2)}
+                          </Badge>
+                          {isSelected && (
+                            <motion.div
+                              initial={{ scale: 0 }}
+                              animate={{ scale: 1 }}
+                              className="w-6 h-6 rounded-full bg-primary flex items-center justify-center"
+                            >
+                              <Check size={16} weight="bold" className="text-primary-foreground" />
+                            </motion.div>
                           )}
                         </div>
-                      </div>
-                      
-                      <div className="flex items-center gap-3">
-                        <Badge 
-                          variant={isSelected ? "default" : "secondary"} 
-                          className="font-mono text-base px-3 py-1"
-                        >
-                          ${price.toFixed(2)}
-                        </Badge>
-                        {isSelected && (
-                          <motion.div
-                            initial={{ scale: 0 }}
-                            animate={{ scale: 1 }}
-                            className="w-6 h-6 rounded-full bg-primary flex items-center justify-center"
-                          >
-                            <Check size={16} weight="bold" className="text-primary-foreground" />
-                          </motion.div>
-                        )}
-                      </div>
-                    </Label>
-                  </motion.div>
-                )
-              })}
-            </div>
-          </RadioGroup>
+                      </Label>
+                    </motion.div>
+                  )
+                })}
+              </div>
+            </RadioGroup>
+          </div>
 
-          <div className="mt-8 p-4 rounded-lg bg-accent/10 border border-accent/20">
+          <div className="p-4 rounded-lg bg-accent/10 border border-accent/20">
             <div className="flex gap-3">
               <Sparkle size={24} weight="duotone" className="text-accent shrink-0" />
               <div className="text-sm">
@@ -165,15 +233,15 @@ export function ProductConfigurationSelector({
 
           <Button
             size="lg"
-            className="w-full mt-6 text-lg h-14"
+            className="w-full text-lg h-14"
             onClick={handleContinue}
-            disabled={!selectedConfig}
+            disabled={!selectedConfig || !selectedSize || !selectedColor}
           >
             Start Designing
             <ArrowRight size={20} weight="bold" className="ml-2" />
           </Button>
 
-          <p className="text-xs text-center text-muted-foreground mt-4">
+          <p className="text-xs text-center text-muted-foreground">
             No refunds or cancellations after order completion
           </p>
         </div>

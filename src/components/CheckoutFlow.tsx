@@ -173,6 +173,8 @@ export function CheckoutFlow({
         userId: user.id,
         designId: design.id,
         productId: product.id,
+        size: design.size,
+        color: design.color,
         totalAmount: totalWithShipping,
         shippingAddress: shippingData
       })
@@ -273,6 +275,11 @@ export function CheckoutFlow({
                   <div className="flex-1">
                     <h4 className="font-semibold">{product.name}</h4>
                     <p className="text-sm text-muted-foreground">{design.title}</p>
+                    {design.size && design.color && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Size: <span className="font-medium">{design.size}</span> • Color: <span className="font-medium">{design.color}</span>
+                      </p>
+                    )}
                   </div>
                   <div className="text-right">
                     <p className="font-mono text-xl font-semibold">${product.basePrice}</p>
