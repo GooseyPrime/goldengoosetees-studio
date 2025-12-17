@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ProductCard } from '@/components/ProductCard'
+import { ProductConfigurationSelector } from '@/components/ProductConfigurationSelector'
 import { ChatInterface } from '@/components/ChatInterface'
 import { DesignPreview } from '@/components/DesignPreview'
 import { AuthDialog } from '@/components/AuthDialog'
@@ -14,6 +15,7 @@ import { MOCK_ORDERS, MOCK_PENDING_DESIGNS } from '@/lib/admin-mock-data'
 import { api } from '@/lib/api'
 import { 
   Product, 
+  ProductConfiguration,
   User, 
   ChatMessage, 
   DesignFile,
@@ -34,10 +36,11 @@ import { motion, AnimatePresence } from 'framer-motion'
 function App() {
   const [currentUser, setCurrentUser] = useKV<User | null>('current-user', null)
   const [savedDesigns, setSavedDesigns] = useKV<Design[]>('saved-designs', [])
-  const [activeView, setActiveView] = useState<'products' | 'design' | 'catalog'>('products')
+  const [activeView, setActiveView] = useState<'products' | 'configuration' | 'design' | 'catalog'>('products')
   const [showAdminDashboard, setShowAdminDashboard] = useState(false)
   
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
+  const [selectedConfiguration, setSelectedConfiguration] = useState<ProductConfiguration | null>(null)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isAILoading, setIsAILoading] = useState(false)
   const [designFiles, setDesignFiles] = useState<DesignFile[]>([])
@@ -77,9 +80,15 @@ function App() {
   }, [])
 
   useEffect(() => {
-    if (selectedProduct && messages.length === 0) {
+    if (selectedProduct && selectedConfiguration && messages.length === 0) {
       const loadInitialMessage = async () => {
-        const content = await api.ai.getInitialMessage(selectedProduct)
+        const configuredProduct = {
+          ...selectedProduct,
+          printAreas: selectedProduct.printAreas.filter(pa => 
+            selectedConfiguration.printAreas.includes(pa.id)
+          )
+        }
+        const content = await api.ai.getInitialMessage(configuredProduct)
         const initialMessage: ChatMessage = {
           id: `msg-${Date.now()}`,
           role: 'assistant',
@@ -87,15 +96,35 @@ function App() {
           timestamp: new Date().toISOString()
         }
         setMessages([initialMessage])
-        setCurrentPrintArea(selectedProduct.printAreas[0]?.id)
+        setCurrentPrintArea(configuredProduct.printAreas[0]?.id)
       }
       loadInitialMessage()
     }
-  }, [selectedProduct, messages.length])
+  }, [selectedProduct, selectedConfiguration, messages.length])
 
   const handleProductSelect = (product: Product) => {
     setSelectedProduct(product)
+    if (product.configurations.length === 1) {
+      setSelectedConfiguration(product.configurations[0])
+      setActiveView('design')
+      setMessages([])
+      setDesignFiles([])
+    } else {
+      setActiveView('configuration')
+    }
+  }
+
+  const handleConfigurationSelect = (config: ProductConfiguration) => {
+    setSelectedConfiguration(config)
     setActiveView('design')
+    setMessages([])
+    setDesignFiles([])
+  }
+
+  const handleBackToProducts = () => {
+    setActiveView('products')
+    setSelectedProduct(null)
+    setSelectedConfiguration(null)
     setMessages([])
     setDesignFiles([])
   }
@@ -205,7 +234,7 @@ function App() {
   }
 
   const saveDesignAndCheckout = async () => {
-    if (!selectedProduct) return
+    if (!selectedProduct || !selectedConfiguration) return
 
     const design: Design = {
       id: `design-${Date.now()}`,
@@ -214,7 +243,7 @@ function App() {
       files: designFiles,
       isPublic: false,
       isNSFW: false,
-      title: `Custom ${selectedProduct.name}`,
+      title: `Custom ${selectedProduct.name} - ${selectedConfiguration.name}`,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     }
@@ -229,7 +258,7 @@ function App() {
   }
 
   const saveDesignToCatalog = async () => {
-    if (!selectedProduct) return
+    if (!selectedProduct || !selectedConfiguration) return
 
     const design: Design = {
       id: `design-${Date.now()}`,
@@ -238,7 +267,7 @@ function App() {
       files: designFiles,
       isPublic: true,
       isNSFW: false,
-      title: `Custom ${selectedProduct.name}`,
+      title: `Custom ${selectedProduct.name} - ${selectedConfiguration.name}`,
       catalogSection: 'sfw-graphics',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
@@ -250,6 +279,7 @@ function App() {
       toast.success('Design published to catalog!')
       
       setSelectedProduct(null)
+      setSelectedConfiguration(null)
       setActiveView('products')
       setMessages([])
       setDesignFiles([])
@@ -273,6 +303,7 @@ function App() {
   const handleCheckoutComplete = (orderId: string) => {
     toast.success('Order complete! Check your email for tracking info.')
     setSelectedProduct(null)
+    setSelectedConfiguration(null)
     setActiveView('products')
     setMessages([])
     setDesignFiles([])
@@ -280,10 +311,18 @@ function App() {
   }
 
   const hasDesignsForAllRequiredAreas = () => {
-    if (!selectedProduct) return false
-    return selectedProduct.printAreas.every(area => 
+    if (!selectedProduct || !selectedConfiguration) return false
+    const requiredAreas = selectedProduct.printAreas.filter(pa => 
+      selectedConfiguration.printAreas.includes(pa.id)
+    )
+    return requiredAreas.every(area => 
       designFiles.some(df => df.printAreaId === area.id)
     )
+  }
+
+  const getCurrentPrice = () => {
+    if (!selectedProduct || !selectedConfiguration) return 0
+    return selectedProduct.basePrice + selectedConfiguration.priceModifier
   }
 
   return (
@@ -366,7 +405,16 @@ function App() {
                 </motion.div>
               )}
 
-              {activeView === 'design' && selectedProduct && (
+              {activeView === 'configuration' && selectedProduct && (
+                <ProductConfigurationSelector
+                  key="configuration"
+                  product={selectedProduct}
+                  onSelect={handleConfigurationSelect}
+                  onBack={handleBackToProducts}
+                />
+              )}
+
+              {activeView === 'design' && selectedProduct && selectedConfiguration && (
                 <motion.div
                   key="design"
                   initial={{ opacity: 0 }}
@@ -377,12 +425,7 @@ function App() {
                   <div className="flex items-center justify-between">
                     <Button
                       variant="outline"
-                      onClick={() => {
-                        setActiveView('products')
-                        setSelectedProduct(null)
-                        setMessages([])
-                        setDesignFiles([])
-                      }}
+                      onClick={handleBackToProducts}
                     >
                       ← Back to Products
                     </Button>
@@ -404,7 +447,7 @@ function App() {
                         <ShoppingCart size={20} weight="fill" />
                         Proceed to Checkout
                         <Badge variant="secondary" className="font-mono">
-                          ${selectedProduct.basePrice}
+                          ${getCurrentPrice().toFixed(2)}
                         </Badge>
                       </Button>
                     </div>
@@ -412,7 +455,12 @@ function App() {
 
                   <div className="grid lg:grid-cols-2 gap-6 min-h-[600px]">
                     <DesignPreview
-                      product={selectedProduct}
+                      product={{
+                        ...selectedProduct,
+                        printAreas: selectedProduct.printAreas.filter(pa => 
+                          selectedConfiguration.printAreas.includes(pa.id)
+                        )
+                      }}
                       designFiles={designFiles}
                       currentArea={currentPrintArea}
                     />
@@ -424,11 +472,12 @@ function App() {
                     />
                   </div>
 
-                  {!hasDesignsForAllRequiredAreas() && designFiles.length > 0 && selectedProduct && (
+                  {!hasDesignsForAllRequiredAreas() && designFiles.length > 0 && selectedProduct && selectedConfiguration && (
                     <div className="p-4 bg-accent/10 border border-accent rounded-lg text-center">
                       <p className="text-sm text-accent-foreground">
                         Complete designs for all print areas before checkout: {
                           selectedProduct.printAreas
+                            .filter(pa => selectedConfiguration.printAreas.includes(pa.id))
                             .filter(pa => !designFiles.some(df => df.printAreaId === pa.id))
                             .map(pa => pa.name)
                             .join(', ')

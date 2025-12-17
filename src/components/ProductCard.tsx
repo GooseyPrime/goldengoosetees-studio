@@ -35,10 +35,15 @@ export function ProductCard({ product, onSelect }: ProductCardProps) {
           <p className="text-sm text-muted-foreground line-clamp-2">
             {product.description}
           </p>
-          <div className="flex items-center gap-2 pt-2">
+          <div className="flex items-center gap-2 pt-2 flex-wrap">
             <Badge variant="outline" className="text-xs">
-              {product.printAreas.length} print area{product.printAreas.length !== 1 ? 's' : ''}
+              {product.configurations.length} option{product.configurations.length !== 1 ? 's' : ''}
             </Badge>
+            {product.configurations.length > 1 && (
+              <span className="text-xs text-muted-foreground">
+                from ${product.basePrice}
+              </span>
+            )}
           </div>
         </div>
       </Card>
