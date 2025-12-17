@@ -34,6 +34,7 @@ import {
 } from '@phosphor-icons/react'
 import { toast, Toaster } from 'sonner'
 import { motion, AnimatePresence } from 'framer-motion'
+import logoImage from '@/assets/images/GoldenGooseTees.jpg'
 
 function App() {
   const [currentUser, setCurrentUser] = useKV<User | null>('current-user', null)
@@ -363,9 +364,11 @@ function App() {
           <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
             <div className="container mx-auto px-6 h-16 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center">
-                  <TShirt size={24} weight="duotone" className="text-primary-foreground" />
-                </div>
+                <img 
+                  src={logoImage} 
+                  alt="GoldenGooseTees Logo" 
+                  className="h-12 w-12 rounded-full object-cover border-2 border-primary"
+                />
                 <div>
                   <h1 className="text-xl font-bold tracking-tight">GoldenGooseTees</h1>
                   <p className="text-xs text-muted-foreground">AI Design Kiosk</p>
@@ -522,6 +525,26 @@ function App() {
                       </p>
                     </div>
                   )}
+
+                  {hasDesignsForAllRequiredAreas() && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="fixed bottom-8 right-8 z-50"
+                    >
+                      <Button
+                        size="lg"
+                        onClick={handleProceedToCheckout}
+                        className="gap-3 shadow-lg hover:shadow-xl transition-shadow bg-accent hover:bg-accent/90 text-accent-foreground"
+                      >
+                        <ShoppingCart size={24} weight="fill" />
+                        <span className="font-semibold">Finalize & Checkout</span>
+                        <Badge variant="secondary" className="font-mono text-base px-3 py-1">
+                          ${getCurrentPrice().toFixed(2)}
+                        </Badge>
+                      </Button>
+                    </motion.div>
+                  )}
                 </motion.div>
               )}
 
@@ -540,6 +563,26 @@ function App() {
                   onAddNewDesign={handleAddNewDesignFromManager}
                   onBack={() => setActiveView('design')}
                 />
+              )}
+
+              {activeView === 'manager' && hasDesignsForAllRequiredAreas() && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="fixed bottom-8 right-8 z-50"
+                >
+                  <Button
+                    size="lg"
+                    onClick={handleProceedToCheckout}
+                    className="gap-3 shadow-lg hover:shadow-xl transition-shadow bg-accent hover:bg-accent/90 text-accent-foreground"
+                  >
+                    <ShoppingCart size={24} weight="fill" />
+                    <span className="font-semibold">Finalize & Checkout</span>
+                    <Badge variant="secondary" className="font-mono text-base px-3 py-1">
+                      ${getCurrentPrice().toFixed(2)}
+                    </Badge>
+                  </Button>
+                </motion.div>
               )}
             </AnimatePresence>
           </main>
