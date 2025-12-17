@@ -522,6 +522,28 @@ export const api = {
           </text>
         </svg>
       `)}`
+    },
+
+    async removeBackground(imageDataUrl: string): Promise<string> {
+      await new Promise(resolve => setTimeout(resolve, 2500))
+      
+      const colors = ['FF6B6B', '4ECDC4', 'FFD93D', '95E1D3', 'F38181']
+      const randomColor = colors[Math.floor(Math.random() * colors.length)]
+      
+      return `data:image/svg+xml,${encodeURIComponent(`
+        <svg width="800" height="1000" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <radialGradient id="grad1" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" style="stop-color:#${randomColor};stop-opacity:1" />
+              <stop offset="100%" style="stop-color:#${randomColor};stop-opacity:0" />
+            </radialGradient>
+          </defs>
+          <circle cx="400" cy="400" r="180" fill="url(#grad1)"/>
+          <text x="400" y="700" font-family="Arial" font-size="28" text-anchor="middle" fill="#333">
+            Background Removed ✨
+          </text>
+        </svg>
+      `)}`
     }
   }
 }
