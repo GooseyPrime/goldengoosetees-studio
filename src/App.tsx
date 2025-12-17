@@ -10,6 +10,7 @@ import { DesignPreview } from '@/components/DesignPreview'
 import { AuthDialog } from '@/components/AuthDialog'
 import { CheckoutFlow } from '@/components/CheckoutFlow'
 import { AdminDashboard } from '@/components/AdminDashboard'
+import { DesignManagerPage } from '@/components/DesignManagerPage'
 import { MOCK_PRODUCTS } from '@/lib/mock-data'
 import { MOCK_ORDERS, MOCK_PENDING_DESIGNS } from '@/lib/admin-mock-data'
 import { api } from '@/lib/api'
@@ -28,7 +29,8 @@ import {
   User as UserIcon,
   ShoppingCart,
   UploadSimple,
-  Gear
+  Gear,
+  FolderOpen
 } from '@phosphor-icons/react'
 import { toast, Toaster } from 'sonner'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -36,7 +38,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 function App() {
   const [currentUser, setCurrentUser] = useKV<User | null>('current-user', null)
   const [savedDesigns, setSavedDesigns] = useKV<Design[]>('saved-designs', [])
-  const [activeView, setActiveView] = useState<'products' | 'configuration' | 'design' | 'catalog'>('products')
+  const [activeView, setActiveView] = useState<'products' | 'configuration' | 'design' | 'manager' | 'catalog'>('products')
   const [showAdminDashboard, setShowAdminDashboard] = useState(false)
   
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
@@ -331,6 +333,25 @@ function App() {
     return selectedProduct.basePrice + selectedConfiguration.priceModifier
   }
 
+  const handleUpdateDesign = (updatedDesign: DesignFile) => {
+    setDesignFiles((currentFiles) => 
+      currentFiles.map(df => 
+        df.printAreaId === updatedDesign.printAreaId ? updatedDesign : df
+      )
+    )
+  }
+
+  const handleDeleteDesignFromManager = (printAreaId: string) => {
+    setDesignFiles((currentFiles) => 
+      currentFiles.filter(df => df.printAreaId !== printAreaId)
+    )
+  }
+
+  const handleAddNewDesignFromManager = (printAreaId: string) => {
+    setCurrentPrintArea(printAreaId)
+    setActiveView('design')
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <Toaster position="top-center" />
@@ -445,6 +466,16 @@ function App() {
                         <UploadSimple size={20} className="mr-2" />
                         Publish to Catalog
                       </Button>
+                      {designFiles.length > 0 && (
+                        <Button
+                          variant="outline"
+                          onClick={() => setActiveView('manager')}
+                          className="gap-2"
+                        >
+                          <FolderOpen size={20} />
+                          Manage Designs
+                        </Button>
+                      )}
                       <Button
                         onClick={handleProceedToCheckout}
                         disabled={!hasDesignsForAllRequiredAreas()}
@@ -492,6 +523,23 @@ function App() {
                     </div>
                   )}
                 </motion.div>
+              )}
+
+              {activeView === 'manager' && selectedProduct && selectedConfiguration && (
+                <DesignManagerPage
+                  key="manager"
+                  product={{
+                    ...selectedProduct,
+                    printAreas: selectedProduct.printAreas.filter(pa => 
+                      selectedConfiguration.printAreas.includes(pa.id)
+                    )
+                  }}
+                  designFiles={designFiles}
+                  onUpdateDesign={handleUpdateDesign}
+                  onDeleteDesign={handleDeleteDesignFromManager}
+                  onAddNewDesign={handleAddNewDesignFromManager}
+                  onBack={() => setActiveView('design')}
+                />
               )}
             </AnimatePresence>
           </main>

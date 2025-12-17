@@ -497,6 +497,31 @@ export const api = {
 
     async getApprovalMessage(): Promise<string> {
       return await aiAgents.designAssistant.getApprovalMessage()
+    },
+
+    async editDesign(
+      currentImageUrl: string,
+      editPrompt: string,
+      constraints: any
+    ): Promise<string> {
+      await new Promise(resolve => setTimeout(resolve, 2000))
+      
+      const colors = ['FF6B6B', '4ECDC4', 'FFD93D', '95E1D3', 'F38181', 'A8E6CF', 'FFD6A5']
+      const randomColor = colors[Math.floor(Math.random() * colors.length)]
+      
+      return `data:image/svg+xml,${encodeURIComponent(`
+        <svg width="800" height="1000" xmlns="http://www.w3.org/2000/svg">
+          <rect width="800" height="1000" fill="white"/>
+          <circle cx="400" cy="400" r="200" fill="#${randomColor}" opacity="0.8"/>
+          <circle cx="300" cy="300" r="100" fill="#${colors[Math.floor(Math.random() * colors.length)]}" opacity="0.6"/>
+          <text x="400" y="650" font-family="Arial" font-size="42" text-anchor="middle" fill="#333">
+            ${editPrompt.slice(0, 25)}
+          </text>
+          <text x="400" y="720" font-family="Arial" font-size="20" text-anchor="middle" fill="#666">
+            AI Edited Design ✨
+          </text>
+        </svg>
+      `)}`
     }
   }
 }

@@ -2,7 +2,7 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { DesignFile, Product } from '@/lib/types'
-import { Pencil, Trash, CheckCircle } from '@phosphor-icons/react'
+import { Pencil, Trash, CheckCircle, FolderOpen } from '@phosphor-icons/react'
 import { motion } from 'framer-motion'
 
 interface DesignBinProps {
@@ -11,6 +11,7 @@ interface DesignBinProps {
   currentPrintArea?: string
   onSelectDesign: (printAreaId: string) => void
   onDeleteDesign: (printAreaId: string) => void
+  onOpenManager?: () => void
 }
 
 export function DesignBin({
@@ -19,6 +20,7 @@ export function DesignBin({
   currentPrintArea,
   onSelectDesign,
   onDeleteDesign,
+  onOpenManager,
 }: DesignBinProps) {
   const printAreasWithDesigns = product.printAreas.map((area) => {
     const design = designFiles.find((df) => df.printAreaId === area.id)
@@ -137,6 +139,17 @@ export function DesignBin({
           </motion.div>
         ))}
       </div>
+
+      {completedCount > 0 && onOpenManager && (
+        <Button
+          variant="outline"
+          className="w-full mt-4 gap-2"
+          onClick={onOpenManager}
+        >
+          <FolderOpen size={18} />
+          Open Design Manager
+        </Button>
+      )}
 
       {completedCount === totalCount && (
         <motion.div
