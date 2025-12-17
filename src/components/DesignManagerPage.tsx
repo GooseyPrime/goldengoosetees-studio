@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ImageEditor } from './ImageEditor'
+import { ImageCombiner } from './ImageCombiner'
 import { DesignFile, Product } from '@/lib/types'
 import { 
   Pencil, 
@@ -13,7 +14,8 @@ import {
   Eye,
   ArrowLeft,
   Package,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Images
 } from '@phosphor-icons/react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
@@ -37,6 +39,8 @@ export function DesignManagerPage({
 }: DesignManagerPageProps) {
   const [selectedDesign, setSelectedDesign] = useState<DesignFile | null>(null)
   const [showEditor, setShowEditor] = useState(false)
+  const [showCombiner, setShowCombiner] = useState(false)
+  const [combinerPrintAreaId, setCombinerPrintAreaId] = useState<string | null>(null)
   const [previewDesign, setPreviewDesign] = useState<DesignFile | null>(null)
 
   const printAreasWithDesigns = product.printAreas.map((area) => {
@@ -67,6 +71,21 @@ export function DesignManagerPage({
       onDeleteDesign(printAreaId)
       toast.success('Design deleted')
     }
+  }
+
+  const handleOpenCombiner = (printAreaId: string, existingDesign?: DesignFile) => {
+    setCombinerPrintAreaId(printAreaId)
+    if (existingDesign) {
+      setSelectedDesign(existingDesign)
+    }
+    setShowCombiner(true)
+  }
+
+  const handleSaveCombinedDesign = (design: DesignFile) => {
+    onUpdateDesign(design)
+    setShowCombiner(false)
+    setCombinerPrintAreaId(null)
+    setSelectedDesign(null)
   }
 
   return (
@@ -315,6 +334,16 @@ export function DesignManagerPage({
                         <Button
                           variant="outline"
                           size="sm"
+                          onClick={() => design && handleOpenCombiner(area.id, design)}
+                          className="gap-2"
+                          title="Combine with other images"
+                        >
+                          <Images size={16} />
+                          Combine
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
                           onClick={() => handleDeleteDesign(area.id)}
                           className="gap-2 text-destructive hover:text-destructive"
                         >
@@ -323,14 +352,26 @@ export function DesignManagerPage({
                         </Button>
                       </>
                     ) : (
-                      <Button
-                        size="sm"
-                        onClick={() => onAddNewDesign(area.id)}
-                        className="gap-2"
-                      >
-                        <Plus size={16} weight="bold" />
-                        Create Design
-                      </Button>
+                      <>
+                        <Button
+                          size="sm"
+                          onClick={() => onAddNewDesign(area.id)}
+                          className="gap-2"
+                        >
+                          <Plus size={16} weight="bold" />
+                          Create Design
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleOpenCombiner(area.id)}
+                          className="gap-2"
+                          title="Upload and combine multiple images"
+                        >
+                          <Images size={16} />
+                          Upload Images
+                        </Button>
+                      </>
                     )}
                   </div>
                 </div>
@@ -365,6 +406,17 @@ export function DesignManagerPage({
           design={selectedDesign}
           product={product}
           onSave={handleSaveDesign}
+        />
+      )}
+
+      {combinerPrintAreaId && (
+        <ImageCombiner
+          open={showCombiner}
+          onOpenChange={setShowCombiner}
+          product={product}
+          printAreaId={combinerPrintAreaId}
+          onSave={handleSaveCombinedDesign}
+          existingDesign={selectedDesign || undefined}
         />
       )}
     </div>
