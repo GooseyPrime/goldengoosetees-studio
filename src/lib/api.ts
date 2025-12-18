@@ -414,8 +414,9 @@ export const api = {
   
   ai: {
     async generateDesign(prompt: string, constraints: any, user: User | null): Promise<string> {
+      // Content moderation check
       const moderationResult = await aiAgents.contentModerator.moderate(prompt, user)
-      
+
       if (!moderationResult.approved) {
         throw new Error(
           `Content not approved: ${moderationResult.violations.join(', ')}. ${
@@ -426,8 +427,9 @@ export const api = {
         )
       }
 
+      // IP/Copyright check
       const ipResult = await aiAgents.ipChecker.check(prompt)
-      
+
       if (ipResult.hasViolation && ipResult.riskLevel === 'high') {
         throw new Error(
           `Potential trademark/copyright issue detected: ${ipResult.detectedItems.join(', ')}. ${
@@ -438,11 +440,22 @@ export const api = {
         )
       }
 
-      await new Promise(resolve => setTimeout(resolve, 3000))
-      
+      // Generate with DALL-E 3 if configured, otherwise use fallback
+      if (aiAgents.hasOpenAI()) {
+        try {
+          return await aiAgents.designGenerator.generate(prompt, constraints)
+        } catch (error) {
+          console.error('DALL-E generation failed, using fallback:', error)
+        }
+      }
+
+      // Fallback to mock SVG if DALL-E not available
+      console.warn('OpenAI not configured. Using mock design generation.')
+      await new Promise(resolve => setTimeout(resolve, 2000))
+
       const colors = ['FF6B6B', '4ECDC4', 'FFD93D', '95E1D3', 'F38181']
       const randomColor = colors[Math.floor(Math.random() * colors.length)]
-      
+
       return `data:image/svg+xml,${encodeURIComponent(`
         <svg width="800" height="1000" xmlns="http://www.w3.org/2000/svg">
           <rect width="800" height="1000" fill="white"/>
@@ -504,11 +517,22 @@ export const api = {
       editPrompt: string,
       constraints: any
     ): Promise<string> {
+      // Use DALL-E 3 if configured
+      if (aiAgents.hasOpenAI()) {
+        try {
+          return await aiAgents.designGenerator.edit(currentImageUrl, editPrompt)
+        } catch (error) {
+          console.error('DALL-E edit failed, using fallback:', error)
+        }
+      }
+
+      // Fallback to mock SVG
+      console.warn('OpenAI not configured. Using mock design edit.')
       await new Promise(resolve => setTimeout(resolve, 2000))
-      
+
       const colors = ['FF6B6B', '4ECDC4', 'FFD93D', '95E1D3', 'F38181', 'A8E6CF', 'FFD6A5']
       const randomColor = colors[Math.floor(Math.random() * colors.length)]
-      
+
       return `data:image/svg+xml,${encodeURIComponent(`
         <svg width="800" height="1000" xmlns="http://www.w3.org/2000/svg">
           <rect width="800" height="1000" fill="white"/>
@@ -518,18 +542,29 @@ export const api = {
             ${editPrompt.slice(0, 25)}
           </text>
           <text x="400" y="720" font-family="Arial" font-size="20" text-anchor="middle" fill="#666">
-            AI Edited Design ✨
+            AI Edited Design
           </text>
         </svg>
       `)}`
     },
 
     async removeBackground(imageDataUrl: string): Promise<string> {
-      await new Promise(resolve => setTimeout(resolve, 2500))
-      
+      // Use DALL-E 3 if configured (generates new clean design)
+      if (aiAgents.hasOpenAI()) {
+        try {
+          return await aiAgents.designGenerator.removeBackground(imageDataUrl)
+        } catch (error) {
+          console.error('Background removal failed, using fallback:', error)
+        }
+      }
+
+      // Fallback to mock SVG
+      console.warn('OpenAI not configured. Using mock background removal.')
+      await new Promise(resolve => setTimeout(resolve, 2000))
+
       const colors = ['FF6B6B', '4ECDC4', 'FFD93D', '95E1D3', 'F38181']
       const randomColor = colors[Math.floor(Math.random() * colors.length)]
-      
+
       return `data:image/svg+xml,${encodeURIComponent(`
         <svg width="800" height="1000" xmlns="http://www.w3.org/2000/svg">
           <defs>
@@ -540,7 +575,7 @@ export const api = {
           </defs>
           <circle cx="400" cy="400" r="180" fill="url(#grad1)"/>
           <text x="400" y="700" font-family="Arial" font-size="28" text-anchor="middle" fill="#333">
-            Background Removed ✨
+            Background Removed
           </text>
         </svg>
       `)}`
