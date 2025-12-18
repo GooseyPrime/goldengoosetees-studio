@@ -11,6 +11,7 @@ interface DesignBinProps {
   currentPrintArea?: string
   onSelectDesign: (printAreaId: string) => void
   onDeleteDesign: (printAreaId: string) => void
+  onEditDesign?: (printAreaId: string) => void
   onOpenManager?: () => void
 }
 
@@ -20,6 +21,7 @@ export function DesignBin({
   currentPrintArea,
   onSelectDesign,
   onDeleteDesign,
+  onEditDesign,
   onOpenManager,
 }: DesignBinProps) {
   const printAreasWithDesigns = product.printAreas.map((area) => {
@@ -109,8 +111,9 @@ export function DesignBin({
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => onSelectDesign(area.id)}
+                    onClick={() => onEditDesign ? onEditDesign(area.id) : onSelectDesign(area.id)}
                     className="h-8 w-8 p-0"
+                    title="Edit design"
                   >
                     <Pencil size={14} />
                   </Button>
@@ -119,6 +122,7 @@ export function DesignBin({
                     size="sm"
                     onClick={() => onDeleteDesign(area.id)}
                     className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                    title="Delete design"
                   >
                     <Trash size={14} />
                   </Button>
