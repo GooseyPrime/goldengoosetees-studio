@@ -1,94 +1,51 @@
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
-import { Switch } from '@/components/ui/switch'
+import { Button } from '@/components/ui/button'
 import { stripeService } from '@/lib/stripe'
-import { CreditCard, CheckCircle, Warning, Info } from '@phosphor-icons/react'
+import { CreditCard, CheckCircle, Warning, Info, XCircle } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 
+// Environment check
+const STRIPE_CONFIGURED = !!(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY)
+const IS_TEST_MODE = import.meta.env.VITE_STRIPE_TEST_MODE === 'true'
+
 export function StripeConfig() {
-  const [publishableKey, setPublishableKey] = useState('')
-  const [secretKey, setSecretKey] = useState('')
-  const [isTestMode, setIsTestMode] = useState(true)
-  const [isSaving, setIsSaving] = useState(false)
-  const [isConfigured, setIsConfigured] = useState(false)
+  const [connectionStatus, setConnectionStatus] = useState<'checking' | 'connected' | 'error'>('checking')
 
   useEffect(() => {
-    loadConfig()
+    checkConnection()
   }, [])
 
-  const loadConfig = async () => {
-    const config = await window.spark.kv.get<{
-      publishableKey: string
-      secretKey: string
-      isTestMode: boolean
-    }>('stripe-config')
-
-    if (config) {
-      setPublishableKey(config.publishableKey)
-      setSecretKey('sk_' + '*'.repeat(20))
-      setIsTestMode(config.isTestMode)
-      setIsConfigured(true)
-    }
-  }
-
-  const handleSave = async () => {
-    if (!publishableKey || !secretKey) {
-      toast.error('Please fill in all fields')
-      return
-    }
-
-    if (!publishableKey.startsWith('pk_')) {
-      toast.error('Invalid publishable key format')
-      return
-    }
-
-    if (!secretKey.startsWith('sk_')) {
-      toast.error('Invalid secret key format')
-      return
-    }
-
-    const testModeMatch = publishableKey.includes('_test_') && secretKey.includes('_test_')
-    const liveModeMatch = publishableKey.includes('_live_') && secretKey.includes('_live_')
-
-    if (isTestMode && !testModeMatch) {
-      toast.error('Test mode is enabled but keys appear to be live keys')
-      return
-    }
-
-    if (!isTestMode && !liveModeMatch) {
-      toast.error('Test mode is disabled but keys appear to be test keys')
-      return
-    }
-
-    setIsSaving(true)
-
+  const checkConnection = async () => {
+    setConnectionStatus('checking')
     try {
-      await stripeService.saveConfig(publishableKey, secretKey, isTestMode)
-      setIsConfigured(true)
-      toast.success('Stripe configuration saved successfully!')
+      stripeService.initialize()
+      if (stripeService.isConfigured()) {
+        setConnectionStatus('connected')
+      } else {
+        setConnectionStatus('error')
+      }
     } catch (error) {
-      toast.error('Failed to save Stripe configuration')
-    } finally {
-      setIsSaving(false)
+      setConnectionStatus('error')
     }
   }
 
   const handleTestConnection = async () => {
-    if (!isConfigured) {
-      toast.error('Please save configuration first')
-      return
-    }
-
+    toast.info('Testing Stripe connection...')
     try {
-      await stripeService.initialize()
-      toast.success('Stripe connection successful!')
+      stripeService.initialize()
+      if (stripeService.isConfigured()) {
+        toast.success('Stripe connection successful!')
+        setConnectionStatus('connected')
+      } else {
+        toast.error('Stripe not properly configured. Check environment variables.')
+        setConnectionStatus('error')
+      }
     } catch (error) {
-      toast.error('Failed to connect to Stripe. Please check your keys.')
+      toast.error('Failed to connect to Stripe.')
+      setConnectionStatus('error')
     }
   }
 
@@ -102,14 +59,21 @@ export function StripeConfig() {
             </div>
             <div>
               <CardTitle>Stripe Configuration</CardTitle>
-              <CardDescription>Configure Stripe for payment processing</CardDescription>
+              <CardDescription>Payment processing via environment variables</CardDescription>
             </div>
           </div>
-          {isConfigured && (
+          {connectionStatus === 'connected' ? (
             <Badge variant="default" className="gap-1">
               <CheckCircle size={16} weight="fill" />
-              Configured
+              Connected
             </Badge>
+          ) : connectionStatus === 'error' ? (
+            <Badge variant="destructive" className="gap-1">
+              <XCircle size={16} weight="fill" />
+              Not Configured
+            </Badge>
+          ) : (
+            <Badge variant="secondary">Checking...</Badge>
           )}
         </div>
       </CardHeader>
@@ -118,31 +82,26 @@ export function StripeConfig() {
         <Alert>
           <Info size={20} />
           <AlertDescription>
-            Get your Stripe API keys from the{' '}
-            <a
-              href="https://dashboard.stripe.com/apikeys"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-semibold underline"
-            >
-              Stripe Dashboard
-            </a>
-            . Use test keys for development and live keys for production.
+            Stripe is now configured via environment variables in Vercel. Set{' '}
+            <code className="px-1 bg-muted rounded">VITE_STRIPE_PUBLISHABLE_KEY</code> and{' '}
+            <code className="px-1 bg-muted rounded">STRIPE_SECRET_KEY</code> in your Vercel project settings.
           </AlertDescription>
         </Alert>
 
         <div className="space-y-4">
           <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
             <div className="space-y-0.5">
-              <Label className="text-base">Test Mode</Label>
+              <span className="font-medium">Test Mode</span>
               <p className="text-sm text-muted-foreground">
-                Use test keys (no real charges will be made)
+                {IS_TEST_MODE ? 'Enabled - No real charges' : 'Disabled - Live payments'}
               </p>
             </div>
-            <Switch checked={isTestMode} onCheckedChange={setIsTestMode} />
+            <Badge variant={IS_TEST_MODE ? 'secondary' : 'destructive'}>
+              {IS_TEST_MODE ? 'Test' : 'Live'}
+            </Badge>
           </div>
 
-          {isTestMode && (
+          {IS_TEST_MODE && (
             <Alert className="border-accent bg-accent/10">
               <Warning size={20} className="text-accent" />
               <AlertDescription>
@@ -152,48 +111,26 @@ export function StripeConfig() {
             </Alert>
           )}
 
-          <div className="space-y-2">
-            <Label htmlFor="publishable-key">Publishable Key</Label>
-            <Input
-              id="publishable-key"
-              type="text"
-              placeholder={isTestMode ? 'pk_test_...' : 'pk_live_...'}
-              value={publishableKey}
-              onChange={(e) => setPublishableKey(e.target.value)}
-              className="font-mono text-sm"
-            />
-            <p className="text-xs text-muted-foreground">
-              Starts with pk_{isTestMode ? 'test' : 'live'}_
-            </p>
+          <div className="grid gap-3">
+            <div className="flex justify-between p-3 bg-muted/30 rounded-lg">
+              <span className="text-sm text-muted-foreground">VITE_STRIPE_PUBLISHABLE_KEY</span>
+              <Badge variant={STRIPE_CONFIGURED ? 'outline' : 'destructive'}>
+                {STRIPE_CONFIGURED ? 'Set' : 'Missing'}
+              </Badge>
+            </div>
+            <div className="flex justify-between p-3 bg-muted/30 rounded-lg">
+              <span className="text-sm text-muted-foreground">STRIPE_SECRET_KEY</span>
+              <Badge variant="outline">Server-side only</Badge>
+            </div>
+            <div className="flex justify-between p-3 bg-muted/30 rounded-lg">
+              <span className="text-sm text-muted-foreground">STRIPE_WEBHOOK_SECRET</span>
+              <Badge variant="outline">Server-side only</Badge>
+            </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="secret-key">Secret Key</Label>
-            <Input
-              id="secret-key"
-              type="password"
-              placeholder={isTestMode ? 'sk_test_...' : 'sk_live_...'}
-              value={secretKey}
-              onChange={(e) => setSecretKey(e.target.value)}
-              className="font-mono text-sm"
-            />
-            <p className="text-xs text-muted-foreground">
-              Starts with sk_{isTestMode ? 'test' : 'live'}_
-            </p>
-          </div>
-
-          <div className="flex gap-2">
-            <Button onClick={handleSave} disabled={isSaving} className="flex-1">
-              {isSaving ? 'Saving...' : 'Save Configuration'}
-            </Button>
-            <Button
-              variant="outline"
-              onClick={handleTestConnection}
-              disabled={!isConfigured}
-            >
-              Test Connection
-            </Button>
-          </div>
+          <Button onClick={handleTestConnection} className="w-full">
+            Test Connection
+          </Button>
         </div>
 
         <div className="pt-4 border-t space-y-3">
@@ -216,14 +153,6 @@ export function StripeConfig() {
             Use any future expiry date and any 3-digit CVC for test cards.
           </p>
         </div>
-
-        <Alert>
-          <Info size={20} />
-          <AlertDescription className="text-xs">
-            <strong>Security Note:</strong> Secret keys are stored securely in the Spark KV store.
-            Never share your secret keys publicly or commit them to version control.
-          </AlertDescription>
-        </Alert>
       </CardContent>
     </Card>
   )
