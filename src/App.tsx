@@ -642,12 +642,14 @@ function App() {
                     />
 
                     {/* Middle Column: Chat Interface with Generate Button */}
-                    <div className="flex flex-col gap-4">
-                      <ChatInterface
-                        messages={messages}
-                        onSendMessage={handleSendMessage}
-                        isLoading={isAILoading}
-                      />
+                    <div className="flex flex-col gap-4 min-h-0">
+                      <div className="flex-1 min-h-0">
+                        <ChatInterface
+                          messages={messages}
+                          onSendMessage={handleSendMessage}
+                          isLoading={isAILoading}
+                        />
+                      </div>
 
                       {/* Generate Design Button */}
                       <Button
