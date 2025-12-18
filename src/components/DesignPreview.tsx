@@ -95,7 +95,7 @@ export function DesignPreview({
   // Get the selected color object for display
   const selectedColorObj = selectedColor 
     ? product.availableColors.find(c => c.name === selectedColor)
-    : product.availableColors[0]
+    : product.availableColors[0] || { name: 'White', hexCode: '#FFFFFF', available: true }
 
   return (
     <Card className="flex-1 flex flex-col overflow-hidden">
@@ -166,8 +166,8 @@ export function DesignPreview({
                   alt={product.name}
                   className="w-full h-full object-cover"
                   style={{
-                    mixBlendMode: selectedColorObj?.name !== 'White' ? 'multiply' : 'normal',
-                    opacity: selectedColorObj?.name !== 'White' ? 0.8 : 1
+                    mixBlendMode: selectedColorObj?.hexCode !== '#FFFFFF' && selectedColorObj?.hexCode !== '#ffffff' ? 'multiply' : 'normal',
+                    opacity: selectedColorObj?.hexCode !== '#FFFFFF' && selectedColorObj?.hexCode !== '#ffffff' ? 0.8 : 1
                   }}
                 />
                 {/* Color overlay for better color representation */}
@@ -175,7 +175,7 @@ export function DesignPreview({
                   className="absolute inset-0 pointer-events-none"
                   style={{
                     backgroundColor: selectedColorObj?.hexCode,
-                    opacity: selectedColorObj?.name !== 'White' ? 0.3 : 0,
+                    opacity: selectedColorObj?.hexCode !== '#FFFFFF' && selectedColorObj?.hexCode !== '#ffffff' ? 0.3 : 0,
                     mixBlendMode: 'multiply'
                   }}
                 />
