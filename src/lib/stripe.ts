@@ -1,5 +1,10 @@
 import { Order } from './types'
 
+// Environment variables (Vite)
+const STRIPE_PUBLISHABLE_KEY = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY
+const STRIPE_SECRET_KEY = import.meta.env.STRIPE_SECRET_KEY || import.meta.env.VITE_STRIPE_SECRET_KEY
+const STRIPE_TEST_MODE = import.meta.env.VITE_STRIPE_TEST_MODE === 'true'
+
 export interface StripeConfig {
   publishableKey: string
   isTestMode: boolean
@@ -19,31 +24,26 @@ export interface PaymentResult {
   error?: string
 }
 
+export interface CheckoutSession {
+  id: string
+  url: string
+}
+
 const STRIPE_API_BASE = 'https://api.stripe.com/v1'
 
 class StripeService {
-  private publishableKey: string | null = null
-  private secretKey: string | null = null
-  private isTestMode: boolean = true
+  private publishableKey: string | null = STRIPE_PUBLISHABLE_KEY || null
+  private secretKey: string | null = STRIPE_SECRET_KEY || null
+  private isTestMode: boolean = STRIPE_TEST_MODE
 
-  async initialize() {
-    const config = await window.spark.kv.get<{ publishableKey: string; secretKey: string; isTestMode: boolean }>('stripe-config')
-    if (config) {
-      this.publishableKey = config.publishableKey
-      this.secretKey = config.secretKey
-      this.isTestMode = config.isTestMode
+  initialize() {
+    // Keys are loaded from environment variables at module load time
+    if (!this.publishableKey) {
+      console.warn('Stripe publishable key not configured. Set VITE_STRIPE_PUBLISHABLE_KEY.')
     }
-  }
-
-  async saveConfig(publishableKey: string, secretKey: string, isTestMode: boolean) {
-    await window.spark.kv.set('stripe-config', {
-      publishableKey,
-      secretKey,
-      isTestMode
-    })
-    this.publishableKey = publishableKey
-    this.secretKey = secretKey
-    this.isTestMode = isTestMode
+    if (!this.secretKey) {
+      console.warn('Stripe secret key not configured. For production, use server-side functions.')
+    }
   }
 
   isConfigured(): boolean {
@@ -52,6 +52,10 @@ class StripeService {
 
   getPublishableKey(): string | null {
     return this.publishableKey
+  }
+
+  getIsTestMode(): boolean {
+    return this.isTestMode
   }
 
   async createPaymentIntent(order: Order): Promise<PaymentIntent> {
@@ -310,6 +314,110 @@ class StripeService {
     })
 
     return response.ok
+  }
+
+  // ==========================================
+  // Stripe Checkout Session
+  // ==========================================
+
+  async createCheckoutSession(options: {
+    orderId: string
+    productName: string
+    productDescription?: string
+    productImage?: string
+    amount: number // in dollars
+    customerEmail: string
+    successUrl: string
+    cancelUrl: string
+    metadata?: Record<string, string>
+  }): Promise<CheckoutSession> {
+    if (!this.secretKey) {
+      throw new Error('Stripe not configured. Set STRIPE_SECRET_KEY.')
+    }
+
+    const amountInCents = Math.round(options.amount * 100)
+
+    const formData = new URLSearchParams()
+    formData.append('mode', 'payment')
+    formData.append('success_url', options.successUrl)
+    formData.append('cancel_url', options.cancelUrl)
+    formData.append('customer_email', options.customerEmail)
+
+    // Line item
+    formData.append('line_items[0][price_data][currency]', 'usd')
+    formData.append('line_items[0][price_data][unit_amount]', amountInCents.toString())
+    formData.append('line_items[0][price_data][product_data][name]', options.productName)
+    if (options.productDescription) {
+      formData.append('line_items[0][price_data][product_data][description]', options.productDescription)
+    }
+    if (options.productImage) {
+      formData.append('line_items[0][price_data][product_data][images][0]', options.productImage)
+    }
+    formData.append('line_items[0][quantity]', '1')
+
+    // Metadata
+    formData.append('metadata[order_id]', options.orderId)
+    if (options.metadata) {
+      Object.entries(options.metadata).forEach(([key, value]) => {
+        formData.append(`metadata[${key}]`, value)
+      })
+    }
+
+    // Shipping address collection
+    formData.append('shipping_address_collection[allowed_countries][0]', 'US')
+    formData.append('shipping_address_collection[allowed_countries][1]', 'CA')
+
+    const response = await fetch(`${STRIPE_API_BASE}/checkout/sessions`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${this.secretKey}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: formData.toString()
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.error?.message || 'Failed to create checkout session')
+    }
+
+    const data = await response.json()
+
+    return {
+      id: data.id,
+      url: data.url
+    }
+  }
+
+  async getCheckoutSession(sessionId: string): Promise<any> {
+    if (!this.secretKey) {
+      return null
+    }
+
+    try {
+      const response = await fetch(
+        `${STRIPE_API_BASE}/checkout/sessions/${sessionId}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${this.secretKey}`,
+          }
+        }
+      )
+
+      if (!response.ok) {
+        return null
+      }
+
+      return await response.json()
+    } catch (error) {
+      console.error('Failed to get checkout session:', error)
+      return null
+    }
+  }
+
+  // Redirect to Stripe Checkout (client-side)
+  redirectToCheckout(url: string): void {
+    window.location.href = url
   }
 }
 
