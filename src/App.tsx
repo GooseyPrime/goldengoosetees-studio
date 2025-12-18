@@ -7,6 +7,8 @@ import { ProductCard } from '@/components/ProductCard'
 import { ProductConfigurationSelector } from '@/components/ProductConfigurationSelector'
 import { ChatInterface } from '@/components/ChatInterface'
 import { DesignPreview } from '@/components/DesignPreview'
+import { DesignBin } from '@/components/DesignBin'
+import { DesignEditor } from '@/components/DesignEditor'
 import { AuthDialog } from '@/components/AuthDialog'
 import { CheckoutFlow } from '@/components/CheckoutFlow'
 import { AdminDashboard } from '@/components/AdminDashboard'
@@ -31,7 +33,10 @@ import {
   ShoppingCart,
   UploadSimple,
   Gear,
-  FolderOpen
+  FolderOpen,
+  MagicWand,
+  PaintBrush,
+  Pencil
 } from '@phosphor-icons/react'
 import { toast, Toaster } from 'sonner'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -59,6 +64,11 @@ function App() {
   const [pendingAction, setPendingAction] = useState<'checkout' | 'publish' | null>(null)
 
   const [currentDesign, setCurrentDesign] = useState<Design | null>(null)
+
+  // Design editing state
+  const [showDesignEditor, setShowDesignEditor] = useState(false)
+  const [editingDesign, setEditingDesign] = useState<DesignFile | null>(null)
+  const [isGenerating, setIsGenerating] = useState(false)
 
   // Kiosk session timeout handler - resets all state after 5 minutes of inactivity
   const handleSessionReset = useCallback(() => {
@@ -368,15 +378,15 @@ function App() {
   }
 
   const handleUpdateDesign = (updatedDesign: DesignFile) => {
-    setDesignFiles((currentFiles) => 
-      currentFiles.map(df => 
+    setDesignFiles((currentFiles) =>
+      currentFiles.map(df =>
         df.printAreaId === updatedDesign.printAreaId ? updatedDesign : df
       )
     )
   }
 
   const handleDeleteDesignFromManager = (printAreaId: string) => {
-    setDesignFiles((currentFiles) => 
+    setDesignFiles((currentFiles) =>
       currentFiles.filter(df => df.printAreaId !== printAreaId)
     )
   }
@@ -384,6 +394,97 @@ function App() {
   const handleAddNewDesignFromManager = (printAreaId: string) => {
     setCurrentPrintArea(printAreaId)
     setActiveView('design')
+  }
+
+  // Design editing from DesignBin
+  const handleEditDesignFromBin = (printAreaId: string) => {
+    const design = designFiles.find(df => df.printAreaId === printAreaId)
+    if (design) {
+      setEditingDesign(design)
+      setShowDesignEditor(true)
+    }
+  }
+
+  const handleDeleteDesignFromBin = (printAreaId: string) => {
+    setDesignFiles((currentFiles) =>
+      currentFiles.filter(df => df.printAreaId !== printAreaId)
+    )
+    toast.success('Design deleted')
+  }
+
+  const handleSelectPrintArea = (printAreaId: string) => {
+    setCurrentPrintArea(printAreaId)
+  }
+
+  const handleSaveEditedDesign = (updatedDesign: DesignFile) => {
+    setDesignFiles((currentFiles) =>
+      currentFiles.map(df =>
+        df.printAreaId === updatedDesign.printAreaId ? updatedDesign : df
+      )
+    )
+    setShowDesignEditor(false)
+    setEditingDesign(null)
+  }
+
+  // Explicit design generation (from button)
+  const handleGenerateDesignClick = async () => {
+    if (!selectedProduct || !currentPrintArea) {
+      toast.error('Please select a product and print area first')
+      return
+    }
+
+    // Extract design concept from recent messages
+    const recentUserMessages = messages
+      .filter(m => m.role === 'user')
+      .slice(-3)
+      .map(m => m.content)
+      .join('. ')
+
+    if (!recentUserMessages) {
+      toast.error('Please describe your design idea in the chat first')
+      return
+    }
+
+    setIsGenerating(true)
+    toast.info('Generating your design...', { duration: 3000 })
+
+    try {
+      const printArea = selectedProduct.printAreas.find(pa => pa.id === currentPrintArea)
+      if (!printArea) return
+
+      const designUrl = await api.ai.generateDesign(recentUserMessages, printArea.constraints, currentUser || null)
+
+      const newDesign: DesignFile = {
+        id: `design-${Date.now()}`,
+        printAreaId: currentPrintArea,
+        dataUrl: designUrl,
+        format: 'PNG',
+        widthPx: printArea.widthInches * printArea.constraints.minDPI,
+        heightPx: printArea.heightInches * printArea.constraints.minDPI,
+        dpi: printArea.constraints.minDPI,
+        createdAt: new Date().toISOString()
+      }
+
+      setDesignFiles((prev) => {
+        const filtered = prev.filter(df => df.printAreaId !== currentPrintArea)
+        return [...filtered, newDesign]
+      })
+
+      toast.success('Design generated! Check the preview.')
+
+      // Add an AI message acknowledging generation
+      const assistantMessage: ChatMessage = {
+        id: `msg-${Date.now()}`,
+        role: 'assistant',
+        content: "I've generated your design! 🎨 Take a look at the preview. If you'd like any changes, just let me know what adjustments you'd like to make.",
+        timestamp: new Date().toISOString()
+      }
+      setMessages((prev) => [...prev, assistantMessage])
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to generate design')
+    } finally {
+      setIsGenerating(false)
+    }
   }
 
   return (
@@ -526,22 +627,70 @@ function App() {
                     </div>
                   </div>
 
-                  <div className="grid lg:grid-cols-2 gap-6 min-h-[600px]">
+                  <div className="grid lg:grid-cols-3 gap-6 min-h-[600px]">
+                    {/* Left Column: Design Preview */}
                     <DesignPreview
                       product={{
                         ...selectedProduct,
-                        printAreas: selectedProduct.printAreas.filter(pa => 
+                        printAreas: selectedProduct.printAreas.filter(pa =>
                           selectedConfiguration.printAreas.includes(pa.id)
                         )
                       }}
                       designFiles={designFiles}
                       currentArea={currentPrintArea}
+                      showMockupOption={true}
                     />
 
-                    <ChatInterface
-                      messages={messages}
-                      onSendMessage={handleSendMessage}
-                      isLoading={isAILoading}
+                    {/* Middle Column: Chat Interface with Generate Button */}
+                    <div className="flex flex-col gap-4 min-h-0">
+                      <div className="flex-1 min-h-0">
+                        <ChatInterface
+                          messages={messages}
+                          onSendMessage={handleSendMessage}
+                          isLoading={isAILoading}
+                        />
+                      </div>
+
+                      {/* Generate Design Button */}
+                      <Button
+                        size="lg"
+                        onClick={handleGenerateDesignClick}
+                        disabled={isGenerating || isAILoading || messages.length < 2}
+                        className="w-full gap-2 bg-primary hover:bg-primary/90"
+                      >
+                        {isGenerating ? (
+                          <>
+                            <motion.div
+                              animate={{ rotate: 360 }}
+                              transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                            >
+                              <Sparkle size={20} weight="fill" />
+                            </motion.div>
+                            Generating Design...
+                          </>
+                        ) : (
+                          <>
+                            <MagicWand size={20} weight="fill" />
+                            Generate Design
+                          </>
+                        )}
+                      </Button>
+                    </div>
+
+                    {/* Right Column: Design Bin for managing designs */}
+                    <DesignBin
+                      product={{
+                        ...selectedProduct,
+                        printAreas: selectedProduct.printAreas.filter(pa =>
+                          selectedConfiguration.printAreas.includes(pa.id)
+                        )
+                      }}
+                      designFiles={designFiles}
+                      currentPrintArea={currentPrintArea}
+                      onSelectDesign={handleSelectPrintArea}
+                      onDeleteDesign={handleDeleteDesignFromBin}
+                      onEditDesign={handleEditDesignFromBin}
+                      onOpenManager={() => setActiveView('manager')}
                     />
                   </div>
 
@@ -635,6 +784,17 @@ function App() {
               product={selectedProduct}
               user={currentUser}
               onComplete={handleCheckoutComplete}
+            />
+          )}
+
+          {/* Design Editor Dialog */}
+          {showDesignEditor && editingDesign && selectedProduct && (
+            <DesignEditor
+              open={showDesignEditor}
+              onOpenChange={setShowDesignEditor}
+              design={editingDesign}
+              product={selectedProduct}
+              onSave={handleSaveEditedDesign}
             />
           )}
         </>

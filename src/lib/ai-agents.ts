@@ -418,22 +418,72 @@ Remember: You're a design partner, not just an order taker. Help them create som
 
     detectGenerationIntent(message: string): boolean {
       const keywords = [
+        // Direct commands
         'generate',
         'create',
         'make it',
         'make this',
+        'make that',
+        'make the',
+        'design it',
+        'draw',
+        'build',
+        // Confirmation phrases
         'do it',
         "let's do it",
+        "let's go",
         'go for it',
         'go ahead',
         'start',
         'proceed',
         'yes, generate',
+        'yes generate',
+        'yes please',
+        'yes!',
         'sounds good',
+        'sounds great',
+        'sounds perfect',
+        'that sounds',
         'perfect, generate',
+        "that's perfect",
+        "that's what i want",
+        "that's exactly",
+        // Agreement phrases
+        'ok',
+        'okay',
+        'alright',
+        'sure',
+        'yep',
+        'yeah',
+        'yes',
+        "i'd like that",
+        'i want that',
+        'i like that',
+        'love it',
+        "let's see",
+        'show me',
+        // Design specific
+        'ready to see',
+        'ready to generate',
+        'create the design',
+        'generate the design',
+        'make my design',
+        'create my',
       ]
-      const lower = message.toLowerCase()
-      return keywords.some((k) => lower.includes(k))
+      const lower = message.toLowerCase().trim()
+
+      // Check for keywords
+      if (keywords.some((k) => lower.includes(k))) {
+        return true
+      }
+
+      // Check for short affirmative responses (likely confirming design generation)
+      const shortAffirmatives = ['yes', 'ok', 'okay', 'sure', 'yep', 'yeah', 'alright', 'go', 'do it']
+      if (shortAffirmatives.includes(lower) || shortAffirmatives.includes(lower.replace(/[!.,?]/g, ''))) {
+        return true
+      }
+
+      return false
     },
 
     detectApprovalIntent(message: string): boolean {
