@@ -1,188 +1,344 @@
 # GoldenGooseTees - AI T-Shirt Design Kiosk
 
-A sophisticated AI-powered T-shirt design kiosk that enables users to create custom designs with conversational AI guidance (GPT-4), then seamlessly transitions to authenticated checkout with Google OAuth, Supabase database storage, real Stripe payment processing, and Printful fulfillment.
+A production-ready AI-powered T-shirt design kiosk that enables users to create custom designs through conversational AI (GPT-4o via OpenRouter), generate high-quality artwork (DALL-E 3), and seamlessly checkout with Stripe payments and Printful fulfillment.
 
-## 🚀 Features
+## Features
 
-### ✅ Completed Integrations
+### Core Functionality
 
-- **✅ Real Stripe Payment Processing** - Fully integrated with live validation, test mode support, and admin configuration
-- **✅ Real Printful API Integration** - Production-ready order fulfillment with automatic file upload and status sync
-- **✅ Supabase Database Integration** - User authentication, design storage, and order management with Google OAuth
-- **✅ Dynamic LLM Chat Assistant** - GPT-4 powered conversational AI with sales script methodology (no hardcoded responses)
-- **✅ Admin Dashboard** - Comprehensive management interface for products, orders, integrations, and Supabase configuration
-- **✅ Multi-Area Design Support** - Front, back, and sleeve designs per product
-- **✅ Guest Design Sessions** - Start designing without authentication
+- **AI Design Assistant** - GPT-4o powered conversational AI guides users through design creation
+- **DALL-E 3 Image Generation** - High-quality 1024x1024 HD design generation
+- **Stripe Checkout** - Secure hosted payment page with multiple payment options
+- **Printful Integration** - Automated order fulfillment with mockup generation
+- **Supabase Backend** - PostgreSQL database, Google OAuth, and file storage
+- **Kiosk Mode** - 5-minute inactivity timeout with automatic session reset
 
-### 🔄 Integration Points
+### Additional Features
 
-- **Google OAuth** - Integrated via Supabase for user authentication
-- **Age Verification** - NSFW content gating (ready to integrate)
-- **Email Notifications** - Order confirmations (ready to integrate)
+- Multi-area print support (front, back, sleeves)
+- Content moderation and IP/copyright checking
+- Admin dashboard with AI-powered analytics
+- Design catalog publishing
+- Real-time order status sync
 
-## 🎨 Tech Stack
+## Tech Stack
 
-- **Frontend**: React 19 + TypeScript + Tailwind CSS
-- **Components**: shadcn/ui v4
-- **Icons**: Phosphor Icons
-- **Animations**: Framer Motion
-- **State Management**: React Hooks + Spark KV
-- **Database**: Supabase (PostgreSQL)
-- **Authentication**: Supabase Auth + Google OAuth
-- **Payments**: Stripe API
-- **Fulfillment**: Printful API
-- **AI**: Spark LLM (GPT-4) with dynamic sales script
-
-## 🛠️ Setup
-
-### 1. Supabase Configuration
-
-See [SUPABASE_SETUP.md](./SUPABASE_SETUP.md) for detailed instructions.
-
-Quick start:
-1. Create a Supabase project at [supabase.com](https://supabase.com)
-2. Run the SQL schema setup for database tables
-3. Configure Google OAuth in Google Cloud Console
-4. Enable Google provider in Supabase Authentication
-5. Login as admin → Settings → Supabase Configuration
-6. Enter your Supabase URL and Anon Key
-7. Test connection to verify setup
-
-### 2. Stripe Configuration
-
-See [STRIPE_SETUP.md](./STRIPE_SETUP.md) for detailed instructions.
-
-Quick start:
-1. Get API keys from [Stripe Dashboard](https://dashboard.stripe.com/apikeys)
-2. Login as admin → Settings → Stripe Configuration
-3. Enter your keys and save
-4. Test with card: `4242 4242 4242 4242`
-
-### 3. Printful Configuration
-
-See [PRINTFUL_SETUP.md](./PRINTFUL_SETUP.md) for detailed instructions.
-
-Quick start:
-1. Get API key from [Printful Settings](https://www.printful.com/dashboard/settings)
-2. Login as admin → Settings → Printful Configuration
-3. Enter your key and test connection
-4. Map product SKUs to Printful variant IDs
-
-### 4. Run the Application
-
-The application is already running in your Spark environment. Just interact with it!
-
-## 📚 Documentation
-
-- [PRD.md](./PRD.md) - Product Requirements Document
-- [INTEGRATION_GUIDE.md](./INTEGRATION_GUIDE.md) - Integration guide for all services
-- [SUPABASE_SETUP.md](./SUPABASE_SETUP.md) - Detailed Supabase and Google OAuth setup
-- [STRIPE_SETUP.md](./STRIPE_SETUP.md) - Detailed Stripe setup instructions
-- [PRINTFUL_SETUP.md](./PRINTFUL_SETUP.md) - Detailed Printful setup instructions
-- [SECURITY.md](./SECURITY.md) - Security considerations
-
-## 🎯 User Flow
-
-1. **Browse Products** - View available T-shirt products
-2. **Start Designing** - Select a product and chat with AI assistant (GPT-4)
-3. **AI Conversation** - Dynamic LLM guides you through design creation with sales script methodology
-4. **Generate Designs** - AI creates designs based on natural conversation
-5. **Iterate** - Request changes, AI adapts responses based on context
-6. **Authenticate** - Login with Google OAuth via Supabase when ready to checkout
-7. **Checkout** - Enter shipping and payment details with Stripe
-8. **Order Placed** - Order submitted to Printful automatically, stored in Supabase
-9. **Track Order** - Order status synced between Supabase and Printful
-
-## 🔐 Admin Features
-
-Access admin dashboard by logging in as an admin user and clicking "Admin" button.
-
-### Overview Tab
-- Real-time statistics (revenue, orders, products)
-- Pending order and design approval counts
-
-### Products Tab
-- Full CRUD operations on products
-- SKU mapping to Printful variants
-- Print area configuration
-- Availability toggling
-
-### Orders Tab
-- Search and filter orders
-- View detailed order information
-- Update order status
-- Sync with Printful in real-time
-- Add tracking numbers
-
-### Design Approvals Tab
-- Review designs submitted for catalog
-- Preview all print areas
-- Approve or reject designs
-- Flag NSFW content
-
-### Settings Tab
-- **Supabase Configuration**: Project URL, Anon Key, connection testing, setup checklist
-- **Stripe Configuration**: API keys, test mode toggle, connection testing
-- **Printful Configuration**: API key, store ID, connection testing
-
-## 🤖 AI Assistant Features
-
-The conversational AI assistant uses GPT-4 with a structured sales script approach:
-
-- **No Hardcoded Responses**: All responses dynamically generated by LLM
-- **Sales Script Methodology**: Follows structured stages (greeting, discovery, exploration, refinement, generation, approval)
-- **Context-Aware**: Understands product constraints, print areas, DPI requirements
-- **Intent Detection**: Recognizes when to generate designs or show approval options
-- **Natural Conversation**: Asks clarifying questions, validates ideas, suggests improvements
-- **Product Knowledge**: Knows dimensions, constraints, and capabilities of each product
-
-## 🧪 Testing
-
-### Test Mode
-
-All services support test modes:
-
-**Stripe Test Cards:**
-- Success: `4242 4242 4242 4242`
-- Declined: `4000 0000 0000 0002`
-- Insufficient Funds: `4000 0000 0000 9995`
-
-**Printful:**
-- Use test API key for development
-- Orders won't actually be fulfilled
-- Check Printful dashboard for test orders
-
-**Supabase:**
-- Use development project for testing
-- Test Google OAuth flow in development environment
-- Verify database tables are created correctly
-
-### Test Account
-
-Login with the mock authentication to get an admin account for testing before configuring Supabase.
-
-## 🚧 Future Enhancements
-
-- [ ] Age verification API integration (3rd party service)
-- [ ] Email notification service (SendGrid/Postmark)
-- [ ] Enhanced AI design generation (DALL-E/Midjourney integration)
-- [ ] Catalog browsing and shopping from public designs
-- [ ] Order history interface for end users
-- [ ] Design templates library
-- [ ] Social sharing features
-- [ ] Batch order processing for admins
-
-## 📄 License
-
-The Spark Template files and resources from GitHub are licensed under the terms of the MIT license, Copyright GitHub, Inc.
-
-## 🆘 Support
-
-- **Supabase Issues**: Check [SUPABASE_SETUP.md](./SUPABASE_SETUP.md) or Supabase Dashboard logs
-- **Stripe Issues**: Check [STRIPE_SETUP.md](./STRIPE_SETUP.md) or Stripe Dashboard logs
-- **Printful Issues**: Check [PRINTFUL_SETUP.md](./PRINTFUL_SETUP.md) or Printful Dashboard
-- **General Integration**: See [INTEGRATION_GUIDE.md](./INTEGRATION_GUIDE.md)
+| Category | Technology |
+|----------|------------|
+| **Frontend** | React 19, TypeScript, Tailwind CSS v4 |
+| **Components** | shadcn/ui, Radix UI |
+| **Icons** | Phosphor Icons |
+| **Animations** | Framer Motion |
+| **Database** | Supabase (PostgreSQL) |
+| **Auth** | Supabase Auth + Google OAuth |
+| **Payments** | Stripe Checkout |
+| **Fulfillment** | Printful API |
+| **AI Chat** | OpenRouter (GPT-4o) |
+| **AI Images** | OpenAI DALL-E 3 |
+| **Hosting** | Vercel |
 
 ---
 
-**Ready to go live?** Follow the setup guides for Supabase, Stripe, and Printful, then start taking real orders! 🎉
+## Deployment to Vercel
+
+### Prerequisites
+
+Before deploying, you'll need accounts with:
+
+1. **Vercel** - [vercel.com](https://vercel.com)
+2. **Supabase** - [supabase.com](https://supabase.com)
+3. **Stripe** - [stripe.com](https://stripe.com)
+4. **Printful** - [printful.com](https://printful.com)
+5. **OpenRouter** - [openrouter.ai](https://openrouter.ai)
+6. **OpenAI** - [platform.openai.com](https://platform.openai.com)
+
+### Step 1: Deploy to Vercel
+
+1. Fork or clone this repository
+2. Connect your repo to Vercel
+3. Import the project in Vercel dashboard
+
+### Step 2: Configure Environment Variables
+
+In your Vercel project settings (Settings → Environment Variables), add:
+
+#### Supabase (Required)
+
+| Variable | Example | Description |
+|----------|---------|-------------|
+| `VITE_SUPABASE_URL` | `https://abc123.supabase.co` | Your Supabase project URL |
+| `VITE_SUPABASE_ANON_KEY` | `eyJ...` | Supabase anonymous/public key |
+| `SUPABASE_SERVICE_ROLE_KEY` | `eyJ...` | Service role key (server-side only) |
+
+**Where to find:** Supabase Dashboard → Your Project → Settings → API
+
+#### Stripe (Required)
+
+| Variable | Example | Description |
+|----------|---------|-------------|
+| `VITE_STRIPE_PUBLISHABLE_KEY` | `pk_live_...` or `pk_test_...` | Publishable key |
+| `STRIPE_SECRET_KEY` | `sk_live_...` or `sk_test_...` | Secret key (server-side only) |
+| `STRIPE_WEBHOOK_SECRET` | `whsec_...` | Webhook signing secret |
+| `VITE_STRIPE_TEST_MODE` | `true` or `false` | Enable test mode |
+
+**Where to find:** [Stripe Dashboard → API Keys](https://dashboard.stripe.com/apikeys)
+
+#### Printful (Required)
+
+| Variable | Example | Description |
+|----------|---------|-------------|
+| `VITE_PRINTFUL_API_KEY` | `abc123...` | Printful API access token |
+| `VITE_PRINTFUL_STORE_ID` | `12345` | Store ID (optional) |
+
+**Where to find:** [Printful Dashboard → Settings → API](https://www.printful.com/dashboard/settings)
+
+#### AI Services (Required)
+
+| Variable | Example | Description |
+|----------|---------|-------------|
+| `VITE_OPENROUTER_API_KEY` | `sk-or-v1-...` | OpenRouter API key for chat |
+| `VITE_OPENAI_API_KEY` | `sk-...` | OpenAI API key for DALL-E 3 |
+
+**Where to find:**
+- OpenRouter: [openrouter.ai/keys](https://openrouter.ai/keys)
+- OpenAI: [platform.openai.com/api-keys](https://platform.openai.com/api-keys)
+
+#### App Configuration
+
+| Variable | Example | Description |
+|----------|---------|-------------|
+| `VITE_APP_URL` | `https://your-app.vercel.app` | Your deployed app URL |
+| `VITE_KIOSK_MODE` | `true` | Enable kiosk session timeout |
+| `VITE_SESSION_TIMEOUT_MINUTES` | `5` | Inactivity timeout in minutes |
+
+### Step 3: Set Up Supabase Database
+
+Run this SQL in your Supabase SQL Editor:
+
+```sql
+-- Users table
+CREATE TABLE users (
+  id UUID PRIMARY KEY REFERENCES auth.users(id),
+  email TEXT NOT NULL,
+  name TEXT,
+  avatar TEXT,
+  age_verified BOOLEAN DEFAULT FALSE,
+  role TEXT DEFAULT 'user',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Designs table
+CREATE TABLE designs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES users(id),
+  product_id TEXT NOT NULL,
+  files JSONB NOT NULL,
+  is_public BOOLEAN DEFAULT FALSE,
+  is_nsfw BOOLEAN DEFAULT FALSE,
+  title TEXT,
+  description TEXT,
+  catalog_section TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Orders table
+CREATE TABLE orders (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES users(id),
+  design_id UUID REFERENCES designs(id),
+  product_id TEXT NOT NULL,
+  size TEXT,
+  color TEXT,
+  status TEXT DEFAULT 'pending',
+  total_amount DECIMAL(10,2),
+  stripe_payment_id TEXT,
+  stripe_session_id TEXT,
+  printful_order_id TEXT,
+  printful_external_id TEXT,
+  shipping_address JSONB,
+  tracking_number TEXT,
+  tracking_url TEXT,
+  estimated_delivery TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Enable Row Level Security
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE designs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
+
+-- Basic RLS policies
+CREATE POLICY "Users can read own data" ON users FOR SELECT USING (auth.uid() = id);
+CREATE POLICY "Users can read own designs" ON designs FOR SELECT USING (auth.uid() = user_id OR is_public = true);
+CREATE POLICY "Users can insert own designs" ON designs FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can read own orders" ON orders FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert own orders" ON orders FOR INSERT WITH CHECK (auth.uid() = user_id);
+```
+
+### Step 4: Create Supabase Storage Bucket
+
+1. Go to Supabase Dashboard → Storage
+2. Create a new bucket named `designs`
+3. Set bucket to **Public** (required for Printful mockup generation)
+4. Add policy to allow authenticated uploads
+
+### Step 5: Configure Google OAuth
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com)
+2. Create OAuth 2.0 credentials
+3. Add authorized redirect URI: `https://your-project.supabase.co/auth/v1/callback`
+4. In Supabase Dashboard → Authentication → Providers
+5. Enable Google and add Client ID + Secret
+
+See [SUPABASE_SETUP.md](./SUPABASE_SETUP.md) for detailed instructions.
+
+### Step 6: Configure Stripe Webhook
+
+1. Go to [Stripe Dashboard → Webhooks](https://dashboard.stripe.com/webhooks)
+2. Add endpoint: `https://your-app.vercel.app/api/webhooks/stripe`
+3. Select events:
+   - `checkout.session.completed`
+   - `payment_intent.succeeded`
+   - `payment_intent.payment_failed`
+4. Copy signing secret to `STRIPE_WEBHOOK_SECRET`
+
+### Step 7: Redeploy
+
+After configuring all environment variables, trigger a redeployment in Vercel.
+
+---
+
+## Local Development
+
+```bash
+# Clone the repository
+git clone https://github.com/your-org/goldengoosetees-kiosk.git
+cd goldengoosetees-kiosk
+
+# Install dependencies
+npm install
+
+# Copy environment template
+cp .env.example .env.local
+
+# Fill in your environment variables in .env.local
+
+# Start development server
+npm run dev
+```
+
+---
+
+## Project Structure
+
+```
+goldengoosetees-kiosk/
+├── api/
+│   └── webhooks/
+│       └── stripe.ts          # Vercel serverless webhook handler
+├── src/
+│   ├── components/
+│   │   ├── admin/             # Admin dashboard components
+│   │   ├── ui/                # shadcn/ui components
+│   │   ├── AuthDialog.tsx     # Google OAuth login
+│   │   ├── ChatInterface.tsx  # AI conversation UI
+│   │   ├── CheckoutFlow.tsx   # Stripe checkout flow
+│   │   ├── DesignPreview.tsx  # Design + mockup preview
+│   │   └── ...
+│   ├── hooks/
+│   │   └── useInactivityTimeout.ts  # Kiosk session timeout
+│   ├── lib/
+│   │   ├── ai-agents.ts       # OpenRouter + DALL-E + Admin Agent
+│   │   ├── api.ts             # Main API facade
+│   │   ├── printful.ts        # Printful API wrapper
+│   │   ├── stripe.ts          # Stripe API wrapper
+│   │   ├── supabase.ts        # Supabase client + storage
+│   │   └── types.ts           # TypeScript types
+│   ├── App.tsx                # Main application
+│   └── main.tsx               # Entry point
+├── .env.example               # Environment variables template
+└── package.json
+```
+
+---
+
+## Testing
+
+### Stripe Test Cards
+
+| Scenario | Card Number |
+|----------|-------------|
+| Success | `4242 4242 4242 4242` |
+| Declined | `4000 0000 0000 0002` |
+| Insufficient Funds | `4000 0000 0000 9995` |
+| Requires Auth | `4000 0025 0000 3155` |
+
+Use any future expiry date and any 3-digit CVC.
+
+### Enable Test Mode
+
+Set `VITE_STRIPE_TEST_MODE=true` and use Stripe test API keys.
+
+---
+
+## Admin Access
+
+1. Sign in with Google OAuth
+2. Update your user role in Supabase:
+```sql
+UPDATE users SET role = 'admin' WHERE email = 'your@email.com';
+```
+3. Refresh the app - you'll see the Admin button in the header
+
+---
+
+## User Flow
+
+1. **Browse Products** - View available T-shirt products
+2. **Select Configuration** - Choose size, color, and print areas
+3. **Design with AI** - Chat with AI assistant to create your design
+4. **Generate Artwork** - AI creates high-quality designs with DALL-E 3
+5. **Preview** - See design on product with optional Printful mockup
+6. **Checkout** - Login with Google, enter shipping, pay with Stripe
+7. **Order Fulfilled** - Automatic submission to Printful
+8. **Track** - Order status synced in real-time
+
+---
+
+## Documentation
+
+- [SUPABASE_SETUP.md](./SUPABASE_SETUP.md) - Detailed Supabase and Google OAuth setup
+- [STRIPE_SETUP.md](./STRIPE_SETUP.md) - Stripe configuration guide
+- [PRINTFUL_SETUP.md](./PRINTFUL_SETUP.md) - Printful API and product mapping
+- [AI_SYSTEM_GUIDE.md](./AI_SYSTEM_GUIDE.md) - AI agent architecture
+- [SECURITY.md](./SECURITY.md) - Security considerations
+
+---
+
+## Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| "Supabase not configured" | Check `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` are set |
+| "Stripe not configured" | Ensure `VITE_STRIPE_PUBLISHABLE_KEY` starts with `pk_` |
+| "OpenAI not configured" | Verify API key and check you have DALL-E 3 access |
+| Webhook not receiving | Check URL ends with `/api/webhooks/stripe` and secret matches |
+| Design generation fails | Check OpenAI credits and API key permissions |
+| Google OAuth fails | Verify redirect URI in Google Console matches Supabase |
+
+---
+
+## License
+
+MIT License - see LICENSE file for details.
+
+---
+
+## Support
+
+- **GitHub Issues**: Report bugs and request features
+- **Stripe**: [support.stripe.com](https://support.stripe.com)
+- **Supabase**: [supabase.com/support](https://supabase.com/support)
+- **Printful**: [printful.com/help](https://www.printful.com/help)
