@@ -62,6 +62,7 @@ export interface DesignFile {
   id: string
   printAreaId: string
   dataUrl: string
+  storageUrl?: string // Supabase Storage URL for production
   format: string
   widthPx: number
   heightPx: number
@@ -96,7 +97,9 @@ export interface Order {
   size: string
   color: string
   stripePaymentId?: string
+  stripeSessionId?: string // Stripe Checkout Session ID
   printfulOrderId?: string
+  printfulExternalId?: string // External ID sent to Printful
   status: OrderStatus
   totalAmount: number
   shippingAddress: {
@@ -107,8 +110,11 @@ export interface Order {
     state: string
     postal_code: string
     country: string
+    email?: string
+    phone?: string
   }
   trackingNumber?: string
+  trackingUrl?: string
   estimatedDelivery?: string
   createdAt: string
   updatedAt: string

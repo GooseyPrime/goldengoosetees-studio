@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useKV } from '@github/spark/hooks'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -14,18 +14,19 @@ import { DesignManagerPage } from '@/components/DesignManagerPage'
 import { MOCK_PRODUCTS } from '@/lib/mock-data'
 import { MOCK_ORDERS, MOCK_PENDING_DESIGNS } from '@/lib/admin-mock-data'
 import { api } from '@/lib/api'
-import { 
-  Product, 
+import { useKioskSession } from '@/hooks/useInactivityTimeout'
+import {
+  Product,
   ProductConfiguration,
-  User, 
-  ChatMessage, 
+  User,
+  ChatMessage,
   DesignFile,
   Design,
-  DesignSession 
+  DesignSession
 } from '@/lib/types'
-import { 
-  TShirt, 
-  Sparkle, 
+import {
+  TShirt,
+  Sparkle,
   User as UserIcon,
   ShoppingCart,
   UploadSimple,
@@ -36,25 +37,57 @@ import { toast, Toaster } from 'sonner'
 import { motion, AnimatePresence } from 'framer-motion'
 import logoImage from '@/assets/images/GoldenGooseTees.jpg'
 
+// Check if kiosk mode is enabled
+const KIOSK_MODE = import.meta.env.VITE_KIOSK_MODE === 'true'
+
 function App() {
   const [currentUser, setCurrentUser] = useKV<User | null>('current-user', null)
   const [savedDesigns, setSavedDesigns] = useKV<Design[]>('saved-designs', [])
   const [activeView, setActiveView] = useState<'products' | 'configuration' | 'design' | 'manager' | 'catalog'>('products')
   const [showAdminDashboard, setShowAdminDashboard] = useState(false)
-  
+
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [selectedConfiguration, setSelectedConfiguration] = useState<ProductConfiguration | null>(null)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isAILoading, setIsAILoading] = useState(false)
   const [designFiles, setDesignFiles] = useState<DesignFile[]>([])
   const [currentPrintArea, setCurrentPrintArea] = useState<string>()
-  
+
   const [showAuthDialog, setShowAuthDialog] = useState(false)
   const [requiresAgeVerification, setRequiresAgeVerification] = useState(false)
   const [showCheckout, setShowCheckout] = useState(false)
   const [pendingAction, setPendingAction] = useState<'checkout' | 'publish' | null>(null)
-  
+
   const [currentDesign, setCurrentDesign] = useState<Design | null>(null)
+
+  // Kiosk session timeout handler - resets all state after 5 minutes of inactivity
+  const handleSessionReset = useCallback(() => {
+    console.log('Kiosk session reset due to inactivity')
+    toast.info('Session reset due to inactivity. Starting fresh!')
+
+    // Reset all state
+    setCurrentUser(null)
+    setSelectedProduct(null)
+    setSelectedConfiguration(null)
+    setMessages([])
+    setDesignFiles([])
+    setCurrentPrintArea(undefined)
+    setShowAuthDialog(false)
+    setShowCheckout(false)
+    setPendingAction(null)
+    setCurrentDesign(null)
+    setActiveView('products')
+    setShowAdminDashboard(false)
+
+    // Sign out from Supabase
+    api.auth.signOut().catch(console.error)
+  }, [setCurrentUser])
+
+  // Initialize kiosk session timeout
+  useKioskSession({
+    onSessionReset: handleSessionReset,
+    enabled: KIOSK_MODE
+  })
 
   useEffect(() => {
     const initializeAdminData = async () => {

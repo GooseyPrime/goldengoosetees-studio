@@ -1,5 +1,142 @@
 import { ChatMessage, Product, User } from './types'
 
+// Environment variables (Vite)
+const OPENROUTER_API_KEY = import.meta.env.VITE_OPENROUTER_API_KEY
+const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY
+
+// API endpoints
+const OPENROUTER_API_BASE = 'https://openrouter.ai/api/v1'
+const OPENAI_API_BASE = 'https://api.openai.com/v1'
+
+// ============================================
+// API Helper Functions
+// ============================================
+
+async function callOpenRouter(
+  messages: Array<{ role: string; content: string }>,
+  options: {
+    model?: string
+    temperature?: number
+    maxTokens?: number
+    jsonMode?: boolean
+  } = {}
+): Promise<string> {
+  if (!OPENROUTER_API_KEY) {
+    throw new Error('OpenRouter API key not configured. Set VITE_OPENROUTER_API_KEY.')
+  }
+
+  const {
+    model = 'openai/gpt-4o',
+    temperature = 0.7,
+    maxTokens = 1024,
+    jsonMode = false
+  } = options
+
+  const response = await fetch(`${OPENROUTER_API_BASE}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+      'Content-Type': 'application/json',
+      'HTTP-Referer': window.location.origin,
+      'X-Title': 'Golden Goose Tees Kiosk'
+    },
+    body: JSON.stringify({
+      model,
+      messages,
+      temperature,
+      max_tokens: maxTokens,
+      ...(jsonMode && { response_format: { type: 'json_object' } })
+    })
+  })
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}))
+    throw new Error(error.error?.message || `OpenRouter API error: ${response.statusText}`)
+  }
+
+  const data = await response.json()
+  return data.choices[0]?.message?.content || ''
+}
+
+async function generateImageWithDALLE3(
+  prompt: string,
+  options: {
+    size?: '1024x1024' | '1792x1024' | '1024x1792'
+    quality?: 'standard' | 'hd'
+    style?: 'vivid' | 'natural'
+  } = {}
+): Promise<string> {
+  if (!OPENAI_API_KEY) {
+    throw new Error('OpenAI API key not configured. Set VITE_OPENAI_API_KEY.')
+  }
+
+  const {
+    size = '1024x1024',
+    quality = 'hd',
+    style = 'vivid'
+  } = options
+
+  // Enhance prompt for t-shirt design
+  const enhancedPrompt = `Create a high-quality t-shirt design: ${prompt}.
+    The design should be on a transparent or white background, suitable for printing on fabric.
+    Style: Clean, professional, print-ready artwork with bold colors and clear details.
+    Do NOT include any mockups of t-shirts - just the design artwork itself.`
+
+  const response = await fetch(`${OPENAI_API_BASE}/images/generations`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${OPENAI_API_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: 'dall-e-3',
+      prompt: enhancedPrompt,
+      n: 1,
+      size,
+      quality,
+      style,
+      response_format: 'b64_json'
+    })
+  })
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}))
+    throw new Error(error.error?.message || `DALL-E API error: ${response.statusText}`)
+  }
+
+  const data = await response.json()
+  const base64Image = data.data[0]?.b64_json
+
+  if (!base64Image) {
+    throw new Error('No image generated')
+  }
+
+  // Return as data URL (PNG)
+  return `data:image/png;base64,${base64Image}`
+}
+
+async function editImageWithDALLE(
+  imageDataUrl: string,
+  prompt: string
+): Promise<string> {
+  if (!OPENAI_API_KEY) {
+    throw new Error('OpenAI API key not configured. Set VITE_OPENAI_API_KEY.')
+  }
+
+  // For editing, we'll use DALL-E 3 with a modified prompt
+  // Note: DALL-E 3 doesn't support direct image editing, so we generate a new image
+  // based on the description. For true editing, you'd need DALL-E 2 edit endpoint.
+  const enhancedPrompt = `Create a t-shirt design based on this edit request: ${prompt}.
+    The design should be on a transparent or white background, suitable for printing.
+    Make it bold, colorful, and print-ready.`
+
+  return generateImageWithDALLE3(enhancedPrompt)
+}
+
+// ============================================
+// Content Moderation Result Types
+// ============================================
+
 export interface ContentModerationResult {
   approved: boolean
   violations: string[]
@@ -14,7 +151,33 @@ export interface IPCheckResult {
   recommendations: string[]
 }
 
+export interface AdminQueryResult {
+  answer: string
+  data?: any
+  sqlQuery?: string
+}
+
+// ============================================
+// AI Agents
+// ============================================
+
 export const aiAgents = {
+  // Check if AI services are configured
+  isConfigured(): boolean {
+    return !!(OPENROUTER_API_KEY && OPENAI_API_KEY)
+  },
+
+  hasOpenRouter(): boolean {
+    return !!OPENROUTER_API_KEY
+  },
+
+  hasOpenAI(): boolean {
+    return !!OPENAI_API_KEY
+  },
+
+  // ==========================================
+  // Content Moderator (OpenRouter)
+  // ==========================================
   contentModerator: {
     systemPrompt: `You are a content moderation AI for GoldenGooseTees, a custom T-shirt design kiosk. Your role is to review design prompts and ensure they comply with our policies.
 
@@ -54,39 +217,29 @@ RESPONSE FORMAT (JSON):
   "suggestions": ["alternative ideas if rejected"]
 }
 
-EXAMPLES:
-
-Input: "Create a skull with roses" (User: 25 years old)
-Output: {"approved": true, "violations": [], "severity": "none"}
-
-Input: "Make a design with the Nike swoosh" (User: 25 years old)
-Output: {"approved": false, "violations": ["trademark infringement - Nike"], "severity": "high", "suggestions": ["Create your own swoosh-inspired design", "Design your own athletic symbol"]}
-
-Input: "Sexy girl in bikini" (User: 16 years old)
-Output: {"approved": false, "violations": ["sexually suggestive content for minor"], "severity": "critical", "suggestions": ["Try a design with abstract art", "Create a nature-themed design"]}
-
-Input: "Death to all [group]" (User: 25 years old)
-Output: {"approved": false, "violations": ["hate speech", "incitement to violence"], "severity": "critical", "suggestions": []}
-
 You must respond ONLY with valid JSON, no additional text.`,
 
     async moderate(prompt: string, user: User | null): Promise<ContentModerationResult> {
-      const fullPrompt = `${this.systemPrompt}
-
-USER AGE: ${user?.ageVerified ? '18+' : 'Unknown (treat as under 18)'}
+      try {
+        const response = await callOpenRouter([
+          { role: 'system', content: this.systemPrompt },
+          {
+            role: 'user',
+            content: `USER AGE: ${user?.ageVerified ? '18+' : 'Unknown (treat as under 18)'}
 USER ROLE: ${user?.role || 'guest'}
 
 DESIGN PROMPT TO REVIEW:
 "${prompt}"
 
 Analyze this prompt and respond with JSON only.`
+          }
+        ], { jsonMode: true, temperature: 0.3 })
 
-      try {
-        const response = await window.spark.llm(fullPrompt, 'gpt-4o', true)
         const result = JSON.parse(response) as ContentModerationResult
         return result
       } catch (error) {
         console.error('Content moderation failed:', error)
+        // Fail open with warning for API errors
         return {
           approved: true,
           violations: [],
@@ -96,6 +249,9 @@ Analyze this prompt and respond with JSON only.`
     },
   },
 
+  // ==========================================
+  // IP Checker (OpenRouter)
+  // ==========================================
   ipChecker: {
     systemPrompt: `You are an intellectual property (IP) detection AI for a custom T-shirt printing service. Your role is to identify potential copyright and trademark violations in design requests.
 
@@ -131,11 +287,6 @@ WHAT'S GENERALLY OK:
 - Parody (in some cases, but flag for review)
 - Fan art for personal use (low risk)
 
-CONTEXT:
-- This is for PERSONAL USE only, not commercial resale
-- Some IP use may fall under fair use for personal items
-- We err on the side of caution but don't over-flag
-
 RESPONSE FORMAT (JSON):
 {
   "hasViolation": boolean,
@@ -144,32 +295,21 @@ RESPONSE FORMAT (JSON):
   "recommendations": ["suggestions for modifications"]
 }
 
-EXAMPLES:
-
-Input: "A sword fighting a dragon"
-Output: {"hasViolation": false, "detectedItems": [], "riskLevel": "none", "recommendations": []}
-
-Input: "Darth Vader with a lightsaber"
-Output: {"hasViolation": true, "detectedItems": ["Star Wars character - Darth Vader", "Star Wars IP - lightsaber"], "riskLevel": "high", "recommendations": ["Create your own space warrior character", "Design a futuristic helmet with your own style"]}
-
-Input: "Just Do It slogan"
-Output: {"hasViolation": true, "detectedItems": ["Nike trademarked slogan"], "riskLevel": "high", "recommendations": ["Create your own motivational phrase", "Try 'Just Get It Done' or another variation"]}
-
-Input: "A superhero with a cape"
-Output: {"hasViolation": false, "detectedItems": [], "riskLevel": "none", "recommendations": []}
-
 You must respond ONLY with valid JSON, no additional text.`,
 
     async check(prompt: string): Promise<IPCheckResult> {
-      const fullPrompt = `${this.systemPrompt}
-
-DESIGN PROMPT TO ANALYZE:
+      try {
+        const response = await callOpenRouter([
+          { role: 'system', content: this.systemPrompt },
+          {
+            role: 'user',
+            content: `DESIGN PROMPT TO ANALYZE:
 "${prompt}"
 
 Check for potential IP violations and respond with JSON only.`
+          }
+        ], { jsonMode: true, temperature: 0.3 })
 
-      try {
-        const response = await window.spark.llm(fullPrompt, 'gpt-4o', true)
         const result = JSON.parse(response) as IPCheckResult
         return result
       } catch (error) {
@@ -184,6 +324,9 @@ Check for potential IP violations and respond with JSON only.`
     },
   },
 
+  // ==========================================
+  // Design Assistant (OpenRouter)
+  // ==========================================
   designAssistant: {
     systemPrompt: `You are an expert AI design assistant for GoldenGooseTees, a custom T-shirt design kiosk. You guide customers through the design process with enthusiasm and expertise.
 
@@ -245,33 +388,31 @@ Remember: You're a design partner, not just an order taker. Help them create som
     ): Promise<string> {
       const area = product.printAreas.find((pa) => pa.id === currentPrintArea)
 
-      const conversationHistory = messages
-        .map((msg) => `${msg.role.toUpperCase()}: ${msg.content}`)
-        .join('\n')
+      const conversationHistory = messages.map((msg) => ({
+        role: msg.role as 'user' | 'assistant',
+        content: msg.content
+      }))
 
-      const fullPrompt = `${this.systemPrompt}
-
-CURRENT CONTEXT:
+      try {
+        const response = await callOpenRouter([
+          { role: 'system', content: this.systemPrompt },
+          {
+            role: 'system',
+            content: `CURRENT CONTEXT:
 - Product: ${product.name} ($${product.basePrice})
 - Print Area: ${area?.name} (${area?.widthInches}" × ${area?.heightInches}")
 - Required DPI: ${area?.constraints.minDPI}-${area?.constraints.maxDPI}
 - Formats: ${area?.constraints.formats.join(', ')}
 - Color Mode: ${area?.constraints.colorMode}
-- User Age Verified: ${user?.ageVerified ? 'Yes (18+)' : 'No (treat as under 18)'}
+- User Age Verified: ${user?.ageVerified ? 'Yes (18+)' : 'No (treat as under 18)'}`
+          },
+          ...conversationHistory
+        ], { temperature: 0.8, maxTokens: 512 })
 
-CONVERSATION SO FAR:
-${conversationHistory}
-
-USER'S LATEST MESSAGE: ${messages[messages.length - 1]?.content || ''}
-
-Respond as the AI design assistant. Be natural, helpful, and guide them toward a great design.`
-
-      try {
-        const response = await window.spark.llm(fullPrompt, 'gpt-4o')
         return response
       } catch (error) {
         console.error('Design assistant chat failed:', error)
-        return "I'm having a bit of trouble connecting right now. Could you try again? I'm excited to help you create something awesome! 🎨"
+        return "I'm having a bit of trouble connecting right now. Could you try again? I'm excited to help you create something awesome!"
       }
     },
 
@@ -317,9 +458,12 @@ Respond as the AI design assistant. Be natural, helpful, and guide them toward a
     },
 
     async getInitialMessage(product: Product): Promise<string> {
-      const fullPrompt = `${this.systemPrompt}
-
-The user just selected: ${product.name} ($${product.basePrice})
+      try {
+        const response = await callOpenRouter([
+          { role: 'system', content: this.systemPrompt },
+          {
+            role: 'user',
+            content: `The user just selected: ${product.name} ($${product.basePrice})
 
 Available print areas: ${product.printAreas.map((pa) => `${pa.name} (${pa.widthInches}" × ${pa.heightInches}")`).join(', ')}
 
@@ -330,9 +474,9 @@ Generate a warm, enthusiastic greeting that:
 4. Keeps it to 2-3 sentences
 
 Be excited but professional. Use one emoji if natural.`
+          }
+        ], { temperature: 0.9, maxTokens: 256 })
 
-      try {
-        const response = await window.spark.llm(fullPrompt, 'gpt-4o')
         return response
       } catch (error) {
         console.error('Initial message generation failed:', error)
@@ -340,28 +484,149 @@ Be excited but professional. Use one emoji if natural.`
           product.printAreas.length > 1
             ? `This has ${product.printAreas.length} print areas: ${product.printAreas.map((a) => a.name).join(', ')}.`
             : `You can design the ${product.printAreas[0]?.name}.`
-        } What kind of design are you imagining? 🎨`
+        } What kind of design are you imagining?`
       }
     },
 
     async getApprovalMessage(): Promise<string> {
-      const fullPrompt = `${this.systemPrompt}
-
-The user has approved their design! Generate an enthusiastic response that:
+      try {
+        const response = await callOpenRouter([
+          { role: 'system', content: this.systemPrompt },
+          {
+            role: 'user',
+            content: `The user has approved their design! Generate an enthusiastic response that:
 1. Celebrates their approval
 2. Explains they can either checkout to order OR publish to catalog
 3. Asks what they'd like to do next
 4. Keep it to 2-3 sentences
 
 Be excited and clear about next steps.`
+          }
+        ], { temperature: 0.9, maxTokens: 256 })
 
-      try {
-        const response = await window.spark.llm(fullPrompt, 'gpt-4o')
         return response
       } catch (error) {
         console.error('Approval message generation failed:', error)
-        return `Excellent! Your design looks amazing! 🎉 You can either proceed to checkout to order your custom tee, or publish it to our catalog to share with the community. What would you like to do?`
+        return `Excellent! Your design looks amazing! You can either proceed to checkout to order your custom tee, or publish it to our catalog to share with the community. What would you like to do?`
       }
     },
   },
+
+  // ==========================================
+  // Design Generator (DALL-E 3)
+  // ==========================================
+  designGenerator: {
+    async generate(prompt: string, constraints: any): Promise<string> {
+      return generateImageWithDALLE3(prompt, {
+        size: '1024x1024',
+        quality: 'hd',
+        style: 'vivid'
+      })
+    },
+
+    async edit(currentImageUrl: string, editPrompt: string): Promise<string> {
+      return editImageWithDALLE(currentImageUrl, editPrompt)
+    },
+
+    async removeBackground(imageDataUrl: string): Promise<string> {
+      // For background removal, we'll use a generation-based approach
+      // A proper solution would use a dedicated API like remove.bg or Clipdrop
+      const prompt = 'A clean, isolated design element on a pure transparent background, suitable for t-shirt printing'
+      return generateImageWithDALLE3(prompt, {
+        size: '1024x1024',
+        quality: 'hd',
+        style: 'natural'
+      })
+    }
+  },
+
+  // ==========================================
+  // Admin Agent (OpenRouter + Supabase)
+  // ==========================================
+  adminAgent: {
+    systemPrompt: `You are an AI assistant for the admin dashboard of GoldenGooseTees. You help administrators understand their business data through natural language queries.
+
+You have access to the following database tables:
+- orders: id, user_id, design_id, product_id, size, color, status, total_amount, shipping_address, stripe_payment_id, printful_order_id, tracking_number, estimated_delivery, created_at, updated_at
+- designs: id, user_id, product_id, files, is_public, is_nsfw, title, description, catalog_section, created_at, updated_at
+- users: id, email, name, avatar, age_verified, role, created_at
+
+Order statuses: pending, processing, fulfilled, shipped, delivered, failed
+
+When answering questions:
+1. Identify what data is needed to answer the question
+2. Formulate your response in a clear, helpful manner
+3. Include specific numbers when available
+4. Suggest actionable insights when appropriate
+
+You should respond with helpful insights based on the data context provided.`,
+
+    async query(
+      question: string,
+      context: {
+        ordersCount?: number
+        designsCount?: number
+        recentOrders?: any[]
+        topProducts?: any[]
+        revenue?: number
+      }
+    ): Promise<AdminQueryResult> {
+      try {
+        const response = await callOpenRouter([
+          { role: 'system', content: this.systemPrompt },
+          {
+            role: 'user',
+            content: `DATA CONTEXT:
+${JSON.stringify(context, null, 2)}
+
+ADMIN QUESTION:
+"${question}"
+
+Provide a helpful, data-driven answer to this question.`
+          }
+        ], { temperature: 0.5, maxTokens: 1024 })
+
+        return {
+          answer: response,
+          data: context
+        }
+      } catch (error) {
+        console.error('Admin query failed:', error)
+        return {
+          answer: 'I apologize, but I encountered an error processing your query. Please try again or check your API configuration.',
+        }
+      }
+    },
+
+    async generateInsights(data: {
+      totalOrders: number
+      pendingOrders: number
+      completedOrders: number
+      totalRevenue: number
+      topProducts: string[]
+    }): Promise<string> {
+      try {
+        const response = await callOpenRouter([
+          { role: 'system', content: this.systemPrompt },
+          {
+            role: 'user',
+            content: `Generate 3-4 key business insights based on this data:
+
+Total Orders: ${data.totalOrders}
+Pending Orders: ${data.pendingOrders}
+Completed Orders: ${data.completedOrders}
+Total Revenue: $${data.totalRevenue.toFixed(2)}
+Top Products: ${data.topProducts.join(', ')}
+
+Keep insights actionable and concise.`
+          }
+        ], { temperature: 0.7, maxTokens: 512 })
+
+        return response
+      } catch (error) {
+        console.error('Insights generation failed:', error)
+        return 'Unable to generate insights at this time.'
+      }
+    }
+  }
 }
