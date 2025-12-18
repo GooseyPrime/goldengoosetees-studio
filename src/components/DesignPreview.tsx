@@ -12,13 +12,17 @@ interface DesignPreviewProps {
   designFiles: DesignFile[]
   currentArea?: string
   showMockupOption?: boolean
+  selectedColor?: string
+  selectedSize?: string
 }
 
 export function DesignPreview({
   product,
   designFiles,
   currentArea,
-  showMockupOption = false
+  showMockupOption = false,
+  selectedColor,
+  selectedSize
 }: DesignPreviewProps) {
   const [useMockup, setUseMockup] = useState(false)
   const [mockupUrl, setMockupUrl] = useState<string | null>(null)
@@ -36,14 +40,16 @@ export function DesignPreview({
       setMockupError(null)
 
       try {
-        // Find the design with a storage URL (publicly accessible)
-        const designWithUrl = designFiles.find(df => df.storageUrl)
-        if (!designWithUrl?.storageUrl) {
-          setMockupError('Design must be saved to generate mockup')
+        // Find any design (prefer one with storage URL, but accept dataUrl)
+        const currentDesignFile = designFiles.find(df => df.printAreaId === currentArea) || designFiles[0]
+        if (!currentDesignFile) {
+          setMockupError('No design available')
           setIsLoadingMockup(false)
           return
         }
 
+        const designUrl = currentDesignFile.storageUrl || currentDesignFile.dataUrl
+        
         // Get the Printful product ID from SKU
         const productId = parseInt(product.printfulSKU) || 71 // Default to basic tee
         const variantId = productId + 100 // Simplified variant ID logic
@@ -51,20 +57,20 @@ export function DesignPreview({
         const result = await printfulService.generateMockup(
           productId,
           variantId,
-          designWithUrl.storageUrl
+          designUrl
         )
 
         setMockupUrl(result.mockup_url)
       } catch (error) {
         console.error('Mockup generation failed:', error)
-        setMockupError('Failed to generate mockup')
+        setMockupError('Failed to generate mockup. Using preview instead.')
       } finally {
         setIsLoadingMockup(false)
       }
     }
 
     generateMockup()
-  }, [useMockup, product, designFiles])
+  }, [useMockup, product, designFiles, currentArea])
   if (!product) {
     return (
       <Card className="flex-1 flex items-center justify-center p-12 bg-muted/30">
@@ -85,6 +91,11 @@ export function DesignPreview({
 
   const currentDesign = designFiles.find(df => df.printAreaId === currentArea)
   const currentPrintArea = product.printAreas.find(pa => pa.id === currentArea)
+  
+  // Get the selected color object for display
+  const selectedColorObj = selectedColor 
+    ? product.availableColors.find(c => c.name === selectedColor)
+    : product.availableColors[0] || { name: 'White', hexCode: '#FFFFFF', available: true }
 
   return (
     <Card className="flex-1 flex flex-col overflow-hidden">
@@ -95,6 +106,18 @@ export function DesignPreview({
             <p className="text-sm text-muted-foreground">
               {currentPrintArea ? currentPrintArea.name : 'Design Preview'}
             </p>
+            {selectedColor && selectedSize && (
+              <div className="flex items-center gap-2 mt-1">
+                <div
+                  className="w-4 h-4 rounded-full border border-border"
+                  style={{ backgroundColor: selectedColorObj?.hexCode }}
+                  title={selectedColor}
+                />
+                <span className="text-xs text-muted-foreground">
+                  {selectedColor} • {selectedSize}
+                </span>
+              </div>
+            )}
           </div>
           <Badge variant="secondary" className="font-mono">
             ${product.basePrice}
@@ -134,12 +157,29 @@ export function DesignPreview({
             </div>
           ) : (
             /* Simple preview view */
-            <div className="relative w-full max-w-md aspect-[3/4] bg-white rounded-lg shadow-2xl overflow-hidden">
-              <img
-                src={product.imageUrl}
-                alt={product.name}
-                className="w-full h-full object-cover"
-              />
+            <div className="relative w-full max-w-md aspect-[3/4] rounded-lg shadow-2xl overflow-hidden"
+                 style={{ backgroundColor: selectedColorObj?.hexCode || '#FFFFFF' }}>
+              {/* Product base image with color tint overlay */}
+              <div className="absolute inset-0">
+                <img
+                  src={product.imageUrl}
+                  alt={product.name}
+                  className="w-full h-full object-cover"
+                  style={{
+                    mixBlendMode: selectedColorObj?.hexCode !== '#FFFFFF' && selectedColorObj?.hexCode !== '#ffffff' ? 'multiply' : 'normal',
+                    opacity: selectedColorObj?.hexCode !== '#FFFFFF' && selectedColorObj?.hexCode !== '#ffffff' ? 0.8 : 1
+                  }}
+                />
+                {/* Color overlay for better color representation */}
+                <div 
+                  className="absolute inset-0 pointer-events-none"
+                  style={{
+                    backgroundColor: selectedColorObj?.hexCode,
+                    opacity: selectedColorObj?.hexCode !== '#FFFFFF' && selectedColorObj?.hexCode !== '#ffffff' ? 0.3 : 0,
+                    mixBlendMode: 'multiply'
+                  }}
+                />
+              </div>
 
               {currentDesign && (
                 <motion.div

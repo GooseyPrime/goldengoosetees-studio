@@ -470,13 +470,15 @@ function App() {
         return [...filtered, newDesign]
       })
 
-      toast.success('Design generated! Check the preview.')
+      toast.success('Design generated! Click the edit button in Design Progress to customize it.', {
+        duration: 5000
+      })
 
       // Add an AI message acknowledging generation
       const assistantMessage: ChatMessage = {
         id: `msg-${Date.now()}`,
         role: 'assistant',
-        content: "I've generated your design! 🎨 Take a look at the preview. If you'd like any changes, just let me know what adjustments you'd like to make.",
+        content: "I've generated your design! 🎨 You can see it in the preview on the left and in the Design Progress panel on the right. Click the edit (pencil) button to customize it further, or let me know if you'd like me to generate a different version.",
         timestamp: new Date().toISOString()
       }
       setMessages((prev) => [...prev, assistantMessage])
@@ -639,6 +641,8 @@ function App() {
                       designFiles={designFiles}
                       currentArea={currentPrintArea}
                       showMockupOption={true}
+                      selectedColor={selectedConfiguration.color}
+                      selectedSize={selectedConfiguration.size}
                     />
 
                     {/* Middle Column: Chat Interface with Generate Button */}
