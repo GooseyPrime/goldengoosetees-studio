@@ -14,15 +14,21 @@ import { Separator } from '@/components/ui/separator'
 import { Progress } from '@/components/ui/progress'
 import { Design, Product, User } from '@/lib/types'
 import { api } from '@/lib/api'
-import { 
-  CreditCard, 
-  Package, 
-  CheckCircle, 
+import { stripeService } from '@/lib/stripe'
+import {
+  CreditCard,
+  Package,
+  CheckCircle,
   Warning,
-  Truck
+  Truck,
+  ArrowSquareOut
 } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { motion, AnimatePresence } from 'framer-motion'
+
+// Environment variables
+const STRIPE_TEST_MODE = import.meta.env.VITE_STRIPE_TEST_MODE === 'true'
+const APP_URL = import.meta.env.VITE_APP_URL || window.location.origin
 
 interface CheckoutFlowProps {
   open: boolean
@@ -47,7 +53,8 @@ export function CheckoutFlow({
   const [isProcessing, setIsProcessing] = useState(false)
   const [orderId, setOrderId] = useState<string>()
   const [estimatedDelivery, setEstimatedDelivery] = useState<string>()
-  const [isTestMode, setIsTestMode] = useState(false)
+  const [isTestMode] = useState(STRIPE_TEST_MODE)
+  const [useStripeCheckout, setUseStripeCheckout] = useState(true) // Default to Stripe Checkout
 
   const [shippingData, setShippingData] = useState({
     name: user.name,
@@ -141,19 +148,62 @@ export function CheckoutFlow({
     setCardData({ ...cardData, cvc: cleaned })
   }
 
-  useEffect(() => {
-    const checkTestMode = async () => {
-      const config = await window.spark.kv.get<{ isTestMode: boolean }>('stripe-config')
-      if (config) {
-        setIsTestMode(config.isTestMode)
-      }
+  // Stripe Checkout redirect handler
+  const handleStripeCheckout = async () => {
+    setStep('processing')
+    setIsProcessing(true)
+
+    try {
+      const totalWithShipping = product.basePrice + 5.99
+
+      // Create order first
+      const order = await api.orders.create({
+        userId: user.id,
+        designId: design.id,
+        productId: product.id,
+        size: design.size,
+        color: design.color,
+        totalAmount: totalWithShipping,
+        shippingAddress: shippingData
+      })
+
+      // Create Stripe Checkout Session
+      const session = await stripeService.createCheckoutSession({
+        orderId: order.id,
+        productName: `${product.name} - ${design.title}`,
+        productDescription: `Size: ${design.size}, Color: ${design.color}`,
+        productImage: product.imageUrl,
+        amount: totalWithShipping,
+        customerEmail: user.email,
+        successUrl: `${APP_URL}?checkout=success&order_id=${order.id}&session_id={CHECKOUT_SESSION_ID}`,
+        cancelUrl: `${APP_URL}?checkout=canceled&order_id=${order.id}`,
+        metadata: {
+          design_id: design.id,
+          product_id: product.id,
+          user_id: user.id
+        }
+      })
+
+      // Redirect to Stripe Checkout
+      stripeService.redirectToCheckout(session.url)
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to create checkout session.'
+      toast.error(errorMessage)
+      setStep('shipping')
+    } finally {
+      setIsProcessing(false)
     }
-    checkTestMode()
-  }, [])
+  }
 
   const handleShippingSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    setStep('payment')
+    if (useStripeCheckout) {
+      // Go directly to Stripe Checkout
+      handleStripeCheckout()
+    } else {
+      // Continue to inline card payment
+      setStep('payment')
+    }
   }
 
   const handlePaymentSubmit = async (e: React.FormEvent) => {
@@ -356,8 +406,56 @@ export function CheckoutFlow({
                   </div>
                 </div>
 
+                <Separator className="my-4" />
+
+                {/* Payment Method Selection */}
+                <div className="space-y-3">
+                  <Label className="text-base font-semibold">Payment Method</Label>
+                  <div className="grid grid-cols-1 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setUseStripeCheckout(true)}
+                      className={`flex items-center gap-3 p-4 rounded-lg border-2 transition-all text-left ${
+                        useStripeCheckout
+                          ? 'border-primary bg-primary/5'
+                          : 'border-border hover:border-primary/50'
+                      }`}
+                    >
+                      <ArrowSquareOut size={24} className="text-primary" />
+                      <div className="flex-1">
+                        <p className="font-medium">Stripe Checkout</p>
+                        <p className="text-xs text-muted-foreground">Secure payment page with multiple options</p>
+                      </div>
+                      {useStripeCheckout && <CheckCircle size={20} className="text-primary" />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setUseStripeCheckout(false)}
+                      className={`flex items-center gap-3 p-4 rounded-lg border-2 transition-all text-left ${
+                        !useStripeCheckout
+                          ? 'border-primary bg-primary/5'
+                          : 'border-border hover:border-primary/50'
+                      }`}
+                    >
+                      <CreditCard size={24} className="text-muted-foreground" />
+                      <div className="flex-1">
+                        <p className="font-medium">Pay with Card</p>
+                        <p className="text-xs text-muted-foreground">Enter card details directly</p>
+                      </div>
+                      {!useStripeCheckout && <CheckCircle size={20} className="text-primary" />}
+                    </button>
+                  </div>
+                </div>
+
                 <Button type="submit" className="w-full" size="lg">
-                  Continue to Payment
+                  {useStripeCheckout ? (
+                    <>
+                      <ArrowSquareOut size={20} className="mr-2" />
+                      Continue to Stripe Checkout
+                    </>
+                  ) : (
+                    'Continue to Payment'
+                  )}
                 </Button>
               </form>
             </motion.div>

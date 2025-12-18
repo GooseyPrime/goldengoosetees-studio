@@ -1,5 +1,8 @@
-import { useKV } from '@github/spark/hooks'
 import { DesignFile, Product, Order } from './types'
+
+// Environment variables (Vite)
+const PRINTFUL_API_KEY = import.meta.env.VITE_PRINTFUL_API_KEY
+const PRINTFUL_STORE_ID = import.meta.env.VITE_PRINTFUL_STORE_ID
 
 const PRINTFUL_API_BASE = 'https://api.printful.com'
 
@@ -136,15 +139,20 @@ export interface PrintfulOrderResponse {
 export class PrintfulService {
   private config: PrintfulConfig | null = null
 
-  async initialize(): Promise<void> {
-    const apiKey = await window.spark.kv.get<string>('printful-api-key')
-    const storeId = await window.spark.kv.get<string>('printful-store-id')
-    
-    if (!apiKey) {
-      throw new Error('Printful API key not configured')
+  initialize(): void {
+    if (!PRINTFUL_API_KEY) {
+      console.warn('Printful API key not configured. Set VITE_PRINTFUL_API_KEY.')
+      return
     }
 
-    this.config = { apiKey, storeId }
+    this.config = {
+      apiKey: PRINTFUL_API_KEY,
+      storeId: PRINTFUL_STORE_ID || undefined
+    }
+  }
+
+  isConfigured(): boolean {
+    return this.config !== null && !!this.config.apiKey
   }
 
   private async request<T>(
@@ -152,7 +160,11 @@ export class PrintfulService {
     options: RequestInit = {}
   ): Promise<T> {
     if (!this.config) {
-      await this.initialize()
+      this.initialize()
+    }
+
+    if (!this.config?.apiKey) {
+      throw new Error('Printful API key not configured. Set VITE_PRINTFUL_API_KEY.')
     }
 
     const response = await fetch(`${PRINTFUL_API_BASE}${endpoint}`, {
@@ -189,6 +201,85 @@ export class PrintfulService {
 
   async getVariant(variantId: number): Promise<PrintfulVariant> {
     return this.request<PrintfulVariant>(`/products/variant/${variantId}`)
+  }
+
+  // Get sync products from the connected store
+  async getSyncProducts(): Promise<any[]> {
+    return this.request<any[]>('/store/products')
+  }
+
+  async getSyncProduct(syncProductId: number): Promise<any> {
+    return this.request<any>(`/store/products/${syncProductId}`)
+  }
+
+  async getSyncVariants(syncProductId: number): Promise<any[]> {
+    const product = await this.request<any>(`/store/products/${syncProductId}`)
+    return product.sync_variants || []
+  }
+
+  // Mockup generation
+  async generateMockup(
+    productId: number,
+    variantId: number,
+    designUrl: string,
+    options?: {
+      format?: 'jpg' | 'png'
+      width?: number
+    }
+  ): Promise<{ mockup_url: string; extra: any[] }> {
+    const mockupTaskResponse = await this.request<{ task_key: string }>('/mockup-generator/create-task/' + productId, {
+      method: 'POST',
+      body: JSON.stringify({
+        variant_ids: [variantId],
+        format: options?.format || 'jpg',
+        width: options?.width || 1000,
+        files: [
+          {
+            placement: 'front',
+            image_url: designUrl,
+            position: {
+              area_width: 1800,
+              area_height: 2400,
+              width: 1800,
+              height: 2400,
+              top: 0,
+              left: 0
+            }
+          }
+        ]
+      })
+    })
+
+    // Poll for mockup completion (max 30 seconds)
+    const taskKey = mockupTaskResponse.task_key
+    let attempts = 0
+    const maxAttempts = 30
+
+    while (attempts < maxAttempts) {
+      await new Promise(resolve => setTimeout(resolve, 1000))
+
+      const result = await this.request<any>(`/mockup-generator/task?task_key=${taskKey}`)
+
+      if (result.status === 'completed') {
+        return {
+          mockup_url: result.mockups?.[0]?.mockup_url || '',
+          extra: result.mockups || []
+        }
+      }
+
+      if (result.status === 'failed') {
+        throw new Error('Mockup generation failed')
+      }
+
+      attempts++
+    }
+
+    throw new Error('Mockup generation timed out')
+  }
+
+  // Get printfiles info for a product
+  async getPrintfiles(productId: number): Promise<any> {
+    return this.request<any>(`/mockup-generator/printfiles/${productId}`)
   }
 
   async getShippingRates(
@@ -229,7 +320,11 @@ export class PrintfulService {
     formData.append('file', file, filename)
 
     if (!this.config) {
-      await this.initialize()
+      this.initialize()
+    }
+
+    if (!this.config?.apiKey) {
+      throw new Error('Printful API key not configured. Set VITE_PRINTFUL_API_KEY.')
     }
 
     const response = await fetch(`${PRINTFUL_API_BASE}/files`, {
