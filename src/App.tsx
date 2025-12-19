@@ -13,6 +13,7 @@ import { AuthDialog } from '@/components/AuthDialog'
 import { CheckoutFlow } from '@/components/CheckoutFlow'
 import { AdminDashboard } from '@/components/AdminDashboard'
 import { DesignManagerPage } from '@/components/DesignManagerPage'
+import { DesignPreferencesForm, DesignPreferences, preferencesToPrompt } from '@/components/DesignPreferencesForm'
 import { MOCK_PRODUCTS } from '@/lib/mock-data'
 import { MOCK_ORDERS, MOCK_PENDING_DESIGNS } from '@/lib/admin-mock-data'
 import { api } from '@/lib/api'
@@ -48,7 +49,7 @@ const KIOSK_MODE = import.meta.env.VITE_KIOSK_MODE === 'true'
 function App() {
   const [currentUser, setCurrentUser] = useKV<User | null>('current-user', null)
   const [savedDesigns, setSavedDesigns] = useKV<Design[]>('saved-designs', [])
-  const [activeView, setActiveView] = useState<'products' | 'configuration' | 'design' | 'manager' | 'catalog'>('products')
+  const [activeView, setActiveView] = useState<'products' | 'configuration' | 'brief' | 'design' | 'manager' | 'catalog'>('products')
   const [showAdminDashboard, setShowAdminDashboard] = useState(false)
 
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
@@ -70,6 +71,9 @@ function App() {
   const [editingDesign, setEditingDesign] = useState<DesignFile | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
 
+  // Design preferences from form (used to provide context to AI)
+  const [designPreferences, setDesignPreferences] = useState<DesignPreferences | null>(null)
+
   // Kiosk session timeout handler - resets all state after 5 minutes of inactivity
   const handleSessionReset = useCallback(() => {
     console.log('Kiosk session reset due to inactivity')
@@ -88,6 +92,7 @@ function App() {
     setCurrentDesign(null)
     setActiveView('products')
     setShowAdminDashboard(false)
+    setDesignPreferences(null)
 
     // Sign out from Supabase
     api.auth.signOut().catch(console.error)
@@ -125,12 +130,14 @@ function App() {
     initializeAdminData()
   }, [])
 
+  // Only auto-load initial message if we skip the brief form and land directly in design view
+  // This is a fallback for edge cases - normally handleSkipToChat or handleDesignPreferencesSubmit handle this
   useEffect(() => {
-    if (selectedProduct && selectedConfiguration && messages.length === 0) {
+    if (activeView === 'design' && selectedProduct && selectedConfiguration && messages.length === 0) {
       const loadInitialMessage = async () => {
         const configuredProduct = {
           ...selectedProduct,
-          printAreas: selectedProduct.printAreas.filter(pa => 
+          printAreas: selectedProduct.printAreas.filter(pa =>
             selectedConfiguration.printAreas.includes(pa.id)
           )
         }
@@ -146,15 +153,16 @@ function App() {
       }
       loadInitialMessage()
     }
-  }, [selectedProduct, selectedConfiguration, messages.length])
+  }, [activeView, selectedProduct, selectedConfiguration, messages.length])
 
   const handleProductSelect = (product: Product) => {
     setSelectedProduct(product)
     if (product.configurations.length === 1) {
       setSelectedConfiguration(product.configurations[0])
-      setActiveView('design')
+      setActiveView('brief')  // Go to design brief form first
       setMessages([])
       setDesignFiles([])
+      setDesignPreferences(null)
     } else {
       setActiveView('configuration')
     }
@@ -162,9 +170,83 @@ function App() {
 
   const handleConfigurationSelect = (config: ProductConfiguration) => {
     setSelectedConfiguration(config)
-    setActiveView('design')
+    setActiveView('brief')  // Go to design brief form first
     setMessages([])
     setDesignFiles([])
+    setDesignPreferences(null)
+  }
+
+  // Handle design preferences form submission - generate immediately
+  const handleDesignPreferencesSubmit = async (preferences: DesignPreferences) => {
+    setDesignPreferences(preferences)
+    setActiveView('design')
+
+    // Set up the print area
+    if (selectedProduct && selectedConfiguration) {
+      const configuredProduct = {
+        ...selectedProduct,
+        printAreas: selectedProduct.printAreas.filter(pa =>
+          selectedConfiguration.printAreas.includes(pa.id)
+        )
+      }
+      setCurrentPrintArea(configuredProduct.printAreas[0]?.id)
+
+      // Add initial context message from preferences
+      const prompt = preferencesToPrompt(preferences)
+      const contextMessage: ChatMessage = {
+        id: `msg-${Date.now()}`,
+        role: 'user',
+        content: prompt,
+        timestamp: new Date().toISOString()
+      }
+
+      const generatingMessage: ChatMessage = {
+        id: `msg-${Date.now() + 1}`,
+        role: 'assistant',
+        content: `Creating your design now! 🎨 I'm working on: ${preferences.concept}${preferences.style ? ` in a ${preferences.style} style` : ''}${preferences.text ? ` with "${preferences.text}"` : ''}. Watch the preview!`,
+        timestamp: new Date().toISOString()
+      }
+
+      setMessages([contextMessage, generatingMessage])
+
+      // Generate the design immediately
+      await generateDesign(prompt)
+
+      // Add follow-up message
+      const followUpMessage: ChatMessage = {
+        id: `msg-${Date.now() + 2}`,
+        role: 'assistant',
+        content: "Your design is ready! Take a look at the preview. Want me to tweak anything? Just describe what you'd like changed.",
+        timestamp: new Date().toISOString()
+      }
+      setMessages(prev => [...prev, followUpMessage])
+    }
+  }
+
+  // Skip the form and go directly to chat
+  const handleSkipToChat = async () => {
+    setActiveView('design')
+
+    // Set up the print area and load initial message
+    if (selectedProduct && selectedConfiguration) {
+      const configuredProduct = {
+        ...selectedProduct,
+        printAreas: selectedProduct.printAreas.filter(pa =>
+          selectedConfiguration.printAreas.includes(pa.id)
+        )
+      }
+      setCurrentPrintArea(configuredProduct.printAreas[0]?.id)
+
+      // Load AI initial message
+      const content = await api.ai.getInitialMessage(configuredProduct)
+      const initialMessage: ChatMessage = {
+        id: `msg-${Date.now()}`,
+        role: 'assistant',
+        content,
+        timestamp: new Date().toISOString()
+      }
+      setMessages([initialMessage])
+    }
   }
 
   const handleBackToProducts = () => {
@@ -631,6 +713,41 @@ function App() {
                   onSelect={handleConfigurationSelect}
                   onBack={handleBackToProducts}
                 />
+              )}
+
+              {activeView === 'brief' && selectedProduct && selectedConfiguration && (
+                <motion.div
+                  key="brief"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  className="py-8"
+                >
+                  <div className="mb-6 text-center">
+                    <h2 className="text-2xl font-bold mb-2">
+                      Let's Design Your {selectedProduct.name}
+                    </h2>
+                    <p className="text-muted-foreground">
+                      {selectedConfiguration.name} • {selectedConfiguration.color} • Size {selectedConfiguration.size}
+                    </p>
+                  </div>
+
+                  <DesignPreferencesForm
+                    onSubmit={handleDesignPreferencesSubmit}
+                    onSkip={handleSkipToChat}
+                    isLoading={isGenerating}
+                  />
+
+                  <div className="mt-4 text-center">
+                    <Button
+                      variant="ghost"
+                      onClick={handleBackToProducts}
+                      className="text-muted-foreground"
+                    >
+                      ← Back to Products
+                    </Button>
+                  </div>
+                </motion.div>
               )}
 
               {activeView === 'design' && selectedProduct && selectedConfiguration && (
