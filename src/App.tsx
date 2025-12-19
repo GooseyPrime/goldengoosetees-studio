@@ -182,44 +182,97 @@ function App() {
       content,
       timestamp: new Date().toISOString()
     }
-    
+
     setMessages((prev) => [...prev, userMessage])
     setIsAILoading(true)
 
     try {
-      const response = await api.ai.chat(
-        [...messages, userMessage],
-        selectedProduct || undefined,
-        currentPrintArea,
-        currentUser
-      )
-      
-      const assistantMessage: ChatMessage = {
-        id: `msg-${Date.now() + 1}`,
-        role: 'assistant',
-        content: response,
-        timestamp: new Date().toISOString()
-      }
-      
-      setMessages((prev) => [...prev, assistantMessage])
+      // CHECK FOR GENERATION INTENT FIRST - before AI response
+      const shouldGenerate = api.ai.shouldGenerateDesign(content)
+      const conversationLength = messages.filter(m => m.role === 'user').length
 
-      if (api.ai.shouldGenerateDesign(content)) {
-        await generateDesign(content)
+      // Auto-generate after enough conversation OR if explicit generation intent
+      const autoGenerate = shouldGenerate || (conversationLength >= 2 && content.length > 20)
+
+      if (autoGenerate && selectedProduct && currentPrintArea) {
+        // Generate design immediately - don't wait for AI to ask more questions
+        const generatingMessage: ChatMessage = {
+          id: `msg-${Date.now() + 1}`,
+          role: 'assistant',
+          content: "Creating your design now! 🎨 Watch the preview on the left - your custom creation will appear there in just a moment.",
+          timestamp: new Date().toISOString()
+        }
+        setMessages((prev) => [...prev, generatingMessage])
+
+        // Extract the full design concept from conversation
+        const designConcept = extractDesignConcept([...messages, userMessage])
+        await generateDesign(designConcept)
+
+        // After generation, add a follow-up message
+        const followUpMessage: ChatMessage = {
+          id: `msg-${Date.now() + 2}`,
+          role: 'assistant',
+          content: "Your design is ready! Take a look at the preview. Want me to tweak anything, or are you happy with it? You can click the edit button to make manual adjustments too.",
+          timestamp: new Date().toISOString()
+        }
+        setMessages((prev) => [...prev, followUpMessage])
       } else if (api.ai.shouldShowApproval(content) && designFiles.length > 0) {
+        // User is approving - guide to checkout
         const approvalContent = await api.ai.getApprovalMessage()
         const approvalMessage: ChatMessage = {
-          id: `msg-${Date.now() + 2}`,
+          id: `msg-${Date.now() + 1}`,
           role: 'assistant',
           content: approvalContent,
           timestamp: new Date().toISOString()
         }
         setMessages((prev) => [...prev, approvalMessage])
+      } else {
+        // Normal chat - get AI response
+        const response = await api.ai.chat(
+          [...messages, userMessage],
+          selectedProduct || undefined,
+          currentPrintArea,
+          currentUser
+        )
+
+        const assistantMessage: ChatMessage = {
+          id: `msg-${Date.now() + 1}`,
+          role: 'assistant',
+          content: response,
+          timestamp: new Date().toISOString()
+        }
+
+        setMessages((prev) => [...prev, assistantMessage])
       }
     } catch (error: any) {
       toast.error(error.message || 'Failed to get AI response')
     } finally {
       setIsAILoading(false)
     }
+  }
+
+  // Helper function to extract full design concept from conversation history
+  const extractDesignConcept = (msgs: ChatMessage[]): string => {
+    const userMessages = msgs
+      .filter(m => m.role === 'user')
+      .map(m => m.content)
+
+    // Combine all user messages to get the full concept
+    // Weight recent messages more heavily
+    if (userMessages.length === 1) {
+      return userMessages[0]
+    }
+
+    // Get the most descriptive messages (longer ones likely contain design details)
+    const descriptiveMessages = userMessages
+      .filter(m => m.length > 10) // Filter out short confirmations
+      .slice(-3) // Take last 3 descriptive messages
+
+    if (descriptiveMessages.length === 0) {
+      return userMessages[userMessages.length - 1]
+    }
+
+    return descriptiveMessages.join('. ')
   }
 
   const generateDesign = async (prompt: string) => {

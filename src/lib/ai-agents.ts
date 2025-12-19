@@ -328,57 +328,67 @@ Check for potential IP violations and respond with JSON only.`
   // Design Assistant (OpenRouter)
   // ==========================================
   designAssistant: {
-    systemPrompt: `You are an expert AI design assistant for GoldenGooseTees, a custom T-shirt design kiosk. You guide customers through the design process with enthusiasm and expertise.
+    systemPrompt: `You are an ACTION-ORIENTED AI design assistant for GoldenGooseTees. Your PRIMARY goal is to CREATE designs quickly, not conduct endless interviews.
 
-YOUR ROLE:
-1. Welcome users and understand their vision
-2. Ask clarifying questions about style, colors, text, and imagery
-3. Provide creative suggestions that fit their needs
-4. Ensure designs meet technical requirements (DPI, format, dimensions)
-5. Build excitement and confidence
-6. Guide them smoothly to checkout
+CRITICAL BEHAVIOR RULES:
+1. BE DECISIVE - If user gives ANY design concept, you have enough to generate. Don't ask more questions.
+2. GENERATE FIRST - When in doubt, generate a design. It's easier to refine than to keep asking questions.
+3. ONE QUESTION MAX - Never ask more than one clarifying question before generating.
+4. RECOGNIZE FRUSTRATION - If user uses caps, exclamation marks, profanity, or repeats themselves, IMMEDIATELY proceed to generation.
+5. NO CONFIRMATION NEEDED - Don't ask "Should I generate?" or "Are you ready?" - just do it.
 
-CONVERSATION STAGES:
-1. GREETING: Welcome them warmly, acknowledge their product choice
-2. DISCOVERY: Ask open-ended questions about their design vision
-3. EXPLORATION: Dive into specifics (colors, style, text vs graphics, purpose)
-4. REFINEMENT: Suggest concrete design directions, validate feasibility
-5. GENERATION: Confirm all details before generating
-6. REVIEW: Present the design, gather feedback
-7. ITERATION: Make refinements based on feedback
-8. APPROVAL: Recognize satisfaction and guide to checkout
+FAST-TRACK GENERATION:
+When user provides a design concept (even vague), respond with:
+"Great idea! I'm generating your [concept] design now. The system will create it in a few seconds - you'll see it appear in the preview. Once it's ready, let me know if you want any changes!"
 
-TECHNICAL CONSTRAINTS:
-- You know exact print area dimensions for each product
-- You understand DPI requirements (typically 150-300 DPI)
-- You know file format requirements (PNG for photos, SVG for graphics)
-- You can calculate if an idea fits the print area dimensions
-- You warn about designs that won't print well (too small text, too much detail, etc.)
+MINIMAL QUESTIONS - Only ask if ABSOLUTELY necessary:
+- NEVER ask about specific colors if they haven't mentioned any (just pick good ones)
+- NEVER ask about font style unless it's a text-heavy design
+- NEVER ask about background - assume transparent/white for printing
+- NEVER ask for confirmation to proceed - just do it
 
-SELLING POINTS (SUBTLE):
-- Mention multiple print areas when relevant ("This would pop on the back too!")
-- Suggest catalog publishing for designs they're proud of
-- Create urgency without being pushy ("Let's bring this vision to life!")
+WHEN TO GENERATE IMMEDIATELY:
+- User describes ANY visual concept
+- User mentions a theme, style, or subject
+- User provides text they want on the shirt
+- User says words like: make, create, generate, design, draw, want, give me, do
+- User responds with "yes", "ok", "sure", "yeah", "go", or similar affirmations
+- User shows ANY sign of impatience
 
-RED FLAGS:
-- If you detect potential trademark/copyright issues, gently suggest alternatives
-- If content seems inappropriate for their age, redirect to safer options
-- If technically impossible (ultra-high detail on small area), explain limitations
+EXAMPLE GOOD RESPONSES:
+User: "a cowboy on a pink pickle"
+You: "Love that quirky Western theme! I'm generating a cowboy riding a wild pink pickle now - perfect for a fun rodeo-style design. Watch the preview for your creation!"
+
+User: "something with skulls"
+You: "Skulls it is! I'm creating a bold skull design for you. It'll appear in the preview shortly. Let me know if you want it more detailed or with any specific style!"
+
+User: "YES JUST MAKE IT"
+You: "On it! Generating your design right now. It'll be in the preview in just a moment!"
+
+WHAT NOT TO DO:
+- Don't ask "What colors would you like?"
+- Don't ask "Should the text be bold or script?"
+- Don't say "Before we generate, can you tell me..."
+- Don't ask "Would you like me to proceed?"
+- Don't ask multiple questions in one message
+- Don't repeat back all the details asking for confirmation
+
+TECHNICAL AWARENESS (use silently, don't lecture):
+- Print area: 12" × 16" front/back, 3" × 4" sleeves
+- DPI: 150-300 (handled automatically)
+- Formats: PNG/SVG (handled automatically)
+
+RED FLAGS (only mention if truly problematic):
+- Trademark issues: Gently suggest alternatives
+- Inappropriate content: Redirect to safer options
 
 TONE:
-- Enthusiastic but professional
-- Use emojis sparingly (1 per message max, only when natural)
-- Keep responses concise (2-4 sentences typically)
-- Ask ONE question at a time
-- Validate their ideas positively before suggesting changes
+- Excited and confident
+- One emoji max per message
+- 1-2 sentences is ideal
+- Action-oriented language
 
-GENERATION CUES:
-When user says "generate", "create", "make it", "let's do it", "go ahead", etc., that's your cue to confirm details and initiate generation.
-
-APPROVAL CUES:
-When user says "looks good", "perfect", "I love it", "approve it", etc., guide them to checkout or catalog publishing.
-
-Remember: You're a design partner, not just an order taker. Help them create something they'll love!`,
+Remember: Your job is to CREATE, not to interview. Users came here to make a shirt, not to answer questions!`,
 
     async chat(
       messages: ChatMessage[],
@@ -417,71 +427,69 @@ Remember: You're a design partner, not just an order taker. Help them create som
     },
 
     detectGenerationIntent(message: string): boolean {
-      const keywords = [
-        // Direct commands
-        'generate',
-        'create',
-        'make it',
-        'make this',
-        'make that',
-        'make the',
-        'design it',
-        'draw',
-        'build',
-        // Confirmation phrases
-        'do it',
-        "let's do it",
-        "let's go",
-        'go for it',
-        'go ahead',
-        'start',
-        'proceed',
-        'yes, generate',
-        'yes generate',
-        'yes please',
-        'yes!',
-        'sounds good',
-        'sounds great',
-        'sounds perfect',
-        'that sounds',
-        'perfect, generate',
-        "that's perfect",
-        "that's what i want",
-        "that's exactly",
-        // Agreement phrases
-        'ok',
-        'okay',
-        'alright',
-        'sure',
-        'yep',
-        'yeah',
-        'yes',
-        "i'd like that",
-        'i want that',
-        'i like that',
-        'love it',
-        "let's see",
-        'show me',
-        // Design specific
-        'ready to see',
-        'ready to generate',
-        'create the design',
-        'generate the design',
-        'make my design',
-        'create my',
-      ]
       const lower = message.toLowerCase().trim()
+      const cleanLower = lower.replace(/[!.,?']/g, '')
 
-      // Check for keywords
-      if (keywords.some((k) => lower.includes(k))) {
+      // AGGRESSIVE DETECTION - err on the side of generating
+
+      // 1. Direct generation commands (highest priority)
+      const directCommands = [
+        'generate', 'create', 'make', 'draw', 'design', 'build', 'produce',
+        'do it', 'go for it', 'go ahead', 'lets go', 'let\'s go', 'lets do it',
+        'make it', 'make the', 'make my', 'make this', 'make that',
+        'create it', 'create the', 'create my', 'just do it', 'just make',
+        'generate it', 'generate the', 'generate my', 'give me', 'show me',
+        'i want', 'i need', 'i\'d like', 'can you make', 'can you create',
+        'please make', 'please create', 'please generate'
+      ]
+      if (directCommands.some(cmd => lower.includes(cmd))) {
         return true
       }
 
-      // Check for short affirmative responses (likely confirming design generation)
-      const shortAffirmatives = ['yes', 'ok', 'okay', 'sure', 'yep', 'yeah', 'alright', 'go', 'do it']
-      if (shortAffirmatives.includes(lower) || shortAffirmatives.includes(lower.replace(/[!.,?]/g, ''))) {
+      // 2. Frustration indicators - ALWAYS generate immediately
+      const frustrationSigns = [
+        '!!!', 'just', 'already', 'fucking', 'ffs', 'come on', 'cmon',
+        'seriously', 'please just', 'stop asking', 'enough', 'finally'
+      ]
+      if (frustrationSigns.some(sign => lower.includes(sign))) {
         return true
       }
+
+      // 3. All caps detection (user is emphatic)
+      if (message.length > 3 && message === message.toUpperCase() && /[A-Z]/.test(message)) {
+        return true
+      }
+
+      // 4. Short affirmative responses (user is confirming)
+      const affirmatives = [
+        'yes', 'yep', 'yeah', 'yea', 'ya', 'y', 'ok', 'okay', 'k', 'kk',
+        'sure', 'alright', 'aight', 'fine', 'good', 'great', 'perfect',
+        'absolutely', 'definitely', 'totally', 'ready', 'go', 'proceed',
+        'sounds good', 'sounds great', 'sounds perfect', 'that works',
+        'love it', 'like it', 'want it', 'do that', 'thats it', 'that\'s it'
+      ]
+      if (affirmatives.includes(cleanLower) || affirmatives.some(a => cleanLower === a)) {
+        return true
+      }
+
+      // 5. If message ends with ! and contains action words
+      if (message.endsWith('!') && ['now', 'it', 'go', 'ready', 'please'].some(w => lower.includes(w))) {
+        return true
+      }
+
+      // 6. Design concept detection - if user describes something visual, they want it made
+      const visualConcepts = [
+        'with a', 'featuring', 'showing', 'picture of', 'image of',
+        'that says', 'text saying', 'words', 'logo', 'graphic',
+        'cowboy', 'skull', 'flower', 'animal', 'sunset', 'mountain',
+        'retro', 'vintage', 'modern', 'minimalist', 'abstract'
+      ]
+      if (visualConcepts.some(concept => lower.includes(concept))) {
+        return true
+      }
+
+      // 7. After any conversation (more than 2 exchanges), assume user wants to generate
+      // This is handled in the chat flow, not here
 
       return false
     },
