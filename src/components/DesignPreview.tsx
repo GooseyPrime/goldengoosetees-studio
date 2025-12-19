@@ -7,6 +7,268 @@ import { printfulService } from '@/lib/printful'
 import { TShirt, CheckCircle, ImageSquare, Spinner } from '@phosphor-icons/react'
 import { motion } from 'framer-motion'
 
+// T-Shirt SVG Mockup Template Component
+interface TShirtMockupProps {
+  color: string
+  designUrl?: string
+  position?: 'front' | 'back' | 'left_sleeve' | 'right_sleeve'
+}
+
+function TShirtMockup({ color, designUrl, position = 'front' }: TShirtMockupProps) {
+  // Calculate design position based on print area
+  const getDesignArea = () => {
+    switch (position) {
+      case 'front':
+        return { x: 145, y: 180, width: 210, height: 280 }
+      case 'back':
+        return { x: 145, y: 180, width: 210, height: 280 }
+      case 'left_sleeve':
+        return { x: 30, y: 140, width: 60, height: 80 }
+      case 'right_sleeve':
+        return { x: 410, y: 140, width: 60, height: 80 }
+      default:
+        return { x: 145, y: 180, width: 210, height: 280 }
+    }
+  }
+
+  const designArea = getDesignArea()
+
+  // Determine if we need light or dark outline based on color brightness
+  const hexToRgb = (hex: string) => {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
+    return result ? {
+      r: parseInt(result[1], 16),
+      g: parseInt(result[2], 16),
+      b: parseInt(result[3], 16)
+    } : { r: 255, g: 255, b: 255 }
+  }
+
+  const rgb = hexToRgb(color)
+  const brightness = (rgb.r * 299 + rgb.g * 587 + rgb.b * 114) / 1000
+  const strokeColor = brightness < 128 ? '#666666' : '#333333'
+  const stitchColor = brightness < 128 ? '#555555' : '#CCCCCC'
+
+  return (
+    <svg viewBox="0 0 500 600" className="w-full h-full" style={{ maxWidth: '400px' }}>
+      <defs>
+        {/* Fabric texture pattern */}
+        <pattern id="fabricTexture" patternUnits="userSpaceOnUse" width="4" height="4">
+          <rect width="4" height="4" fill={color} />
+          <circle cx="1" cy="1" r="0.5" fill="rgba(0,0,0,0.02)" />
+          <circle cx="3" cy="3" r="0.5" fill="rgba(255,255,255,0.02)" />
+        </pattern>
+
+        {/* Shadow gradient */}
+        <linearGradient id="shadowGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" style={{ stopColor: 'rgba(0,0,0,0.1)' }} />
+          <stop offset="50%" style={{ stopColor: 'rgba(0,0,0,0)' }} />
+          <stop offset="100%" style={{ stopColor: 'rgba(0,0,0,0.1)' }} />
+        </linearGradient>
+
+        {/* Clip path for design */}
+        <clipPath id="designClip">
+          <rect x={designArea.x} y={designArea.y} width={designArea.width} height={designArea.height} rx="5" />
+        </clipPath>
+      </defs>
+
+      {/* T-Shirt body */}
+      <path
+        d="M 250 60
+           C 220 60 200 70 180 80
+           L 120 110
+           C 100 120 80 130 60 150
+           L 40 200
+           C 35 220 40 240 50 250
+           L 80 240
+           L 90 200
+           L 100 180
+           L 100 520
+           C 100 540 110 550 130 550
+           L 370 550
+           C 390 550 400 540 400 520
+           L 400 180
+           L 410 200
+           L 420 240
+           L 450 250
+           C 460 240 465 220 460 200
+           L 440 150
+           C 420 130 400 120 380 110
+           L 320 80
+           C 300 70 280 60 250 60
+           Z"
+        fill={color}
+        stroke={strokeColor}
+        strokeWidth="2"
+      />
+
+      {/* Fabric texture overlay */}
+      <path
+        d="M 250 60
+           C 220 60 200 70 180 80
+           L 120 110
+           C 100 120 80 130 60 150
+           L 40 200
+           C 35 220 40 240 50 250
+           L 80 240
+           L 90 200
+           L 100 180
+           L 100 520
+           C 100 540 110 550 130 550
+           L 370 550
+           C 390 550 400 540 400 520
+           L 400 180
+           L 410 200
+           L 420 240
+           L 450 250
+           C 460 240 465 220 460 200
+           L 440 150
+           C 420 130 400 120 380 110
+           L 320 80
+           C 300 70 280 60 250 60
+           Z"
+        fill="url(#fabricTexture)"
+        opacity="0.3"
+      />
+
+      {/* Shadow for depth */}
+      <path
+        d="M 250 60
+           C 220 60 200 70 180 80
+           L 120 110
+           C 100 120 80 130 60 150
+           L 40 200
+           C 35 220 40 240 50 250
+           L 80 240
+           L 90 200
+           L 100 180
+           L 100 520
+           C 100 540 110 550 130 550
+           L 370 550
+           C 390 550 400 540 400 520
+           L 400 180
+           L 410 200
+           L 420 240
+           L 450 250
+           C 460 240 465 220 460 200
+           L 440 150
+           C 420 130 400 120 380 110
+           L 320 80
+           C 300 70 280 60 250 60
+           Z"
+        fill="url(#shadowGradient)"
+      />
+
+      {/* Collar */}
+      <path
+        d="M 200 70
+           Q 250 100 300 70"
+        fill="none"
+        stroke={strokeColor}
+        strokeWidth="3"
+      />
+
+      {/* Collar inner */}
+      <path
+        d="M 210 75
+           Q 250 95 290 75"
+        fill="none"
+        stroke={stitchColor}
+        strokeWidth="1"
+        strokeDasharray="3,2"
+      />
+
+      {/* Left sleeve seam */}
+      <path
+        d="M 100 180 L 80 240"
+        stroke={stitchColor}
+        strokeWidth="1"
+        strokeDasharray="4,3"
+      />
+
+      {/* Right sleeve seam */}
+      <path
+        d="M 400 180 L 420 240"
+        stroke={stitchColor}
+        strokeWidth="1"
+        strokeDasharray="4,3"
+      />
+
+      {/* Bottom hem stitch */}
+      <path
+        d="M 130 540 L 370 540"
+        stroke={stitchColor}
+        strokeWidth="1"
+        strokeDasharray="4,3"
+      />
+
+      {/* Design placement area indicator (dashed when no design) */}
+      {!designUrl && (
+        <g>
+          <rect
+            x={designArea.x}
+            y={designArea.y}
+            width={designArea.width}
+            height={designArea.height}
+            fill="none"
+            stroke={stitchColor}
+            strokeWidth="1"
+            strokeDasharray="8,4"
+            rx="5"
+            opacity="0.5"
+          />
+          <text
+            x={designArea.x + designArea.width / 2}
+            y={designArea.y + designArea.height / 2}
+            textAnchor="middle"
+            fill={stitchColor}
+            fontSize="14"
+            opacity="0.6"
+          >
+            Design Area
+          </text>
+          <text
+            x={designArea.x + designArea.width / 2}
+            y={designArea.y + designArea.height / 2 + 20}
+            textAnchor="middle"
+            fill={stitchColor}
+            fontSize="11"
+            opacity="0.5"
+          >
+            12" × 16"
+          </text>
+        </g>
+      )}
+
+      {/* Design image */}
+      {designUrl && (
+        <g clipPath="url(#designClip)">
+          <image
+            href={designUrl}
+            x={designArea.x}
+            y={designArea.y}
+            width={designArea.width}
+            height={designArea.height}
+            preserveAspectRatio="xMidYMid meet"
+          />
+        </g>
+      )}
+
+      {/* Position label */}
+      <text
+        x="250"
+        y="580"
+        textAnchor="middle"
+        fill="#666"
+        fontSize="14"
+        fontFamily="system-ui, sans-serif"
+        fontWeight="500"
+      >
+        {position.toUpperCase().replace('_', ' ')}
+      </text>
+    </svg>
+  )
+}
+
 interface DesignPreviewProps {
   product?: Product
   designFiles: DesignFile[]
@@ -156,48 +418,23 @@ export function DesignPreview({
               </Button>
             </div>
           ) : (
-            /* Simple preview view */
-            <div className="relative w-full max-w-md aspect-[3/4] rounded-lg shadow-2xl overflow-hidden"
-                 style={{ backgroundColor: selectedColorObj?.hexCode || '#FFFFFF' }}>
-              {/* Product base image with color tint overlay */}
-              <div className="absolute inset-0">
-                <img
-                  src={product.imageUrl}
-                  alt={product.name}
-                  className="w-full h-full object-cover"
-                  style={{
-                    mixBlendMode: selectedColorObj?.hexCode !== '#FFFFFF' && selectedColorObj?.hexCode !== '#ffffff' ? 'multiply' : 'normal',
-                    opacity: selectedColorObj?.hexCode !== '#FFFFFF' && selectedColorObj?.hexCode !== '#ffffff' ? 0.8 : 1
-                  }}
-                />
-                {/* Color overlay for better color representation */}
-                <div 
-                  className="absolute inset-0 pointer-events-none"
-                  style={{
-                    backgroundColor: selectedColorObj?.hexCode,
-                    opacity: selectedColorObj?.hexCode !== '#FFFFFF' && selectedColorObj?.hexCode !== '#ffffff' ? 0.3 : 0,
-                    mixBlendMode: 'multiply'
-                  }}
+            /* T-Shirt Mockup Template View */
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.3 }}
+              className="relative w-full max-w-md flex items-center justify-center p-4"
+            >
+              <div className="w-full bg-gradient-to-b from-white/50 to-gray-100/50 rounded-xl p-4 shadow-lg">
+                <TShirtMockup
+                  color={selectedColorObj?.hexCode || '#FFFFFF'}
+                  designUrl={currentDesign ? (currentDesign.storageUrl || currentDesign.dataUrl) : undefined}
+                  position={currentArea?.includes('back') ? 'back' :
+                           currentArea?.includes('left') ? 'left_sleeve' :
+                           currentArea?.includes('right') ? 'right_sleeve' : 'front'}
                 />
               </div>
-
-              {currentDesign && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ duration: 0.3 }}
-                  className="absolute inset-0 flex items-center justify-center p-12"
-                >
-                  <div className="w-3/5 aspect-[3/4] flex items-center justify-center">
-                    <img
-                      src={currentDesign.storageUrl || currentDesign.dataUrl}
-                      alt="Design preview"
-                      className="max-w-full max-h-full object-contain drop-shadow-lg"
-                    />
-                  </div>
-                </motion.div>
-              )}
-            </div>
+            </motion.div>
           )}
         </div>
 
