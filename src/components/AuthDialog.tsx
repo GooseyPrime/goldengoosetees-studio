@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -32,16 +32,66 @@ export function AuthDialog({
   const [needsAgeVerification, setNeedsAgeVerification] = useState(false)
   const [tempUser, setTempUser] = useState<User | null>(null)
   const [birthdate, setBirthdate] = useState('')
+  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [fullName, setFullName] = useState('')
+
+  useEffect(() => {
+    if (!open) {
+      setNeedsAgeVerification(false)
+      setTempUser(null)
+      setBirthdate('')
+      setAuthMode('signin')
+      setEmail('')
+      setPassword('')
+      setFullName('')
+    }
+  }, [open])
 
   const handleGoogleLogin = async () => {
     setIsLoading(true)
     try {
       const user = await api.auth.loginWithGoogle()
-      
-      setTempUser(user)
-      setNeedsAgeVerification(true)
+
+      if (user.ageVerified) {
+        onAuthenticated(user)
+        onOpenChange(false)
+        toast.success('Welcome back!')
+      } else {
+        setTempUser(user)
+        setNeedsAgeVerification(true)
+      }
     } catch (error) {
       toast.error('Login failed. Please try again.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleEmailAuth = async (event: React.FormEvent) => {
+    event.preventDefault()
+    if (!email || !password || (authMode === 'signup' && !fullName)) {
+      toast.error('Please fill in all required fields.')
+      return
+    }
+
+    setIsLoading(true)
+    try {
+      const user = authMode === 'signup'
+        ? await api.auth.signUpWithEmail(email, password, fullName)
+        : await api.auth.signInWithEmail(email, password)
+
+      if (user.ageVerified) {
+        onAuthenticated(user)
+        onOpenChange(false)
+        toast.success(`Welcome ${authMode === 'signup' ? 'to your new account' : 'back'}!`)
+      } else {
+        setTempUser(user)
+        setNeedsAgeVerification(true)
+      }
+    } catch (error) {
+      toast.error('Unable to sign in with email. Please try again.')
     } finally {
       setIsLoading(false)
     }
@@ -76,10 +126,9 @@ export function AuthDialog({
 
       const ageVerified = age >= 18
       
-      const verifiedUser = { 
-        ...tempUser, 
-        ageVerified,
-        birthdate 
+      const verifiedUser = {
+        ...tempUser,
+        ageVerified
       }
       
       if (requiresAgeVerification && !ageVerified) {
@@ -88,6 +137,10 @@ export function AuthDialog({
         return
       }
 
+      await api.auth.updateUserProfile(verifiedUser.id, {
+        ageVerified,
+        name: verifiedUser.name
+      })
       onAuthenticated(verifiedUser)
       onOpenChange(false)
       toast.success(ageVerified ? 'Age verified! You\'re all set.' : 'Welcome! Account created.')
@@ -104,9 +157,9 @@ export function AuthDialog({
         {!needsAgeVerification ? (
           <>
             <DialogHeader>
-              <DialogTitle className="text-2xl">Sign in to continue</DialogTitle>
+              <DialogTitle className="text-2xl">Sign in or create an account</DialogTitle>
               <DialogDescription>
-                Create an account or sign in to publish your design or place an order. We'll collect your birthdate for age verification.
+                Sign in to publish your design, place an order, or manage your account. We'll collect your birthdate for age verification.
               </DialogDescription>
             </DialogHeader>
 
@@ -129,6 +182,80 @@ export function AuthDialog({
                 <GoogleLogo size={20} weight="bold" className="mr-2" />
                 {isLoading ? 'Connecting...' : 'Continue with Google'}
               </Button>
+
+              <div className="flex items-center gap-3">
+                <div className="flex-1 h-px bg-border" />
+                <span className="text-xs uppercase text-muted-foreground">Or use email</span>
+                <div className="flex-1 h-px bg-border" />
+              </div>
+
+              <form onSubmit={handleEmailAuth} className="space-y-3">
+                {authMode === 'signup' && (
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Full Name</Label>
+                    <Input
+                      id="name"
+                      placeholder="Jane Doe"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      required={authMode === 'signup'}
+                    />
+                  </div>
+                )}
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="you@example.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="password">Password</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    placeholder="Enter your password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <Button
+                  type="submit"
+                  disabled={isLoading}
+                  className="w-full"
+                  size="lg"
+                >
+                  {isLoading
+                    ? authMode === 'signup' ? 'Creating account...' : 'Signing in...'
+                    : authMode === 'signup' ? 'Create Account' : 'Sign In'}
+                </Button>
+              </form>
+
+              <div className="text-center text-xs text-muted-foreground">
+                {authMode === 'signup' ? (
+                  <button
+                    type="button"
+                    className="text-primary hover:underline"
+                    onClick={() => setAuthMode('signin')}
+                  >
+                    Already have an account? Sign in
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="text-primary hover:underline"
+                    onClick={() => setAuthMode('signup')}
+                  >
+                    New here? Create an account
+                  </button>
+                )}
+              </div>
 
               <p className="text-xs text-center text-muted-foreground">
                 By continuing, you agree to our Terms of Service and Privacy Policy.

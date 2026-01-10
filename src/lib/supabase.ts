@@ -54,6 +54,37 @@ export const supabaseService = {
     return data
   },
 
+  async signUpWithEmail(email: string, password: string, name?: string) {
+    if (!this.isConfigured()) {
+      throw new Error('Supabase not configured')
+    }
+
+    const { data, error } = await supabaseClient!.auth.signUp({
+      email,
+      password,
+      options: {
+        data: name ? { full_name: name } : undefined
+      }
+    })
+
+    if (error) throw error
+    return data
+  },
+
+  async signInWithEmail(email: string, password: string) {
+    if (!this.isConfigured()) {
+      throw new Error('Supabase not configured')
+    }
+
+    const { data, error } = await supabaseClient!.auth.signInWithPassword({
+      email,
+      password
+    })
+
+    if (error) throw error
+    return data
+  },
+
   async signOut() {
     if (!this.isConfigured()) {
       return
@@ -112,6 +143,18 @@ export const supabaseService = {
       return user
     }
 
+    let existingUser = null
+    try {
+      const { data } = await supabaseClient!
+        .from('users')
+        .select('*')
+        .eq('id', user.id)
+        .single()
+      existingUser = data
+    } catch (error) {
+      existingUser = null
+    }
+
     const { data, error } = await supabaseClient!
       .from('users')
       .upsert({
@@ -119,10 +162,41 @@ export const supabaseService = {
         email: user.email,
         name: user.user_metadata?.full_name || user.email?.split('@')[0],
         avatar: user.user_metadata?.avatar_url,
-        age_verified: false,
-        role: 'user',
-        created_at: user.created_at,
+        age_verified: existingUser?.age_verified ?? false,
+        role: existingUser?.role ?? 'user',
+        created_at: existingUser?.created_at ?? user.created_at,
       })
+      .select()
+      .single()
+
+    if (error) throw error
+    return data
+  },
+
+  async getUserProfile(userId: string) {
+    if (!this.isConfigured()) {
+      return null
+    }
+
+    const { data, error } = await supabaseClient!
+      .from('users')
+      .select('*')
+      .eq('id', userId)
+      .single()
+
+    if (error) throw error
+    return data
+  },
+
+  async updateUserProfile(userId: string, updates: Record<string, any>) {
+    if (!this.isConfigured()) {
+      return null
+    }
+
+    const { data, error } = await supabaseClient!
+      .from('users')
+      .update(updates)
+      .eq('id', userId)
       .select()
       .single()
 

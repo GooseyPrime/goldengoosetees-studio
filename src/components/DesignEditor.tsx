@@ -76,9 +76,22 @@ export function DesignEditor({ open, onOpenChange, design, product, onSave }: De
   useEffect(() => {
     if (open && design) {
       setCurrentDesign(design)
+      setScale(100)
+      setRotation(0)
+      setFilters({
+        brightness: 100,
+        contrast: 100,
+        saturation: 100,
+        blur: 0
+      })
       setHistory([{
         dataUrl: design.dataUrl,
-        filters: { ...filters }
+        filters: {
+          brightness: 100,
+          contrast: 100,
+          saturation: 100,
+          blur: 0
+        }
       }])
       setHistoryIndex(0)
       loadImageToCanvas(design.dataUrl)
@@ -102,18 +115,17 @@ export function DesignEditor({ open, onOpenChange, design, product, onSave }: De
     img.src = imageUrl
   }
 
+  const getFilterString = () => `
+    brightness(${filters.brightness}%)
+    contrast(${filters.contrast}%)
+    saturate(${filters.saturation}%)
+    blur(${filters.blur}px)
+  `.trim()
+
   const applyFilters = () => {
     const canvas = canvasRef.current
     if (!canvas) return
-
-    const filterString = `
-      brightness(${filters.brightness}%)
-      contrast(${filters.contrast}%)
-      saturate(${filters.saturation}%)
-      blur(${filters.blur}px)
-    `.trim()
-
-    canvas.style.filter = filterString
+    canvas.style.filter = getFilterString()
   }
 
   useEffect(() => {
@@ -127,17 +139,55 @@ export function DesignEditor({ open, onOpenChange, design, product, onSave }: De
     }))
   }
 
-  const saveToHistory = () => {
+  const renderCanvas = (options: { scale?: number; rotation?: number; applyFilters?: boolean }) => {
     const canvas = canvasRef.current
-    if (!canvas) return
+    if (!canvas) return null
 
-    const dataUrl = canvas.toDataURL('image/png')
+    const scaleFactor = (options.scale ?? 100) / 100
+    const rotationDegrees = options.rotation ?? 0
+    const radians = (rotationDegrees * Math.PI) / 180
+    const sourceWidth = canvas.width
+    const sourceHeight = canvas.height
+    const scaledWidth = sourceWidth * scaleFactor
+    const scaledHeight = sourceHeight * scaleFactor
+    const cos = Math.abs(Math.cos(radians))
+    const sin = Math.abs(Math.sin(radians))
+    const outputWidth = Math.max(1, Math.round(scaledWidth * cos + scaledHeight * sin))
+    const outputHeight = Math.max(1, Math.round(scaledWidth * sin + scaledHeight * cos))
+
+    const outputCanvas = document.createElement('canvas')
+    outputCanvas.width = outputWidth
+    outputCanvas.height = outputHeight
+
+    const ctx = outputCanvas.getContext('2d')
+    if (!ctx) return null
+
+    ctx.filter = options.applyFilters ? getFilterString() : 'none'
+    ctx.translate(outputWidth / 2, outputHeight / 2)
+    ctx.rotate(radians)
+    ctx.drawImage(canvas, -scaledWidth / 2, -scaledHeight / 2, scaledWidth, scaledHeight)
+
+    return outputCanvas
+  }
+
+  const saveToHistory = () => {
+    const outputCanvas = renderCanvas({ applyFilters: true })
+    if (!outputCanvas) return
+
+    const dataUrl = outputCanvas.toDataURL('image/png')
+    loadImageToCanvas(dataUrl)
     const newHistory = history.slice(0, historyIndex + 1)
     newHistory.push({
       dataUrl,
-      filters: { ...filters }
+      filters: { brightness: 100, contrast: 100, saturation: 100, blur: 0 }
     })
-    
+
+    setFilters({
+      brightness: 100,
+      contrast: 100,
+      saturation: 100,
+      blur: 0
+    })
     setHistory(newHistory)
     setHistoryIndex(newHistory.length - 1)
   }
@@ -194,12 +244,21 @@ export function DesignEditor({ open, onOpenChange, design, product, onSave }: De
   }
 
   const handleSave = () => {
-    const canvas = canvasRef.current
-    if (!canvas) return
+    const outputCanvas = renderCanvas({ scale, rotation, applyFilters: true })
+    if (!outputCanvas) return
+
+    const widthPx = outputCanvas.width
+    const heightPx = outputCanvas.height
+    const dpi = printArea
+      ? Math.round(Math.min(widthPx / printArea.widthInches, heightPx / printArea.heightInches))
+      : currentDesign.dpi
 
     const updatedDesign: DesignFile = {
       ...currentDesign,
-      dataUrl: canvas.toDataURL('image/png')
+      dataUrl: outputCanvas.toDataURL('image/png'),
+      widthPx,
+      heightPx,
+      dpi
     }
 
     onSave(updatedDesign)
@@ -421,7 +480,7 @@ export function DesignEditor({ open, onOpenChange, design, product, onSave }: De
 
                   <div className="pt-4 border-t space-y-2">
                     <p className="text-xs text-muted-foreground">
-                      Transform adjustments are preview only. Use AI Edit or apply filters to permanently modify the design.
+                      Transform adjustments are applied when you save. Use AI Edit or Apply Changes to permanently modify the design.
                     </p>
                   </div>
                 </TabsContent>

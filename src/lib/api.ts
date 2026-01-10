@@ -3,6 +3,7 @@ import { printfulService, PrintfulOrderRequest } from './printful'
 import { stripeService } from './stripe'
 import { supabaseService } from './supabase'
 import { aiAgents } from './ai-agents'
+import { kvService } from './kv'
 
 export const api = {
   auth: {
@@ -53,10 +54,94 @@ export const api = {
       
       return mockUser
     },
+
+    async signUpWithEmail(email: string, password: string, name?: string): Promise<User> {
+      await supabaseService.initialize()
+
+      if (supabaseService.isConfigured()) {
+        try {
+          const { user: supabaseUser } = await supabaseService.signUpWithEmail(email, password, name)
+          if (supabaseUser) {
+            const userData = await supabaseService.saveUser(supabaseUser)
+            return {
+              id: userData.id,
+              email: userData.email,
+              name: userData.name,
+              avatar: userData.avatar,
+              ageVerified: userData.age_verified || false,
+              role: userData.role as 'guest' | 'user' | 'admin',
+              createdAt: userData.created_at
+            }
+          }
+        } catch (error) {
+          console.error('Email sign-up failed, falling back to mock:', error)
+        }
+      }
+
+      await new Promise(resolve => setTimeout(resolve, 500))
+      return {
+        id: `user-${Date.now()}`,
+        email,
+        name: name || email.split('@')[0],
+        avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=user',
+        ageVerified: false,
+        role: 'user',
+        createdAt: new Date().toISOString()
+      }
+    },
+
+    async signInWithEmail(email: string, password: string): Promise<User> {
+      await supabaseService.initialize()
+
+      if (supabaseService.isConfigured()) {
+        try {
+          const { user: supabaseUser } = await supabaseService.signInWithEmail(email, password)
+          if (supabaseUser) {
+            const userData = await supabaseService.saveUser(supabaseUser)
+            return {
+              id: userData.id,
+              email: userData.email,
+              name: userData.name,
+              avatar: userData.avatar,
+              ageVerified: userData.age_verified || false,
+              role: userData.role as 'guest' | 'user' | 'admin',
+              createdAt: userData.created_at
+            }
+          }
+        } catch (error) {
+          console.error('Email sign-in failed, falling back to mock:', error)
+        }
+      }
+
+      await new Promise(resolve => setTimeout(resolve, 500))
+      return {
+        id: `user-${Date.now()}`,
+        email,
+        name: email.split('@')[0],
+        avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=user',
+        ageVerified: false,
+        role: 'user',
+        createdAt: new Date().toISOString()
+      }
+    },
     
     async verifyAge(userId: string, verificationData: any): Promise<boolean> {
       await new Promise(resolve => setTimeout(resolve, 1500))
       return true
+    },
+
+    async updateUserProfile(userId: string, updates: { ageVerified?: boolean; name?: string }) {
+      await supabaseService.initialize()
+      if (supabaseService.isConfigured()) {
+        try {
+          await supabaseService.updateUserProfile(userId, {
+            age_verified: updates.ageVerified,
+            name: updates.name
+          })
+        } catch (error) {
+          console.error('Failed to update user profile:', error)
+        }
+      }
     },
 
     async getCurrentUser(): Promise<User | null> {
@@ -230,7 +315,7 @@ export const api = {
         updatedAt: new Date().toISOString()
       }
       
-      await window.spark.kv.set(`order-${order.id}`, order)
+      await kvService.set(`order-${order.id}`, order)
       
       return order
     },
@@ -262,7 +347,7 @@ export const api = {
         throw new Error('Stripe is not configured. Please contact support.')
       }
 
-      const order = await window.spark.kv.get<Order>(`order-${orderId}`)
+      const order = await kvService.get<Order>(`order-${orderId}`)
       if (!order) {
         throw new Error('Order not found')
       }
@@ -285,7 +370,7 @@ export const api = {
         updatedAt: new Date().toISOString()
       }
 
-      await window.spark.kv.set(`order-${orderId}`, updatedOrder)
+      await kvService.set(`order-${orderId}`, updatedOrder)
 
       return result.paymentIntentId!
     },
@@ -295,7 +380,7 @@ export const api = {
       design: Design, 
       product: Product
     ): Promise<{ printfulOrderId: string, estimatedDelivery: string, trackingUrl?: string }> {
-      const order = await window.spark.kv.get<Order>(`order-${orderId}`)
+      const order = await kvService.get<Order>(`order-${orderId}`)
       if (!order) {
         throw new Error('Order not found')
       }
@@ -344,7 +429,7 @@ export const api = {
           updatedAt: new Date().toISOString()
         }
 
-        await window.spark.kv.set(`order-${orderId}`, updatedOrder)
+        await kvService.set(`order-${orderId}`, updatedOrder)
 
         return {
           printfulOrderId: printfulOrder.id.toString(),
@@ -369,17 +454,26 @@ export const api = {
       return []
     },
 
+    async getById(orderId: string): Promise<Order | null> {
+      await new Promise(resolve => setTimeout(resolve, 300))
+      const withPrefix = await kvService.get<Order>(`order-${orderId}`)
+      if (withPrefix) {
+        return withPrefix
+      }
+      return await kvService.get<Order>(orderId)
+    },
+
     async updateOrderStatus(orderId: string, status: Order['status']): Promise<void> {
-      const order = await window.spark.kv.get<Order>(`order-${orderId}`)
+      const order = await kvService.get<Order>(`order-${orderId}`)
       if (order) {
         order.status = status
         order.updatedAt = new Date().toISOString()
-        await window.spark.kv.set(`order-${orderId}`, order)
+        await kvService.set(`order-${orderId}`, order)
       }
     },
 
     async syncWithPrintful(orderId: string): Promise<Order | null> {
-      const order = await window.spark.kv.get<Order>(`order-${orderId}`)
+      const order = await kvService.get<Order>(`order-${orderId}`)
       if (!order || !order.printfulOrderId) {
         return null
       }
@@ -403,7 +497,7 @@ export const api = {
           updatedAt: new Date().toISOString()
         }
 
-        await window.spark.kv.set(`order-${orderId}`, updatedOrder)
+        await kvService.set(`order-${orderId}`, updatedOrder)
         return updatedOrder
       } catch (error) {
         console.error('Failed to sync with Printful:', error)
