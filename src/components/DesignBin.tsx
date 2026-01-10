@@ -2,7 +2,7 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { DesignFile, Product } from '@/lib/types'
-import { Pencil, Trash, CheckCircle, FolderOpen } from '@phosphor-icons/react'
+import { Pencil, Trash, CheckCircle, FolderOpen, UploadSimple } from '@phosphor-icons/react'
 import { motion } from 'framer-motion'
 
 interface DesignBinProps {
@@ -12,6 +12,7 @@ interface DesignBinProps {
   onSelectDesign: (printAreaId: string) => void
   onDeleteDesign: (printAreaId: string) => void
   onEditDesign?: (printAreaId: string) => void
+  onUploadDesign?: (printAreaId: string) => void
   onOpenManager?: () => void
 }
 
@@ -22,6 +23,7 @@ export function DesignBin({
   onSelectDesign,
   onDeleteDesign,
   onEditDesign,
+  onUploadDesign,
   onOpenManager,
 }: DesignBinProps) {
   const printAreasWithDesigns = product.printAreas.map((area) => {
@@ -108,6 +110,17 @@ export function DesignBin({
 
               {isComplete && (
                 <div className="flex gap-1">
+                  {onUploadDesign && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => onUploadDesign(area.id)}
+                      className="h-8 w-8 p-0"
+                      title="Upload a new image"
+                    >
+                      <UploadSimple size={14} />
+                    </Button>
+                  )}
                   <Button
                     variant="outline"
                     size="sm"
@@ -130,14 +143,26 @@ export function DesignBin({
               )}
 
               {!isComplete && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => onSelectDesign(area.id)}
-                  className="shrink-0"
-                >
-                  Design
-                </Button>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onSelectDesign(area.id)}
+                  >
+                    Design
+                  </Button>
+                  {onUploadDesign && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => onUploadDesign(area.id)}
+                      className="gap-1"
+                    >
+                      <UploadSimple size={14} />
+                      Upload
+                    </Button>
+                  )}
+                </div>
               )}
             </div>
           </motion.div>

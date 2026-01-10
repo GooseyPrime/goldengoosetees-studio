@@ -1,8 +1,7 @@
-import { useState, useEffect, useCallback } from 'react'
-import { useKV } from '@github/spark/hooks'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { useAppKV } from '@/hooks/useAppKV'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ProductCard } from '@/components/ProductCard'
 import { ProductConfigurationSelector } from '@/components/ProductConfigurationSelector'
 import { ChatInterface } from '@/components/ChatInterface'
@@ -14,18 +13,20 @@ import { CheckoutFlow } from '@/components/CheckoutFlow'
 import { AdminDashboard } from '@/components/AdminDashboard'
 import { DesignManagerPage } from '@/components/DesignManagerPage'
 import { DesignPreferencesForm, DesignPreferences, preferencesToPrompt } from '@/components/DesignPreferencesForm'
+import { AccountDialog } from '@/components/AccountDialog'
 import { MOCK_PRODUCTS } from '@/lib/mock-data'
 import { MOCK_ORDERS, MOCK_PENDING_DESIGNS } from '@/lib/admin-mock-data'
 import { api } from '@/lib/api'
 import { useKioskSession } from '@/hooks/useInactivityTimeout'
+import { kvService } from '@/lib/kv'
 import {
   Product,
   ProductConfiguration,
+  PrintArea,
   User,
   ChatMessage,
   DesignFile,
-  Design,
-  DesignSession
+  Design
 } from '@/lib/types'
 import {
   TShirt,
@@ -36,8 +37,6 @@ import {
   Gear,
   FolderOpen,
   MagicWand,
-  PaintBrush,
-  Pencil
 } from '@phosphor-icons/react'
 import { toast, Toaster } from 'sonner'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -47,10 +46,11 @@ import logoImage from '@/assets/images/GoldenGooseTees.jpg'
 const KIOSK_MODE = import.meta.env.VITE_KIOSK_MODE === 'true'
 
 function App() {
-  const [currentUser, setCurrentUser] = useKV<User | null>('current-user', null)
-  const [savedDesigns, setSavedDesigns] = useKV<Design[]>('saved-designs', [])
+  const [currentUser, setCurrentUser] = useAppKV<User | null>('current-user', null)
+  const [, setSavedDesigns] = useAppKV<Design[]>('saved-designs', [])
   const [activeView, setActiveView] = useState<'products' | 'configuration' | 'brief' | 'design' | 'manager' | 'catalog'>('products')
   const [showAdminDashboard, setShowAdminDashboard] = useState(false)
+  const [showAccountDialog, setShowAccountDialog] = useState(false)
 
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [selectedConfiguration, setSelectedConfiguration] = useState<ProductConfiguration | null>(null)
@@ -73,6 +73,8 @@ function App() {
 
   // Design preferences from form (used to provide context to AI)
   const [designPreferences, setDesignPreferences] = useState<DesignPreferences | null>(null)
+  const [uploadTargetArea, setUploadTargetArea] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   // Kiosk session timeout handler - resets all state after 5 minutes of inactivity
   const handleSessionReset = useCallback(() => {
@@ -92,11 +94,18 @@ function App() {
     setCurrentDesign(null)
     setActiveView('products')
     setShowAdminDashboard(false)
+    setShowAccountDialog(false)
     setDesignPreferences(null)
 
     // Sign out from Supabase
     api.auth.signOut().catch(console.error)
   }, [setCurrentUser])
+
+  const handleSignOut = async () => {
+    await api.auth.signOut()
+    setCurrentUser(null)
+    toast.success('Signed out successfully.')
+  }
 
   // Initialize kiosk session timeout
   useKioskSession({
@@ -106,19 +115,19 @@ function App() {
 
   useEffect(() => {
     const initializeAdminData = async () => {
-      const products = await window.spark.kv.get<Product[]>('admin-products')
+      const products = await kvService.get<Product[]>('admin-products')
       if (!products || products.length === 0) {
-        await window.spark.kv.set('admin-products', MOCK_PRODUCTS)
+        await kvService.set('admin-products', MOCK_PRODUCTS)
       }
 
-      const orders = await window.spark.kv.get('admin-orders')
+      const orders = await kvService.get('admin-orders')
       if (!orders) {
-        await window.spark.kv.set('admin-orders', MOCK_ORDERS)
+        await kvService.set('admin-orders', MOCK_ORDERS)
       }
 
-      const pendingDesigns = await window.spark.kv.get('pending-designs')
+      const pendingDesigns = await kvService.get('pending-designs')
       if (!pendingDesigns) {
-        await window.spark.kv.set('pending-designs', MOCK_PENDING_DESIGNS)
+        await kvService.set('pending-designs', MOCK_PENDING_DESIGNS)
       }
 
       const existingUser = await api.auth.getCurrentUser()
@@ -210,7 +219,7 @@ function App() {
       setMessages([contextMessage, generatingMessage])
 
       // Generate the design immediately
-      await generateDesign(prompt)
+      await generateDesign(prompt, configuredProduct.printAreas[0]?.id)
 
       // Add follow-up message
       const followUpMessage: ChatMessage = {
@@ -357,25 +366,61 @@ function App() {
     return descriptiveMessages.join('. ')
   }
 
-  const generateDesign = async (prompt: string) => {
-    if (!selectedProduct || !currentPrintArea) return
+  const getFormatFromDataUrl = (dataUrl: string) => {
+    if (dataUrl.startsWith('data:image/svg+xml')) return 'SVG'
+    if (dataUrl.startsWith('data:image/png')) return 'PNG'
+    if (dataUrl.startsWith('data:image/jpeg')) return 'JPG'
+    return 'IMAGE'
+  }
+
+  const getImageMetrics = (dataUrl: string, printArea: PrintArea) => new Promise<{
+    widthPx: number
+    heightPx: number
+    dpi: number
+  }>((resolve) => {
+    const img = new Image()
+    img.onload = () => {
+      const widthPx = img.width || printArea.widthInches * printArea.constraints.minDPI
+      const heightPx = img.height || printArea.heightInches * printArea.constraints.minDPI
+      const dpi = Math.round(
+        Math.min(widthPx / printArea.widthInches, heightPx / printArea.heightInches)
+      )
+      resolve({ widthPx, heightPx, dpi })
+    }
+    img.onerror = () => {
+      const fallbackWidth = printArea.widthInches * printArea.constraints.minDPI
+      const fallbackHeight = printArea.heightInches * printArea.constraints.minDPI
+      resolve({
+        widthPx: fallbackWidth,
+        heightPx: fallbackHeight,
+        dpi: printArea.constraints.minDPI
+      })
+    }
+    img.src = dataUrl
+  })
+
+  const generateDesign = async (prompt: string, printAreaId?: string) => {
+    if (!selectedProduct) return
+    const targetPrintArea = printAreaId || currentPrintArea
+    if (!targetPrintArea) return
 
     toast.info('Generating your design...', { duration: 2000 })
 
     try {
-      const printArea = selectedProduct.printAreas.find(pa => pa.id === currentPrintArea)
+      const printArea = selectedProduct.printAreas.find(pa => pa.id === targetPrintArea)
       if (!printArea) return
 
       const designUrl = await api.ai.generateDesign(prompt, printArea.constraints, currentUser || null)
+      const metrics = await getImageMetrics(designUrl, printArea)
       
       const newDesign: DesignFile = {
         id: `design-${Date.now()}`,
-        printAreaId: currentPrintArea,
+        printAreaId: targetPrintArea,
         dataUrl: designUrl,
-        format: 'SVG',
-        widthPx: printArea.widthInches * printArea.constraints.minDPI,
-        heightPx: printArea.heightInches * printArea.constraints.minDPI,
-        dpi: printArea.constraints.minDPI,
+        format: getFormatFromDataUrl(designUrl),
+        widthPx: metrics.widthPx,
+        heightPx: metrics.heightPx,
+        dpi: metrics.dpi,
         createdAt: new Date().toISOString()
       }
 
@@ -387,6 +432,116 @@ function App() {
       toast.success('Design generated! Check the preview.')
     } catch (error: any) {
       toast.error(error.message || 'Failed to generate design')
+    }
+  }
+
+  const formatMap: Record<string, string[]> = {
+    png: ['image/png'],
+    jpg: ['image/jpeg'],
+    jpeg: ['image/jpeg'],
+    svg: ['image/svg+xml']
+  }
+
+  const getAcceptedFormats = (formats: string[]) => formats
+    .map(format => format.toLowerCase())
+    .filter(format => Object.keys(formatMap).includes(format))
+
+  const getAcceptString = (formats: string[]) => {
+    const acceptedFormats = getAcceptedFormats(formats)
+    const extensions = acceptedFormats.map(format => `.${format}`)
+    const mimeTypes = acceptedFormats.flatMap(format => formatMap[format] || [])
+    const combined = [...extensions, ...mimeTypes].filter(Boolean)
+    return combined.length > 0 ? combined.join(',') : 'image/*'
+  }
+
+  const getFileFormatLabel = (file: File) => {
+    const extension = file.name.split('.').pop()?.toLowerCase() || ''
+    if (extension) {
+      return extension.toUpperCase()
+    }
+    if (file.type === 'image/png') return 'PNG'
+    if (file.type === 'image/jpeg') return 'JPG'
+    if (file.type === 'image/svg+xml') return 'SVG'
+    return 'IMAGE'
+  }
+
+  const readFileAsDataUrl = (file: File) => new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result as string)
+    reader.onerror = () => reject(reader.error)
+    reader.readAsDataURL(file)
+  })
+
+  const handleUploadDesign = (printAreaId: string) => {
+    setUploadTargetArea(printAreaId)
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+      fileInputRef.current.click()
+    }
+  }
+
+  const handleUploadFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file || !selectedProduct) return
+
+    const targetAreaId = uploadTargetArea || currentPrintArea
+    if (!targetAreaId) {
+      toast.error('Please select a print area before uploading.')
+      return
+    }
+
+    const printArea = selectedProduct.printAreas.find(pa => pa.id === targetAreaId)
+    if (!printArea) return
+
+    const maxFileSizeBytes = printArea.constraints.maxFileSizeMB * 1024 * 1024
+    if (file.size > maxFileSizeBytes) {
+      toast.error(`File too large. Max size: ${printArea.constraints.maxFileSizeMB}MB.`)
+      return
+    }
+
+    const allowedFormats = getAcceptedFormats(printArea.constraints.formats)
+    const isTypeAllowed = allowedFormats.some(format =>
+      formatMap[format]?.includes(file.type) || file.name.toLowerCase().endsWith(`.${format}`)
+    )
+
+    if (!isTypeAllowed) {
+      toast.error(`Unsupported file type. Allowed: ${printArea.constraints.formats.join(', ')}`)
+      return
+    }
+
+    try {
+      const dataUrl = await readFileAsDataUrl(file)
+      const metrics = await getImageMetrics(dataUrl, printArea)
+
+      if (metrics.dpi < printArea.constraints.minDPI) {
+        const minWidth = Math.ceil(printArea.widthInches * printArea.constraints.minDPI)
+        const minHeight = Math.ceil(printArea.heightInches * printArea.constraints.minDPI)
+        toast.error(`Low resolution. Minimum required: ${minWidth}×${minHeight}px at ${printArea.constraints.minDPI} DPI.`)
+        return
+      }
+
+      const uploadedDesign: DesignFile = {
+        id: `upload-${Date.now()}`,
+        printAreaId: targetAreaId,
+        dataUrl,
+        format: getFileFormatLabel(file),
+        widthPx: metrics.widthPx,
+        heightPx: metrics.heightPx,
+        dpi: metrics.dpi,
+        createdAt: new Date().toISOString()
+      }
+
+      setDesignFiles((prev) => {
+        const filtered = prev.filter(df => df.printAreaId !== targetAreaId)
+        return [...filtered, uploadedDesign]
+      })
+
+      setCurrentPrintArea(targetAreaId)
+      toast.success('Image uploaded! Check the preview.')
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to upload image.')
+    } finally {
+      setUploadTargetArea(null)
     }
   }
 
@@ -588,15 +743,16 @@ function App() {
       if (!printArea) return
 
       const designUrl = await api.ai.generateDesign(recentUserMessages, printArea.constraints, currentUser || null)
+      const metrics = await getImageMetrics(designUrl, printArea)
 
       const newDesign: DesignFile = {
         id: `design-${Date.now()}`,
         printAreaId: currentPrintArea,
         dataUrl: designUrl,
-        format: 'PNG',
-        widthPx: printArea.widthInches * printArea.constraints.minDPI,
-        heightPx: printArea.heightInches * printArea.constraints.minDPI,
-        dpi: printArea.constraints.minDPI,
+        format: getFormatFromDataUrl(designUrl),
+        widthPx: metrics.widthPx,
+        heightPx: metrics.heightPx,
+        dpi: metrics.dpi,
         createdAt: new Date().toISOString()
       }
 
@@ -624,9 +780,24 @@ function App() {
     }
   }
 
+  const uploadAccept = (() => {
+    if (!selectedProduct) return 'image/*'
+    const targetAreaId = uploadTargetArea || currentPrintArea
+    const printArea = selectedProduct.printAreas.find(pa => pa.id === targetAreaId)
+    if (!printArea) return 'image/*'
+    return getAcceptString(printArea.constraints.formats)
+  })()
+
   return (
     <div className="min-h-screen bg-background">
       <Toaster position="top-center" />
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept={uploadAccept}
+        onChange={handleUploadFileChange}
+        className="hidden"
+      />
       
       {showAdminDashboard ? (
         <AdminDashboard onClose={() => setShowAdminDashboard(false)} />
@@ -658,19 +829,39 @@ function App() {
                   </Button>
                 )}
                 {currentUser ? (
-                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted">
-                    <UserIcon size={16} weight="fill" />
-                    <span className="text-sm font-medium">{currentUser.name}</span>
-                  </div>
+                  <>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowAccountDialog(true)}
+                    >
+                      <UserIcon size={16} className="mr-2" />
+                      Account
+                    </Button>
+                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted">
+                      <UserIcon size={16} weight="fill" />
+                      <span className="text-sm font-medium">{currentUser.name}</span>
+                    </div>
+                  </>
                 ) : (
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => setShowAuthDialog(true)}
-                  >
-                    <UserIcon size={16} className="mr-2" />
-                    Sign In
-                  </Button>
+                  <>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowAccountDialog(true)}
+                    >
+                      <UserIcon size={16} className="mr-2" />
+                      Orders
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => setShowAuthDialog(true)}
+                    >
+                      <UserIcon size={16} className="mr-2" />
+                      Sign In / Sign Up
+                    </Button>
+                  </>
                 )}
               </div>
             </div>
@@ -864,6 +1055,7 @@ function App() {
                       onSelectDesign={handleSelectPrintArea}
                       onDeleteDesign={handleDeleteDesignFromBin}
                       onEditDesign={handleEditDesignFromBin}
+                      onUploadDesign={handleUploadDesign}
                       onOpenManager={() => setActiveView('manager')}
                     />
                   </div>
@@ -948,6 +1140,17 @@ function App() {
             onOpenChange={setShowAuthDialog}
             onAuthenticated={handleAuthenticated}
             requiresAgeVerification={requiresAgeVerification}
+          />
+
+          <AccountDialog
+            open={showAccountDialog}
+            onOpenChange={setShowAccountDialog}
+            user={currentUser}
+            onRequestSignIn={() => {
+              setShowAccountDialog(false)
+              setShowAuthDialog(true)
+            }}
+            onSignOut={handleSignOut}
           />
 
           {showCheckout && currentUser && selectedProduct && currentDesign && (

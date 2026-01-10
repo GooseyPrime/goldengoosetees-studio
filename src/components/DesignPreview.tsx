@@ -2,9 +2,10 @@ import { useState, useEffect } from 'react'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Slider } from '@/components/ui/slider'
 import { DesignFile, Product } from '@/lib/types'
 import { printfulService } from '@/lib/printful'
-import { TShirt, CheckCircle, ImageSquare, Spinner } from '@phosphor-icons/react'
+import { TShirt, CheckCircle, ImageSquare, Spinner, MagnifyingGlassMinus, MagnifyingGlassPlus } from '@phosphor-icons/react'
 import { motion } from 'framer-motion'
 
 // T-Shirt SVG Mockup Template Component
@@ -290,6 +291,7 @@ export function DesignPreview({
   const [mockupUrl, setMockupUrl] = useState<string | null>(null)
   const [isLoadingMockup, setIsLoadingMockup] = useState(false)
   const [mockupError, setMockupError] = useState<string | null>(null)
+  const [zoom, setZoom] = useState(100)
 
   // Generate Printful mockup when enabled and design is available
   useEffect(() => {
@@ -333,6 +335,10 @@ export function DesignPreview({
 
     generateMockup()
   }, [useMockup, product, designFiles, currentArea])
+
+  useEffect(() => {
+    setZoom(100)
+  }, [currentArea, useMockup])
   if (!product) {
     return (
       <Card className="flex-1 flex items-center justify-center p-12 bg-muted/30">
@@ -388,23 +394,25 @@ export function DesignPreview({
       </div>
 
       <div className="flex-1 relative bg-gradient-to-br from-muted/30 to-muted/60 overflow-hidden">
-        <div className="absolute inset-0 flex items-center justify-center p-8">
+        <div className="absolute inset-0 flex items-center justify-center p-8 overflow-auto">
           {/* Mockup view */}
           {useMockup && mockupUrl ? (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="relative w-full max-w-md"
-            >
-              <img
-                src={mockupUrl}
-                alt="Product mockup"
-                className="w-full h-auto rounded-lg shadow-2xl"
-              />
-              <Badge className="absolute top-2 right-2" variant="secondary">
-                Printful Mockup
-              </Badge>
-            </motion.div>
+            <div style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'center' }}>
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="relative w-full max-w-md"
+              >
+                <img
+                  src={mockupUrl}
+                  alt="Product mockup"
+                  className="w-full h-auto rounded-lg shadow-2xl"
+                />
+                <Badge className="absolute top-2 right-2" variant="secondary">
+                  Printful Mockup
+                </Badge>
+              </motion.div>
+            </div>
           ) : useMockup && isLoadingMockup ? (
             <div className="text-center space-y-4">
               <Spinner size={48} className="animate-spin text-primary mx-auto" />
@@ -419,22 +427,24 @@ export function DesignPreview({
             </div>
           ) : (
             /* T-Shirt Mockup Template View */
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.3 }}
-              className="relative w-full max-w-md flex items-center justify-center p-4"
-            >
-              <div className="w-full bg-gradient-to-b from-white/50 to-gray-100/50 rounded-xl p-4 shadow-lg">
-                <TShirtMockup
-                  color={selectedColorObj?.hexCode || '#FFFFFF'}
-                  designUrl={currentDesign ? (currentDesign.storageUrl || currentDesign.dataUrl) : undefined}
-                  position={currentArea?.includes('back') ? 'back' :
-                           currentArea?.includes('left') ? 'left_sleeve' :
-                           currentArea?.includes('right') ? 'right_sleeve' : 'front'}
-                />
-              </div>
-            </motion.div>
+            <div style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'center' }}>
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.3 }}
+                className="relative w-full max-w-md flex items-center justify-center p-4"
+              >
+                <div className="w-full bg-gradient-to-b from-white/50 to-gray-100/50 rounded-xl p-4 shadow-lg">
+                  <TShirtMockup
+                    color={selectedColorObj?.hexCode || '#FFFFFF'}
+                    designUrl={currentDesign ? (currentDesign.storageUrl || currentDesign.dataUrl) : undefined}
+                    position={currentArea?.includes('back') ? 'back' :
+                             currentArea?.includes('left') ? 'left_sleeve' :
+                             currentArea?.includes('right') ? 'right_sleeve' : 'front'}
+                  />
+                </div>
+              </motion.div>
+            </div>
           )}
         </div>
 
@@ -452,6 +462,38 @@ export function DesignPreview({
             </Button>
           </div>
         )}
+
+        <div className="absolute bottom-4 right-4 bg-background/90 border border-border rounded-lg p-3 shadow-lg min-w-[200px]">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-medium text-muted-foreground">Zoom</span>
+            <span className="text-xs font-mono">{zoom}%</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setZoom((prev) => Math.max(50, prev - 10))}
+            >
+              <MagnifyingGlassMinus size={14} />
+            </Button>
+            <Slider
+              value={[zoom]}
+              onValueChange={([value]) => setZoom(value)}
+              min={50}
+              max={200}
+              step={10}
+            />
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setZoom((prev) => Math.min(200, prev + 10))}
+            >
+              <MagnifyingGlassPlus size={14} />
+            </Button>
+          </div>
+        </div>
       </div>
 
       <div className="p-4 border-t bg-muted/10">

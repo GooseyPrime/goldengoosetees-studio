@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { useKV } from '@github/spark/hooks'
+import { useState } from 'react'
+import { useAppKV } from '@/hooks/useAppKV'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -27,9 +27,9 @@ interface AdminDashboardProps {
 }
 
 export function AdminDashboard({ onClose }: AdminDashboardProps) {
-  const [products, setProducts] = useKV<Product[]>('admin-products', [])
-  const [orders, setOrders] = useKV<Order[]>('admin-orders', [])
-  const [pendingDesigns, setPendingDesigns] = useKV<Design[]>('pending-designs', [])
+  const [products, setProducts] = useAppKV<Product[]>('admin-products', [])
+  const [orders, setOrders] = useAppKV<Order[]>('admin-orders', [])
+  const [pendingDesigns, setPendingDesigns] = useAppKV<Design[]>('pending-designs', [])
   const [activeTab, setActiveTab] = useState('stats')
 
   const pendingOrdersCount = (orders || []).filter(o => o.status === 'pending').length

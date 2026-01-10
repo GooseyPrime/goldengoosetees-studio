@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { GoogleLogo, CheckCircle, Warning, Link as LinkIcon, Copy } from '@phosphor-icons/react'
 import { toast } from 'sonner'
+import { kvService } from '@/lib/kv'
 
 interface GoogleOAuthConfig {
   clientId: string
@@ -27,7 +28,7 @@ export function GoogleOAuthConfig() {
   }, [])
 
   const loadConfig = async () => {
-    const saved = await window.spark.kv.get<GoogleOAuthConfig>('google-oauth-config')
+    const saved = await kvService.get<GoogleOAuthConfig>('google-oauth-config')
     if (saved) {
       setConfig(saved)
       setIsConfigured(!!saved.clientId && !!saved.clientSecret)
@@ -41,7 +42,7 @@ export function GoogleOAuthConfig() {
     }
 
     try {
-      await window.spark.kv.set('google-oauth-config', config)
+      await kvService.set('google-oauth-config', config)
       setIsConfigured(true)
       toast.success('Google OAuth configuration saved!')
     } catch (error) {

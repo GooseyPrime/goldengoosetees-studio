@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useKV } from '@github/spark/hooks'
+import { useAppKV } from '@/hooks/useAppKV'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -8,12 +8,13 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { printfulService } from '@/lib/printful'
+import { kvService } from '@/lib/kv'
 import { Key, CheckCircle, XCircle, Spinner, Link as LinkIcon } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 
 export function PrintfulConfig() {
-  const [apiKey, setApiKey] = useKV<string>('printful-api-key', '')
-  const [storeId, setStoreId] = useKV<string>('printful-store-id', '')
+  const [apiKey, setApiKey] = useAppKV<string>('printful-api-key', '')
+  const [storeId, setStoreId] = useAppKV<string>('printful-store-id', '')
   const [localApiKey, setLocalApiKey] = useState('')
   const [localStoreId, setLocalStoreId] = useState('')
   const [isTestingConnection, setIsTestingConnection] = useState(false)
@@ -38,9 +39,9 @@ export function PrintfulConfig() {
     setConnectionStatus('idle')
 
     try {
-      await window.spark.kv.set('printful-api-key', localApiKey)
+      await kvService.set('printful-api-key', localApiKey)
       if (localStoreId) {
-        await window.spark.kv.set('printful-store-id', localStoreId)
+        await kvService.set('printful-store-id', localStoreId)
       }
 
       await printfulService.getProducts()
