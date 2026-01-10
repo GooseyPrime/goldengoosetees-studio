@@ -4,6 +4,7 @@ import { stripeService } from './stripe'
 import { supabaseService } from './supabase'
 import { aiAgents } from './ai-agents'
 import { kvService } from './kv'
+import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
 
 export const api = {
   auth: {
@@ -172,7 +173,7 @@ export const api = {
       }
     },
 
-    onAuthStateChange(callback: (event: any, session: any) => void) {
+    onAuthStateChange(callback: (event: AuthChangeEvent, session: Session | null) => void) {
       return supabaseService.onAuthStateChange(callback)
     }
   },

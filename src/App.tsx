@@ -164,13 +164,15 @@ function App() {
     }
 
     // Set up the listener
-    const { data: { subscription } } = api.auth.onAuthStateChange(handleAuthStateChange)
+    const subscription = api.auth.onAuthStateChange(handleAuthStateChange)
 
     // Also check immediately in case we just returned from OAuth
     handleAuthStateChange()
 
     return () => {
-      subscription?.unsubscribe()
+      if (subscription?.data?.subscription) {
+        subscription.data.subscription.unsubscribe()
+      }
     }
   }, [setCurrentUser])
 
