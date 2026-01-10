@@ -139,6 +139,33 @@ function App() {
     initializeAdminData()
   }, [])
 
+  // Set up auth state change listener for OAuth flows
+  useEffect(() => {
+    const handleAuthStateChange = async () => {
+      try {
+        const user = await api.auth.getCurrentUser()
+        if (user && (!currentUser || currentUser.id !== user.id)) {
+          setCurrentUser(user)
+          toast.success(`Welcome back, ${user.name || user.email}!`)
+        } else if (!user && currentUser) {
+          setCurrentUser(null)
+        }
+      } catch (error) {
+        console.error('Error handling auth state change:', error)
+      }
+    }
+
+    // Set up the listener
+    const { data: { subscription } } = api.auth.onAuthStateChange(handleAuthStateChange)
+
+    // Also check immediately in case we just returned from OAuth
+    handleAuthStateChange()
+
+    return () => {
+      subscription?.unsubscribe()
+    }
+  }, [currentUser, setCurrentUser])
+
   // Only auto-load initial message if we skip the brief form and land directly in design view
   // This is a fallback for edge cases - normally handleSkipToChat or handleDesignPreferencesSubmit handle this
   useEffect(() => {

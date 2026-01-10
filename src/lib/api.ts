@@ -15,10 +15,13 @@ export const api = {
           const { url } = await supabaseService.signInWithGoogle()
           
           if (url) {
+            // Redirect to Google OAuth - the auth state change listener will handle the callback
             window.location.href = url
-            await new Promise(() => {})
+            // This promise will never resolve as the page redirects
+            return await new Promise(() => {})
           }
           
+          // If we're here, we might be returning from OAuth - check session
           const supabaseUser = await supabaseService.getUser()
           if (supabaseUser) {
             const userData = await supabaseService.saveUser(supabaseUser)
@@ -36,23 +39,12 @@ export const api = {
             return user
           }
         } catch (error) {
-          console.error('Google OAuth failed, falling back to mock:', error)
+          console.error('Google OAuth failed:', error)
+          throw new Error('Google authentication failed. Please try again.')
         }
       }
       
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      
-      const mockUser: User = {
-        id: `user-${Date.now()}`,
-        email: 'admin@goldengoosetees.com',
-        name: 'Admin User',
-        avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=admin',
-        ageVerified: true,
-        role: 'admin',
-        createdAt: new Date().toISOString()
-      }
-      
-      return mockUser
+      throw new Error('Supabase not configured. Please check your environment variables.')
     },
 
     async signUpWithEmail(email: string, password: string, name?: string): Promise<User> {
@@ -178,6 +170,10 @@ export const api = {
       if (supabaseService.isConfigured()) {
         await supabaseService.signOut()
       }
+    },
+
+    onAuthStateChange(callback: (event: any, session: any) => void) {
+      return supabaseService.onAuthStateChange(callback)
     }
   },
   

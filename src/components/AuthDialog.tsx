@@ -52,21 +52,29 @@ export function AuthDialog({
   const handleGoogleLogin = async () => {
     setIsLoading(true)
     try {
-      const user = await api.auth.loginWithGoogle()
-
-      if (user.ageVerified) {
-        onAuthenticated(user)
-        onOpenChange(false)
-        toast.success('Welcome back!')
-      } else {
-        setTempUser(user)
-        setNeedsAgeVerification(true)
+      // Note: This will redirect to Google OAuth. The auth state change listener
+      // in App.tsx will handle the callback when the user returns.
+      await api.auth.loginWithGoogle()
+      
+      // If we reach here (unlikely due to redirect), handle the user
+      const user = await api.auth.getCurrentUser()
+      if (user) {
+        if (user.ageVerified || !requiresAgeVerification) {
+          onAuthenticated(user)
+          onOpenChange(false)
+          toast.success('Welcome back!')
+        } else {
+          setTempUser(user)
+          setNeedsAgeVerification(true)
+        }
       }
-    } catch (error) {
-      toast.error('Login failed. Please try again.')
-    } finally {
+    } catch (error: any) {
+      console.error('Google login error:', error)
+      toast.error(error?.message || 'Login failed. Please try again.')
       setIsLoading(false)
     }
+    // Note: setIsLoading(false) is intentionally not in finally block
+    // because the page will redirect before this completes
   }
 
   const handleEmailAuth = async (event: React.FormEvent) => {
