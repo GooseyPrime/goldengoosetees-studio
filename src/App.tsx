@@ -144,12 +144,20 @@ function App() {
     const handleAuthStateChange = async () => {
       try {
         const user = await api.auth.getCurrentUser()
-        if (user && (!currentUser || currentUser.id !== user.id)) {
-          setCurrentUser(user)
-          toast.success(`Welcome back, ${user.name || user.email}!`)
-        } else if (!user && currentUser) {
-          setCurrentUser(null)
-        }
+        setCurrentUser(prevUser => {
+          // Only update if user actually changed
+          if (!user && !prevUser) return prevUser
+          if (!user && prevUser) return null
+          if (user && !prevUser) {
+            toast.success(`Welcome back, ${user.name || user.email}!`)
+            return user
+          }
+          if (user && prevUser && user.id !== prevUser.id) {
+            toast.success(`Welcome back, ${user.name || user.email}!`)
+            return user
+          }
+          return prevUser
+        })
       } catch (error) {
         console.error('Error handling auth state change:', error)
       }
@@ -164,7 +172,7 @@ function App() {
     return () => {
       subscription?.unsubscribe()
     }
-  }, [currentUser, setCurrentUser])
+  }, [setCurrentUser])
 
   // Only auto-load initial message if we skip the brief form and land directly in design view
   // This is a fallback for edge cases - normally handleSkipToChat or handleDesignPreferencesSubmit handle this
