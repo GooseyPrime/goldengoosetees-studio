@@ -204,8 +204,9 @@ This step requires configuration in **both** Google Cloud Console and Supabase C
 #### 4.2: Enable Required APIs
 
 1. Go to **APIs & Services** → **Library**
-2. Search for "Google+ API" and enable it
-3. Search for "People API" and enable it (optional but recommended)
+2. Search for "Google Identity Services" or just proceed to creating OAuth credentials (Google will prompt you to enable required APIs automatically)
+
+**Note**: The necessary APIs (Google Identity, OAuth2) are typically enabled automatically when you create OAuth 2.0 credentials. If you encounter issues accessing user profile data, you may optionally enable the "People API" which allows reading user profile information like name and email.
 
 #### 4.3: Configure OAuth Consent Screen
 
