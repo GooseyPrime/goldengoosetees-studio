@@ -509,8 +509,11 @@ export const api = {
   
   ai: {
     async generateDesign(prompt: string, constraints: any, user: User | null): Promise<string> {
-      // Check if AI is configured and provide helpful feedback
-      const hasOpenAI = aiAgents.hasOpenAI()
+      // Check if OpenAI is configured
+      if (!aiAgents.hasOpenAI()) {
+        throw new Error('Image generation service not configured. Please set up OpenAI API key.')
+      }
+
       const hasOpenRouter = aiAgents.hasOpenRouter()
 
       // Content moderation check (skip if OpenRouter not configured)
@@ -541,165 +544,8 @@ export const api = {
         }
       }
 
-      // Generate with DALL-E 3 if configured
-      if (hasOpenAI) {
-        try {
-          return await aiAgents.designGenerator.generate(prompt, constraints)
-        } catch (error: any) {
-          console.error('DALL-E generation failed:', error)
-          // Re-throw if it's a meaningful error (not just misconfiguration)
-          if (error?.message && !error.message.includes('not configured')) {
-            throw error
-          }
-        }
-      }
-
-      // Fallback to mock SVG if DALL-E not available
-      console.warn('OpenAI not configured. Using demo design generation.')
-      await new Promise(resolve => setTimeout(resolve, 2000))
-
-      // Generate a more visually interesting mock design based on the prompt
-      const generateMockDesign = (designPrompt: string): string => {
-        const colors = {
-          primary: ['FF6B6B', '4ECDC4', 'FFD93D', '95E1D3', 'F38181', '6C5CE7', 'A8E6CF', 'FF8C94'],
-          secondary: ['333333', '2D3436', '636E72', '74B9FF', 'FD79A8', 'FDCB6E']
-        }
-        const primaryColor = colors.primary[Math.floor(Math.random() * colors.primary.length)]
-        const secondaryColor = colors.secondary[Math.floor(Math.random() * colors.secondary.length)]
-        const accentColor = colors.primary[Math.floor(Math.random() * colors.primary.length)]
-
-        // Extract key elements from prompt for display
-        const promptLower = designPrompt.toLowerCase()
-        const extractedText = designPrompt.match(/"([^"]+)"/)?.[1] ||
-                             designPrompt.match(/text[:\s]+([^,\.]+)/i)?.[1] ||
-                             ''
-        const displayText = extractedText.slice(0, 20).toUpperCase() || designPrompt.slice(0, 25).toUpperCase()
-
-        // Determine style based on keywords
-        const isRetro = promptLower.includes('retro') || promptLower.includes('vintage')
-        const isMinimal = promptLower.includes('minimal') || promptLower.includes('simple')
-        const isWestern = promptLower.includes('western') || promptLower.includes('cowboy') || promptLower.includes('rodeo')
-        const hasCircle = promptLower.includes('circle') || promptLower.includes('sun') || promptLower.includes('moon')
-
-        let svgContent = ''
-
-        if (isWestern) {
-          // Western/Rodeo style mock
-          svgContent = `
-            <svg width="800" height="1000" xmlns="http://www.w3.org/2000/svg">
-              <rect width="800" height="1000" fill="#FDF6E3"/>
-              <rect x="100" y="150" width="600" height="700" rx="20" fill="#${primaryColor}" opacity="0.15"/>
-              <rect x="120" y="170" width="560" height="660" rx="15" fill="none" stroke="#${secondaryColor}" stroke-width="4"/>
-              <rect x="140" y="190" width="520" height="620" rx="10" fill="none" stroke="#${secondaryColor}" stroke-width="2"/>
-
-              <!-- Star decorations -->
-              <polygon points="200,250 210,280 240,280 215,300 225,330 200,310 175,330 185,300 160,280 190,280" fill="#${accentColor}"/>
-              <polygon points="600,250 610,280 640,280 615,300 625,330 600,310 575,330 585,300 560,280 590,280" fill="#${accentColor}"/>
-
-              <!-- Main text area -->
-              <text x="400" y="420" font-family="Georgia, serif" font-size="52" text-anchor="middle" fill="#${secondaryColor}" font-weight="bold">
-                ${displayText}
-              </text>
-
-              <!-- Decorative elements -->
-              <line x1="180" y1="500" x2="340" y2="500" stroke="#${secondaryColor}" stroke-width="3"/>
-              <line x1="460" y1="500" x2="620" y2="500" stroke="#${secondaryColor}" stroke-width="3"/>
-              <circle cx="400" cy="500" r="15" fill="#${accentColor}"/>
-
-              <text x="400" y="600" font-family="Georgia, serif" font-size="28" text-anchor="middle" fill="#${secondaryColor}" opacity="0.8">
-                WESTERN STYLE
-              </text>
-
-              <text x="400" y="750" font-family="Arial" font-size="16" text-anchor="middle" fill="#888">
-                Demo Preview - Configure OpenAI for AI Generation
-              </text>
-            </svg>
-          `
-        } else if (isRetro) {
-          // Retro style mock
-          svgContent = `
-            <svg width="800" height="1000" xmlns="http://www.w3.org/2000/svg">
-              <rect width="800" height="1000" fill="#2D3436"/>
-
-              <!-- Retro sun/circle -->
-              <circle cx="400" cy="350" r="180" fill="#${primaryColor}"/>
-              <circle cx="400" cy="350" r="140" fill="#${accentColor}"/>
-              <circle cx="400" cy="350" r="100" fill="#${primaryColor}"/>
-
-              <!-- Horizontal lines -->
-              <line x1="150" y1="550" x2="650" y2="550" stroke="#${primaryColor}" stroke-width="8"/>
-              <line x1="180" y1="580" x2="620" y2="580" stroke="#${accentColor}" stroke-width="6"/>
-              <line x1="210" y1="610" x2="590" y2="610" stroke="#${primaryColor}" stroke-width="4"/>
-
-              <!-- Text -->
-              <text x="400" y="720" font-family="Impact, sans-serif" font-size="48" text-anchor="middle" fill="#${primaryColor}" letter-spacing="4">
-                ${displayText}
-              </text>
-
-              <text x="400" y="850" font-family="Arial" font-size="16" text-anchor="middle" fill="#888">
-                Demo Preview - Configure OpenAI for AI Generation
-              </text>
-            </svg>
-          `
-        } else if (isMinimal) {
-          // Minimal style mock
-          svgContent = `
-            <svg width="800" height="1000" xmlns="http://www.w3.org/2000/svg">
-              <rect width="800" height="1000" fill="white"/>
-
-              <!-- Simple geometric shape -->
-              <circle cx="400" cy="380" r="150" fill="none" stroke="#${secondaryColor}" stroke-width="3"/>
-
-              <!-- Clean text -->
-              <text x="400" y="620" font-family="Helvetica, Arial, sans-serif" font-size="36" text-anchor="middle" fill="#${secondaryColor}" font-weight="300" letter-spacing="2">
-                ${displayText}
-              </text>
-
-              <text x="400" y="850" font-family="Arial" font-size="16" text-anchor="middle" fill="#888">
-                Demo Preview - Configure OpenAI for AI Generation
-              </text>
-            </svg>
-          `
-        } else {
-          // Default colorful style
-          svgContent = `
-            <svg width="800" height="1000" xmlns="http://www.w3.org/2000/svg">
-              <defs>
-                <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" style="stop-color:#${primaryColor};stop-opacity:0.2" />
-                  <stop offset="100%" style="stop-color:#${accentColor};stop-opacity:0.2" />
-                </linearGradient>
-              </defs>
-
-              <rect width="800" height="1000" fill="white"/>
-              <rect width="800" height="1000" fill="url(#bgGrad)"/>
-
-              <!-- Abstract shapes -->
-              <circle cx="300" cy="300" r="120" fill="#${primaryColor}" opacity="0.8"/>
-              <circle cx="500" cy="350" r="100" fill="#${accentColor}" opacity="0.6"/>
-              <rect x="250" y="450" width="300" height="200" rx="20" fill="#${secondaryColor}" opacity="0.1"/>
-
-              <!-- Main text -->
-              <text x="400" y="580" font-family="Arial Black, sans-serif" font-size="42" text-anchor="middle" fill="#${secondaryColor}">
-                ${displayText}
-              </text>
-
-              <!-- Subtitle showing prompt concept -->
-              <text x="400" y="650" font-family="Arial" font-size="18" text-anchor="middle" fill="#666">
-                ${designPrompt.slice(0, 40)}${designPrompt.length > 40 ? '...' : ''}
-              </text>
-
-              <text x="400" y="850" font-family="Arial" font-size="16" text-anchor="middle" fill="#888">
-                Demo Preview - Configure OpenAI for AI Generation
-              </text>
-            </svg>
-          `
-        }
-
-        return svgContent
-      }
-
-      return `data:image/svg+xml,${encodeURIComponent(generateMockDesign(prompt))}`
+      // Generate with DALL-E 3
+      return await aiAgents.designGenerator.generate(prompt, constraints)
     },
     
     async chat(
@@ -749,90 +595,21 @@ export const api = {
       editPrompt: string,
       constraints: any
     ): Promise<string> {
-      // Use DALL-E 3 if configured
-      if (aiAgents.hasOpenAI()) {
-        try {
-          return await aiAgents.designGenerator.edit(currentImageUrl, editPrompt)
-        } catch (error) {
-          console.error('DALL-E edit failed, using fallback:', error)
-        }
+      // Require OpenAI for design editing
+      if (!aiAgents.hasOpenAI()) {
+        throw new Error('Image editing service not configured. Please set up OpenAI API key.')
       }
 
-      // Fallback to mock SVG
-      console.warn('OpenAI not configured. Using mock design edit.')
-      await new Promise(resolve => setTimeout(resolve, 2000))
-
-      const colors = ['FF6B6B', '4ECDC4', 'FFD93D', '95E1D3', 'F38181', 'A8E6CF', 'FFD6A5']
-      const primaryColor = colors[Math.floor(Math.random() * colors.length)]
-      const secondaryColor = colors[Math.floor(Math.random() * colors.length)]
-      const displayText = editPrompt.slice(0, 25).toUpperCase()
-
-      return `data:image/svg+xml,${encodeURIComponent(`
-        <svg width="800" height="1000" xmlns="http://www.w3.org/2000/svg">
-          <defs>
-            <linearGradient id="editGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" style="stop-color:#${primaryColor};stop-opacity:0.3" />
-              <stop offset="100%" style="stop-color:#${secondaryColor};stop-opacity:0.3" />
-            </linearGradient>
-          </defs>
-
-          <rect width="800" height="1000" fill="white"/>
-          <rect width="800" height="1000" fill="url(#editGrad)"/>
-
-          <!-- Edit indicator -->
-          <rect x="150" y="200" width="500" height="400" rx="20" fill="none" stroke="#${primaryColor}" stroke-width="3" stroke-dasharray="10,5"/>
-
-          <!-- Main shape -->
-          <circle cx="400" cy="380" r="140" fill="#${primaryColor}" opacity="0.7"/>
-          <circle cx="400" cy="380" r="100" fill="#${secondaryColor}" opacity="0.5"/>
-
-          <!-- Edit text -->
-          <text x="400" y="630" font-family="Arial Black, sans-serif" font-size="36" text-anchor="middle" fill="#333">
-            ${displayText}
-          </text>
-
-          <text x="400" y="700" font-family="Arial" font-size="18" text-anchor="middle" fill="#666">
-            Edited Version
-          </text>
-
-          <text x="400" y="850" font-family="Arial" font-size="16" text-anchor="middle" fill="#888">
-            Demo Preview - Configure OpenAI for AI Editing
-          </text>
-        </svg>
-      `)}`
+      return await aiAgents.designGenerator.edit(currentImageUrl, editPrompt)
     },
 
     async removeBackground(imageDataUrl: string): Promise<string> {
-      // Use DALL-E 3 if configured (generates new clean design)
-      if (aiAgents.hasOpenAI()) {
-        try {
-          return await aiAgents.designGenerator.removeBackground(imageDataUrl)
-        } catch (error) {
-          console.error('Background removal failed, using fallback:', error)
-        }
+      // Require OpenAI for background removal
+      if (!aiAgents.hasOpenAI()) {
+        throw new Error('Background removal service not configured. Please set up OpenAI API key.')
       }
 
-      // Fallback to mock SVG
-      console.warn('OpenAI not configured. Using mock background removal.')
-      await new Promise(resolve => setTimeout(resolve, 2000))
-
-      const colors = ['FF6B6B', '4ECDC4', 'FFD93D', '95E1D3', 'F38181']
-      const randomColor = colors[Math.floor(Math.random() * colors.length)]
-
-      return `data:image/svg+xml,${encodeURIComponent(`
-        <svg width="800" height="1000" xmlns="http://www.w3.org/2000/svg">
-          <defs>
-            <radialGradient id="grad1" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" style="stop-color:#${randomColor};stop-opacity:1" />
-              <stop offset="100%" style="stop-color:#${randomColor};stop-opacity:0" />
-            </radialGradient>
-          </defs>
-          <circle cx="400" cy="400" r="180" fill="url(#grad1)"/>
-          <text x="400" y="700" font-family="Arial" font-size="28" text-anchor="middle" fill="#333">
-            Background Removed
-          </text>
-        </svg>
-      `)}`
+      return await aiAgents.designGenerator.removeBackground(imageDataUrl)
     }
   }
 }
