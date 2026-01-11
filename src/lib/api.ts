@@ -9,8 +9,6 @@ import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
 export const api = {
   auth: {
     async loginWithGoogle(): Promise<User> {
-      await supabaseService.initialize()
-
       if (!supabaseService.isConfigured()) {
         throw new Error('Authentication service not configured. Please contact support.')
       }
@@ -51,8 +49,6 @@ export const api = {
     },
 
     async signUpWithEmail(email: string, password: string, name?: string): Promise<User> {
-      await supabaseService.initialize()
-
       if (!supabaseService.isConfigured()) {
         throw new Error('Authentication service not configured. Please contact support.')
       }
@@ -87,8 +83,6 @@ export const api = {
     },
 
     async signInWithEmail(email: string, password: string): Promise<User> {
-      await supabaseService.initialize()
-
       if (!supabaseService.isConfigured()) {
         throw new Error('Authentication service not configured. Please contact support.')
       }
@@ -128,7 +122,6 @@ export const api = {
     },
 
     async updateUserProfile(userId: string, updates: { ageVerified?: boolean; name?: string }) {
-      await supabaseService.initialize()
       if (supabaseService.isConfigured()) {
         try {
           await supabaseService.updateUserProfile(userId, {
@@ -142,8 +135,6 @@ export const api = {
     },
 
     async getCurrentUser(): Promise<User | null> {
-      await supabaseService.initialize()
-      
       if (supabaseService.isConfigured()) {
         try {
           const session = await supabaseService.getSession()
@@ -170,8 +161,6 @@ export const api = {
     },
 
     async signOut(): Promise<void> {
-      await supabaseService.initialize()
-      
       if (supabaseService.isConfigured()) {
         await supabaseService.signOut()
       }
@@ -184,8 +173,6 @@ export const api = {
   
   designs: {
     async save(design: Partial<Design>): Promise<Design> {
-      await supabaseService.initialize()
-      
       if (supabaseService.isConfigured()) {
         try {
           const designData = {
@@ -242,8 +229,6 @@ export const api = {
     },
     
     async getByUser(userId: string): Promise<Design[]> {
-      await supabaseService.initialize()
-      
       if (supabaseService.isConfigured()) {
         try {
           const designs = await supabaseService.getDesignsByUser(userId)
@@ -270,8 +255,6 @@ export const api = {
     },
     
     async getCatalog(section?: string): Promise<Design[]> {
-      await supabaseService.initialize()
-      
       if (supabaseService.isConfigured()) {
         try {
           const designs = await supabaseService.getCatalogDesigns(section)
