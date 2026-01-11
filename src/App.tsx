@@ -45,6 +45,12 @@ import logoImage from '@/assets/images/GoldenGooseTees.jpg'
 // Check if kiosk mode is enabled
 const KIOSK_MODE = import.meta.env.VITE_KIOSK_MODE === 'true'
 
+// Helper to detect if we're returning from OAuth redirect
+const isOAuthRedirect = () => {
+  return window.location.hash?.includes('access_token') ||
+         window.location.search?.includes('code=')
+}
+
 function App() {
   const [currentUser, setCurrentUser] = useAppKV<User | null>('current-user', null)
   const [, setSavedDesigns] = useAppKV<Design[]>('saved-designs', [])
@@ -135,11 +141,10 @@ function App() {
       // This handles both returning from OAuth and existing sessions
       try {
         const existingUser = await api.auth.getCurrentUser()
-        if (existingUser && !currentUser) {
+        if (existingUser) {
           setCurrentUser(existingUser)
           // Show welcome message if we just returned from OAuth
-          if (window.location.hash?.includes('access_token') ||
-              window.location.search?.includes('code=')) {
+          if (isOAuthRedirect()) {
             toast.success(`Welcome, ${existingUser.name || existingUser.email}!`)
             // Clean up URL hash/params
             window.history.replaceState(null, '', window.location.pathname)
@@ -164,25 +169,22 @@ function App() {
           // User signed in - get or create user profile
           const user = await api.auth.getCurrentUser()
           if (user) {
-            setCurrentUser(prevUser => {
-              // Only update and show toast if user actually changed
-              if (!prevUser || prevUser.id !== user.id) {
-                toast.success(`Welcome, ${user.name || user.email}!`)
-                return user
-              }
-              return prevUser
-            })
+            setCurrentUser(user)
+            // Show welcome toast only on new sign-in (not on page refresh)
+            if (!isOAuthRedirect()) {
+              toast.success(`Welcome, ${user.name || user.email}!`)
+            }
           }
         } else if (event === 'SIGNED_OUT') {
           setCurrentUser(null)
         } else if (event === 'TOKEN_REFRESHED') {
-          // Session was refreshed - update user data if needed
+          // Session was refreshed - silently update user data if needed
           const user = await api.auth.getCurrentUser()
           if (user) {
             setCurrentUser(user)
           }
         } else if (event === 'USER_UPDATED') {
-          // User data was updated
+          // User data was updated - refresh the user object
           const user = await api.auth.getCurrentUser()
           if (user) {
             setCurrentUser(user)
