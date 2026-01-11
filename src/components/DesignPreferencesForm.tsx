@@ -4,7 +4,7 @@ import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Sparkle, Info } from '@phosphor-icons/react'
+import { Sparkle, Info, UploadSimple, Image, MagicWand, ArrowRight } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 
 export interface DesignPreferences {
@@ -18,6 +18,7 @@ export interface DesignPreferences {
 interface DesignPreferencesFormProps {
   onSubmit: (preferences: DesignPreferences) => void
   onSkip: () => void
+  onUpload?: () => void
   isLoading?: boolean
 }
 
@@ -39,7 +40,7 @@ const moodOptions = [
   { value: 'weird', label: 'Weird & Quirky', emoji: '🤪' },
 ]
 
-export function DesignPreferencesForm({ onSubmit, onSkip, isLoading }: DesignPreferencesFormProps) {
+export function DesignPreferencesForm({ onSubmit, onSkip, onUpload, isLoading }: DesignPreferencesFormProps) {
   const [preferences, setPreferences] = useState<DesignPreferences>({
     concept: '',
     style: '',
@@ -47,6 +48,7 @@ export function DesignPreferencesForm({ onSubmit, onSkip, isLoading }: DesignPre
     text: '',
     mood: '',
   })
+  const [designMode, setDesignMode] = useState<'ai' | 'upload' | null>(null)
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -60,6 +62,141 @@ export function DesignPreferencesForm({ onSubmit, onSkip, isLoading }: DesignPre
   }
 
   const isValid = preferences.concept.trim().length > 0
+
+  // If no mode selected, show the choice screen
+  if (!designMode) {
+    return (
+      <div className="w-full max-w-3xl mx-auto space-y-6">
+        <div className="text-center mb-8">
+          <h2 className="text-2xl font-bold mb-2">How would you like to create your design?</h2>
+          <p className="text-muted-foreground">Choose your preferred method to get started</p>
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-6">
+          {/* AI Design Option */}
+          <Card
+            className="cursor-pointer hover:border-primary/50 hover:shadow-md transition-all group"
+            onClick={() => setDesignMode('ai')}
+          >
+            <CardHeader className="pb-2">
+              <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center mb-3 group-hover:bg-primary/20 transition-colors">
+                <MagicWand size={24} weight="duotone" className="text-primary" />
+              </div>
+              <CardTitle className="text-lg flex items-center gap-2">
+                AI Design Generator
+                <Badge variant="secondary" className="text-xs">Recommended</Badge>
+              </CardTitle>
+              <CardDescription>
+                Describe your idea and our AI will create a custom design for you
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ul className="text-sm text-muted-foreground space-y-2">
+                <li className="flex items-center gap-2">
+                  <Sparkle size={14} className="text-primary" />
+                  Generate unique artwork from text
+                </li>
+                <li className="flex items-center gap-2">
+                  <Sparkle size={14} className="text-primary" />
+                  Refine with chat-based editing
+                </li>
+                <li className="flex items-center gap-2">
+                  <Sparkle size={14} className="text-primary" />
+                  Multiple style options
+                </li>
+              </ul>
+              <Button variant="outline" className="w-full mt-4 gap-2">
+                Create with AI <ArrowRight size={16} />
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Upload Option */}
+          <Card
+            className="cursor-pointer hover:border-primary/50 hover:shadow-md transition-all group"
+            onClick={() => {
+              if (onUpload) {
+                onUpload()
+              } else {
+                setDesignMode('upload')
+              }
+            }}
+          >
+            <CardHeader className="pb-2">
+              <div className="w-12 h-12 rounded-lg bg-accent/10 flex items-center justify-center mb-3 group-hover:bg-accent/20 transition-colors">
+                <UploadSimple size={24} weight="duotone" className="text-accent" />
+              </div>
+              <CardTitle className="text-lg">Upload Your Own</CardTitle>
+              <CardDescription>
+                Already have a design? Upload your image file directly
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ul className="text-sm text-muted-foreground space-y-2">
+                <li className="flex items-center gap-2">
+                  <Image size={14} className="text-accent" />
+                  PNG, JPG, or SVG files
+                </li>
+                <li className="flex items-center gap-2">
+                  <Image size={14} className="text-accent" />
+                  High resolution for best print quality
+                </li>
+                <li className="flex items-center gap-2">
+                  <Image size={14} className="text-accent" />
+                  Use your own artwork or photos
+                </li>
+              </ul>
+              <Button variant="outline" className="w-full mt-4 gap-2">
+                Upload Image <ArrowRight size={16} />
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="text-center pt-4">
+          <Button variant="link" onClick={onSkip} className="text-muted-foreground">
+            Skip to chat with design assistant
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  // Show upload message if upload mode selected
+  if (designMode === 'upload') {
+    return (
+      <Card className="w-full max-w-2xl mx-auto">
+        <CardHeader className="text-center">
+          <div className="w-16 h-16 rounded-full bg-accent/10 flex items-center justify-center mx-auto mb-4">
+            <UploadSimple size={32} weight="duotone" className="text-accent" />
+          </div>
+          <CardTitle className="text-xl">Upload Your Design</CardTitle>
+          <CardDescription>
+            Click the button below to select your image file. Supported formats: PNG, JPG, SVG
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="p-6 border-2 border-dashed rounded-lg text-center hover:border-primary/50 transition-colors">
+            <p className="text-sm text-muted-foreground mb-4">
+              For best print quality, use images at least 2400 × 3000 pixels (300 DPI)
+            </p>
+            <Button onClick={() => onUpload?.()} className="gap-2">
+              <UploadSimple size={18} />
+              Choose File
+            </Button>
+          </div>
+          <div className="flex justify-center gap-3">
+            <Button variant="outline" onClick={() => setDesignMode(null)}>
+              ← Back
+            </Button>
+            <Button variant="ghost" onClick={onSkip}>
+              Skip to Chat
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
 
   return (
     <Card className="w-full max-w-2xl mx-auto">

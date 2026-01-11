@@ -114,7 +114,8 @@ function App() {
   })
 
   useEffect(() => {
-    const initializeAdminData = async () => {
+    const initializeApp = async () => {
+      // Initialize admin data
       const products = await kvService.get<Product[]>('admin-products')
       if (!products || products.length === 0) {
         await kvService.set('admin-products', MOCK_PRODUCTS)
@@ -130,44 +131,67 @@ function App() {
         await kvService.set('pending-designs', MOCK_PENDING_DESIGNS)
       }
 
-      const existingUser = await api.auth.getCurrentUser()
-      if (existingUser && !currentUser) {
-        setCurrentUser(existingUser)
+      // Check for existing user session
+      // This handles both returning from OAuth and existing sessions
+      try {
+        const existingUser = await api.auth.getCurrentUser()
+        if (existingUser && !currentUser) {
+          setCurrentUser(existingUser)
+          // Show welcome message if we just returned from OAuth
+          if (window.location.hash?.includes('access_token') ||
+              window.location.search?.includes('code=')) {
+            toast.success(`Welcome, ${existingUser.name || existingUser.email}!`)
+            // Clean up URL hash/params
+            window.history.replaceState(null, '', window.location.pathname)
+          }
+        }
+      } catch (error) {
+        console.error('Failed to get current user:', error)
       }
     }
 
-    initializeAdminData()
+    initializeApp()
   }, [])
 
   // Set up auth state change listener for OAuth flows
   useEffect(() => {
-    const handleAuthStateChange = async () => {
+    // Set up the listener with proper event handling
+    const subscription = api.auth.onAuthStateChange(async (event, session) => {
+      console.log('Auth state change:', event, session?.user?.email)
+
       try {
-        const user = await api.auth.getCurrentUser()
-        setCurrentUser(prevUser => {
-          // Only update if user actually changed
-          if (!user && !prevUser) return prevUser
-          if (!user && prevUser) return null
-          if (user && !prevUser) {
-            toast.success(`Welcome back, ${user.name || user.email}!`)
-            return user
+        if (event === 'SIGNED_IN' && session?.user) {
+          // User signed in - get or create user profile
+          const user = await api.auth.getCurrentUser()
+          if (user) {
+            setCurrentUser(prevUser => {
+              // Only update and show toast if user actually changed
+              if (!prevUser || prevUser.id !== user.id) {
+                toast.success(`Welcome, ${user.name || user.email}!`)
+                return user
+              }
+              return prevUser
+            })
           }
-          if (user && prevUser && user.id !== prevUser.id) {
-            toast.success(`Welcome back, ${user.name || user.email}!`)
-            return user
+        } else if (event === 'SIGNED_OUT') {
+          setCurrentUser(null)
+        } else if (event === 'TOKEN_REFRESHED') {
+          // Session was refreshed - update user data if needed
+          const user = await api.auth.getCurrentUser()
+          if (user) {
+            setCurrentUser(user)
           }
-          return prevUser
-        })
+        } else if (event === 'USER_UPDATED') {
+          // User data was updated
+          const user = await api.auth.getCurrentUser()
+          if (user) {
+            setCurrentUser(user)
+          }
+        }
       } catch (error) {
         console.error('Error handling auth state change:', error)
       }
-    }
-
-    // Set up the listener
-    const subscription = api.auth.onAuthStateChange(handleAuthStateChange)
-
-    // Also check immediately in case we just returned from OAuth
-    handleAuthStateChange()
+    })
 
     return () => {
       if (subscription?.data?.subscription) {
@@ -963,6 +987,26 @@ function App() {
                   <DesignPreferencesForm
                     onSubmit={handleDesignPreferencesSubmit}
                     onSkip={handleSkipToChat}
+                    onUpload={() => {
+                      // Set up print area and navigate to design view, then trigger upload
+                      if (selectedProduct && selectedConfiguration) {
+                        const configuredProduct = {
+                          ...selectedProduct,
+                          printAreas: selectedProduct.printAreas.filter(pa =>
+                            selectedConfiguration.printAreas.includes(pa.id)
+                          )
+                        }
+                        const firstPrintArea = configuredProduct.printAreas[0]?.id
+                        if (firstPrintArea) {
+                          setCurrentPrintArea(firstPrintArea)
+                          setActiveView('design')
+                          // Add a small delay to ensure view transition completes
+                          setTimeout(() => {
+                            handleUploadDesign(firstPrintArea)
+                          }, 100)
+                        }
+                      }
+                    }}
                     isLoading={isGenerating}
                   />
 

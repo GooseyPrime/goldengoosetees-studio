@@ -54,22 +54,25 @@ export function AuthDialog({
     try {
       // Note: This will redirect to Google OAuth. The auth state change listener
       // in App.tsx will handle the callback when the user returns.
+      // Close the dialog before redirect to avoid state issues
+      onOpenChange(false)
       await api.auth.loginWithGoogle()
-      
+
       // If we reach here (unlikely due to redirect), handle the user
       const user = await api.auth.getCurrentUser()
       if (user) {
         if (user.ageVerified || !requiresAgeVerification) {
           onAuthenticated(user)
-          onOpenChange(false)
           toast.success('Welcome back!')
         } else {
           setTempUser(user)
           setNeedsAgeVerification(true)
+          onOpenChange(true) // Reopen for age verification
         }
       }
     } catch (error: any) {
       console.error('Google login error:', error)
+      onOpenChange(true) // Reopen dialog on error
       toast.error(error?.message || 'Login failed. Please try again.')
       setIsLoading(false)
     }
@@ -84,13 +87,19 @@ export function AuthDialog({
       return
     }
 
+    // Basic validation
+    if (password.length < 6) {
+      toast.error('Password must be at least 6 characters long.')
+      return
+    }
+
     setIsLoading(true)
     try {
       const user = authMode === 'signup'
         ? await api.auth.signUpWithEmail(email, password, fullName)
         : await api.auth.signInWithEmail(email, password)
 
-      if (user.ageVerified) {
+      if (user.ageVerified || !requiresAgeVerification) {
         onAuthenticated(user)
         onOpenChange(false)
         toast.success(`Welcome ${authMode === 'signup' ? 'to your new account' : 'back'}!`)
@@ -98,8 +107,9 @@ export function AuthDialog({
         setTempUser(user)
         setNeedsAgeVerification(true)
       }
-    } catch (error) {
-      toast.error('Unable to sign in with email. Please try again.')
+    } catch (error: any) {
+      console.error('Email auth error:', error)
+      toast.error(error?.message || 'Authentication failed. Please try again.')
     } finally {
       setIsLoading(false)
     }

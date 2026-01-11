@@ -10,111 +10,115 @@ export const api = {
   auth: {
     async loginWithGoogle(): Promise<User> {
       await supabaseService.initialize()
-      
-      if (supabaseService.isConfigured()) {
-        try {
-          const { url } = await supabaseService.signInWithGoogle()
-          
-          if (url) {
-            // Redirect to Google OAuth - the auth state change listener will handle the callback
-            window.location.href = url
-            // This promise will never resolve as the page redirects
-            return await new Promise(() => {})
-          }
-          
-          // If we're here, we might be returning from OAuth - check session
-          const supabaseUser = await supabaseService.getUser()
-          if (supabaseUser) {
-            const userData = await supabaseService.saveUser(supabaseUser)
-            
-            const user: User = {
-              id: userData.id,
-              email: userData.email,
-              name: userData.name,
-              avatar: userData.avatar,
-              ageVerified: userData.age_verified || false,
-              role: userData.role as 'guest' | 'user' | 'admin',
-              createdAt: userData.created_at
-            }
-            
-            return user
-          }
-        } catch (error) {
-          console.error('Google OAuth failed:', error)
-          throw new Error('Google authentication failed. Please try again.')
-        }
+
+      if (!supabaseService.isConfigured()) {
+        throw new Error('Authentication service not configured. Please contact support.')
       }
-      
-      throw new Error('Supabase not configured. Please check your environment variables.')
+
+      try {
+        const { url } = await supabaseService.signInWithGoogle()
+
+        if (url) {
+          // Redirect to Google OAuth - the auth state change listener will handle the callback
+          window.location.href = url
+          // This promise will never resolve as the page redirects
+          return await new Promise(() => {})
+        }
+
+        // If we're here, we might be returning from OAuth - check session
+        const supabaseUser = await supabaseService.getUser()
+        if (supabaseUser) {
+          const userData = await supabaseService.saveUser(supabaseUser)
+
+          const user: User = {
+            id: userData.id,
+            email: userData.email,
+            name: userData.name,
+            avatar: userData.avatar,
+            ageVerified: userData.age_verified || false,
+            role: userData.role as 'guest' | 'user' | 'admin',
+            createdAt: userData.created_at
+          }
+
+          return user
+        }
+
+        throw new Error('Authentication failed. Please try again.')
+      } catch (error: any) {
+        console.error('Google OAuth failed:', error)
+        throw new Error(error?.message || 'Google authentication failed. Please try again.')
+      }
     },
 
     async signUpWithEmail(email: string, password: string, name?: string): Promise<User> {
       await supabaseService.initialize()
 
-      if (supabaseService.isConfigured()) {
-        try {
-          const { user: supabaseUser } = await supabaseService.signUpWithEmail(email, password, name)
-          if (supabaseUser) {
-            const userData = await supabaseService.saveUser(supabaseUser)
-            return {
-              id: userData.id,
-              email: userData.email,
-              name: userData.name,
-              avatar: userData.avatar,
-              ageVerified: userData.age_verified || false,
-              role: userData.role as 'guest' | 'user' | 'admin',
-              createdAt: userData.created_at
-            }
-          }
-        } catch (error) {
-          console.error('Email sign-up failed, falling back to mock:', error)
-        }
+      if (!supabaseService.isConfigured()) {
+        throw new Error('Authentication service not configured. Please contact support.')
       }
 
-      await new Promise(resolve => setTimeout(resolve, 500))
-      return {
-        id: `user-${Date.now()}`,
-        email,
-        name: name || email.split('@')[0],
-        avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=user',
-        ageVerified: false,
-        role: 'user',
-        createdAt: new Date().toISOString()
+      try {
+        const { user: supabaseUser } = await supabaseService.signUpWithEmail(email, password, name)
+        if (!supabaseUser) {
+          throw new Error('Sign up failed. Please try again.')
+        }
+
+        const userData = await supabaseService.saveUser(supabaseUser)
+        return {
+          id: userData.id,
+          email: userData.email,
+          name: userData.name,
+          avatar: userData.avatar,
+          ageVerified: userData.age_verified || false,
+          role: userData.role as 'guest' | 'user' | 'admin',
+          createdAt: userData.created_at
+        }
+      } catch (error: any) {
+        console.error('Email sign-up failed:', error)
+        // Provide user-friendly error messages
+        if (error?.message?.includes('already registered')) {
+          throw new Error('An account with this email already exists. Try signing in instead.')
+        }
+        if (error?.message?.includes('password')) {
+          throw new Error('Password must be at least 6 characters long.')
+        }
+        throw new Error(error?.message || 'Sign up failed. Please try again.')
       }
     },
 
     async signInWithEmail(email: string, password: string): Promise<User> {
       await supabaseService.initialize()
 
-      if (supabaseService.isConfigured()) {
-        try {
-          const { user: supabaseUser } = await supabaseService.signInWithEmail(email, password)
-          if (supabaseUser) {
-            const userData = await supabaseService.saveUser(supabaseUser)
-            return {
-              id: userData.id,
-              email: userData.email,
-              name: userData.name,
-              avatar: userData.avatar,
-              ageVerified: userData.age_verified || false,
-              role: userData.role as 'guest' | 'user' | 'admin',
-              createdAt: userData.created_at
-            }
-          }
-        } catch (error) {
-          console.error('Email sign-in failed, falling back to mock:', error)
-        }
+      if (!supabaseService.isConfigured()) {
+        throw new Error('Authentication service not configured. Please contact support.')
       }
 
-      await new Promise(resolve => setTimeout(resolve, 500))
-      return {
-        id: `user-${Date.now()}`,
-        email,
-        name: email.split('@')[0],
-        avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=user',
-        ageVerified: false,
-        role: 'user',
-        createdAt: new Date().toISOString()
+      try {
+        const { user: supabaseUser } = await supabaseService.signInWithEmail(email, password)
+        if (!supabaseUser) {
+          throw new Error('Sign in failed. Please check your credentials.')
+        }
+
+        const userData = await supabaseService.saveUser(supabaseUser)
+        return {
+          id: userData.id,
+          email: userData.email,
+          name: userData.name,
+          avatar: userData.avatar,
+          ageVerified: userData.age_verified || false,
+          role: userData.role as 'guest' | 'user' | 'admin',
+          createdAt: userData.created_at
+        }
+      } catch (error: any) {
+        console.error('Email sign-in failed:', error)
+        // Provide user-friendly error messages
+        if (error?.message?.includes('Invalid login')) {
+          throw new Error('Invalid email or password. Please try again.')
+        }
+        if (error?.message?.includes('Email not confirmed')) {
+          throw new Error('Please check your email and confirm your account first.')
+        }
+        throw new Error(error?.message || 'Sign in failed. Please try again.')
       }
     },
     
@@ -505,43 +509,53 @@ export const api = {
   
   ai: {
     async generateDesign(prompt: string, constraints: any, user: User | null): Promise<string> {
-      // Content moderation check
-      const moderationResult = await aiAgents.contentModerator.moderate(prompt, user)
+      // Check if AI is configured and provide helpful feedback
+      const hasOpenAI = aiAgents.hasOpenAI()
+      const hasOpenRouter = aiAgents.hasOpenRouter()
 
-      if (!moderationResult.approved) {
-        throw new Error(
-          `Content not approved: ${moderationResult.violations.join(', ')}. ${
-            moderationResult.suggestions?.length
-              ? `Try: ${moderationResult.suggestions[0]}`
-              : ''
-          }`
-        )
+      // Content moderation check (skip if OpenRouter not configured)
+      if (hasOpenRouter) {
+        const moderationResult = await aiAgents.contentModerator.moderate(prompt, user)
+
+        if (!moderationResult.approved) {
+          throw new Error(
+            `Content not approved: ${moderationResult.violations.join(', ')}. ${
+              moderationResult.suggestions?.length
+                ? `Try: ${moderationResult.suggestions[0]}`
+                : ''
+            }`
+          )
+        }
+
+        // IP/Copyright check
+        const ipResult = await aiAgents.ipChecker.check(prompt)
+
+        if (ipResult.hasViolation && ipResult.riskLevel === 'high') {
+          throw new Error(
+            `Potential trademark/copyright issue detected: ${ipResult.detectedItems.join(', ')}. ${
+              ipResult.recommendations?.length
+                ? `Try: ${ipResult.recommendations[0]}`
+                : ''
+            }`
+          )
+        }
       }
 
-      // IP/Copyright check
-      const ipResult = await aiAgents.ipChecker.check(prompt)
-
-      if (ipResult.hasViolation && ipResult.riskLevel === 'high') {
-        throw new Error(
-          `Potential trademark/copyright issue detected: ${ipResult.detectedItems.join(', ')}. ${
-            ipResult.recommendations?.length
-              ? `Try: ${ipResult.recommendations[0]}`
-              : ''
-          }`
-        )
-      }
-
-      // Generate with DALL-E 3 if configured, otherwise use fallback
-      if (aiAgents.hasOpenAI()) {
+      // Generate with DALL-E 3 if configured
+      if (hasOpenAI) {
         try {
           return await aiAgents.designGenerator.generate(prompt, constraints)
-        } catch (error) {
-          console.error('DALL-E generation failed, using fallback:', error)
+        } catch (error: any) {
+          console.error('DALL-E generation failed:', error)
+          // Re-throw if it's a meaningful error (not just misconfiguration)
+          if (error?.message && !error.message.includes('not configured')) {
+            throw error
+          }
         }
       }
 
       // Fallback to mock SVG if DALL-E not available
-      console.warn('OpenAI not configured. Using mock design generation.')
+      console.warn('OpenAI not configured. Using demo design generation.')
       await new Promise(resolve => setTimeout(resolve, 2000))
 
       // Generate a more visually interesting mock design based on the prompt
@@ -597,7 +611,7 @@ export const api = {
               </text>
 
               <text x="400" y="750" font-family="Arial" font-size="16" text-anchor="middle" fill="#888">
-                Mock Design - Connect DALL-E for custom generation
+                Demo Preview - Configure OpenAI for AI Generation
               </text>
             </svg>
           `
@@ -623,7 +637,7 @@ export const api = {
               </text>
 
               <text x="400" y="850" font-family="Arial" font-size="16" text-anchor="middle" fill="#888">
-                Mock Design - Connect DALL-E for custom generation
+                Demo Preview - Configure OpenAI for AI Generation
               </text>
             </svg>
           `
@@ -642,7 +656,7 @@ export const api = {
               </text>
 
               <text x="400" y="850" font-family="Arial" font-size="16" text-anchor="middle" fill="#888">
-                Mock Design - Connect DALL-E for custom generation
+                Demo Preview - Configure OpenAI for AI Generation
               </text>
             </svg>
           `
@@ -676,7 +690,7 @@ export const api = {
               </text>
 
               <text x="400" y="850" font-family="Arial" font-size="16" text-anchor="middle" fill="#888">
-                Mock Design - Connect DALL-E for custom generation
+                Demo Preview - Configure OpenAI for AI Generation
               </text>
             </svg>
           `
@@ -782,7 +796,7 @@ export const api = {
           </text>
 
           <text x="400" y="850" font-family="Arial" font-size="16" text-anchor="middle" fill="#888">
-            Mock Edit - Connect DALL-E for AI editing
+            Demo Preview - Configure OpenAI for AI Editing
           </text>
         </svg>
       `)}`

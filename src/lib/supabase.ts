@@ -2,6 +2,7 @@ import { createClient, SupabaseClient, AuthChangeEvent, Session } from '@supabas
 
 let supabaseClient: SupabaseClient | null = null
 let isConfigured = false
+let initializationPromise: Promise<void> | null = null
 
 // Environment variables (Vite)
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
@@ -9,22 +10,39 @@ const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
 
 export const supabaseService = {
   initialize() {
-    if (supabaseClient) return
+    // Return existing promise if already initializing
+    if (initializationPromise) return initializationPromise
+    if (supabaseClient) return Promise.resolve()
 
-    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-      console.warn('Supabase not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY. Using mock mode.')
-      isConfigured = false
-      return
-    }
+    initializationPromise = new Promise<void>((resolve) => {
+      if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+        console.warn('Supabase not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY. Using mock mode.')
+        isConfigured = false
+        resolve()
+        return
+      }
 
-    try {
-      supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
-      isConfigured = true
-      console.log('Supabase initialized successfully')
-    } catch (error) {
-      console.error('Failed to initialize Supabase:', error)
-      isConfigured = false
-    }
+      try {
+        supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+          auth: {
+            // Automatically detect OAuth callback in URL
+            detectSessionInUrl: true,
+            // Persist session in localStorage
+            persistSession: true,
+            // Auto refresh token before expiry
+            autoRefreshToken: true,
+          }
+        })
+        isConfigured = true
+        console.log('Supabase initialized successfully')
+      } catch (error) {
+        console.error('Failed to initialize Supabase:', error)
+        isConfigured = false
+      }
+      resolve()
+    })
+
+    return initializationPromise
   },
 
   isConfigured() {
@@ -39,6 +57,7 @@ export const supabaseService = {
   },
 
   async signInWithGoogle() {
+    await this.initialize()
     if (!this.isConfigured()) {
       throw new Error('Supabase not configured')
     }
@@ -47,6 +66,11 @@ export const supabaseService = {
       provider: 'google',
       options: {
         redirectTo: window.location.origin,
+        queryParams: {
+          // Request offline access for refresh tokens
+          access_type: 'offline',
+          prompt: 'consent',
+        },
       },
     })
 
@@ -115,6 +139,9 @@ export const supabaseService = {
   },
 
   onAuthStateChange(callback: (event: AuthChangeEvent, session: Session | null) => void) {
+    // Initialize first if not done
+    this.initialize()
+
     if (!this.isConfigured()) {
       return { data: { subscription: { unsubscribe: () => {} } } }
     }
@@ -143,16 +170,69 @@ export const supabaseService = {
       return user
     }
 
-    let existingUser = null
+    // Define user profile type for type safety
+    type UserProfile = {
+      id: string
+      email: string
+      name: string
+      avatar: string | null
+      age_verified: boolean
+      role: string
+      created_at: string
+    } | null
+
+    // First, check if user exists by ID
+    let existingUserById: UserProfile = null
     try {
       const { data } = await supabaseClient!
         .from('users')
         .select('*')
         .eq('id', user.id)
         .single()
-      existingUser = data
-    } catch (error) {
-      existingUser = null
+      existingUserById = data
+    } catch {
+      existingUserById = null
+    }
+
+    // Also check if user exists by email (for account linking)
+    let existingUserByEmail: UserProfile = null
+    if (user.email && !existingUserById) {
+      try {
+        const { data } = await supabaseClient!
+          .from('users')
+          .select('*')
+          .eq('email', user.email)
+          .single()
+        existingUserByEmail = data
+      } catch {
+        existingUserByEmail = null
+      }
+    }
+
+    // Use existing user data if found (preserve history from linked account)
+    const existingUser: UserProfile = existingUserById || existingUserByEmail
+
+    // If there's an existing user by email with a different ID,
+    // we need to link the accounts by updating the ID
+    if (existingUserByEmail && existingUserByEmail.id !== user.id) {
+      // Update the existing user record to use the new auth ID
+      // This links the Google auth to the existing email account
+      const { data: linkedData, error: linkError } = await supabaseClient!
+        .from('users')
+        .update({
+          id: user.id,
+          avatar: user.user_metadata?.avatar_url || existingUserByEmail.avatar,
+          name: user.user_metadata?.full_name || existingUserByEmail.name,
+        })
+        .eq('email', user.email)
+        .select()
+        .single()
+
+      if (!linkError && linkedData) {
+        console.log('Account linked successfully:', user.email)
+        return linkedData
+      }
+      // If update fails, fall through to create/upsert
     }
 
     const { data, error } = await supabaseClient!
@@ -160,8 +240,8 @@ export const supabaseService = {
       .upsert({
         id: user.id,
         email: user.email,
-        name: user.user_metadata?.full_name || user.email?.split('@')[0],
-        avatar: user.user_metadata?.avatar_url,
+        name: user.user_metadata?.full_name || existingUser?.name || user.email?.split('@')[0],
+        avatar: user.user_metadata?.avatar_url || existingUser?.avatar,
         age_verified: existingUser?.age_verified ?? false,
         role: existingUser?.role ?? 'user',
         created_at: existingUser?.created_at ?? user.created_at,
