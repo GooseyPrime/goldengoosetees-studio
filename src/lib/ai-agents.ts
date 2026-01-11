@@ -76,11 +76,16 @@ async function generateImageWithDALLE3(
     style = 'vivid'
   } = options
 
-  // Enhance prompt for t-shirt design
-  const enhancedPrompt = `Create a high-quality t-shirt design: ${prompt}.
-    The design should be on a transparent or white background, suitable for printing on fabric.
-    Style: Clean, professional, print-ready artwork with bold colors and clear details.
-    Do NOT include any mockups of t-shirts - just the design artwork itself.`
+  // Enhance prompt for t-shirt design - ensure visual elements are emphasized
+  const enhancedPrompt = `Create a detailed, high-quality t-shirt graphic design with the following concept: ${prompt}
+    
+    IMPORTANT: This should be a complete, visually rich illustration or artwork, NOT just text or typography.
+    - Include ALL visual elements described (characters, objects, scenes, backgrounds, etc.)
+    - If text is mentioned, incorporate it as part of the overall design composition
+    - Use a transparent or white background suitable for t-shirt printing
+    - Style: Bold, eye-catching, colorful artwork with professional print-ready quality
+    - Make it vibrant and detailed with clear, sharp graphics
+    - Do NOT create a mockup of a t-shirt - create only the graphic artwork itself`
 
   const response = await fetch(`${OPENAI_API_BASE}/images/generations`, {
     method: 'POST',
