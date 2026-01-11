@@ -186,13 +186,45 @@ CREATE POLICY "Users can insert own orders" ON orders FOR INSERT WITH CHECK (aut
 
 ### Step 5: Configure Google OAuth
 
-1. Go to [Google Cloud Console](https://console.cloud.google.com)
-2. Create OAuth 2.0 credentials
-3. Add authorized redirect URI: `https://your-project.supabase.co/auth/v1/callback`
-4. In Supabase Dashboard → Authentication → Providers
-5. Enable Google and add Client ID + Secret
+**Important**: OAuth configuration requires careful setup in **both** Google Cloud Console and Supabase Console. The callback URLs and redirect URIs must match exactly across both platforms.
 
-See [SUPABASE_SETUP.md](./SUPABASE_SETUP.md) for detailed instructions.
+#### Quick Setup
+
+1. **Google Cloud Console** ([console.cloud.google.com](https://console.cloud.google.com))
+   - Create OAuth 2.0 credentials
+   - Configure **Authorized JavaScript origins**:
+     - Development: `http://localhost:5173`
+     - Production: `https://your-app.vercel.app`
+   - Configure **Authorized redirect URIs**:
+     - Your app URL(s): `http://localhost:5173`, `https://your-app.vercel.app`
+     - Supabase callback: `https://YOUR-PROJECT-REF.supabase.co/auth/v1/callback`
+   - Copy **Client ID** and **Client Secret**
+
+2. **Supabase Console** - Authentication → Providers
+   - Enable **Google** provider
+   - Paste **Client ID** and **Client Secret** from Google
+   
+3. **Supabase Console** - Authentication → URL Configuration
+   - Set **Site URL**: `http://localhost:5173` (dev) or `https://your-app.vercel.app` (prod)
+   - Add **Redirect URLs**:
+     - Development: `http://localhost:5173`, `http://localhost:5173/**`
+     - Production: `https://your-app.vercel.app`, `https://your-app.vercel.app/**`
+     - Add all domains where your app is accessible
+
+**⚠️ Critical Notes:**
+- Replace `YOUR-PROJECT-REF` with your actual Supabase project reference from your project URL
+- The Supabase callback URL must be: `https://YOUR-PROJECT-REF.supabase.co/auth/v1/callback`
+- JavaScript origins should NOT have trailing slashes
+- Redirect URLs can use `/**` wildcard for all paths
+- All URLs must match exactly (including http/https and ports)
+
+**📚 For detailed step-by-step instructions with screenshots and troubleshooting:**
+See [SUPABASE_SETUP.md](./SUPABASE_SETUP.md) for comprehensive OAuth configuration guide including:
+- Complete Google Cloud Console setup (JavaScript origins, redirect URIs, consent screen)
+- Complete Supabase Console setup (Site URL, redirect URLs, provider configuration)
+- Development vs Production environment examples
+- Common errors and solutions (redirect_uri_mismatch, origin_mismatch, etc.)
+- Testing checklist
 
 ### Step 6: Configure Stripe Webhook
 
@@ -326,7 +358,12 @@ UPDATE users SET role = 'admin' WHERE email = 'your@email.com';
 | "OpenAI not configured" | Verify API key and check you have DALL-E 3 access |
 | Webhook not receiving | Check URL ends with `/api/webhooks/stripe` and secret matches |
 | Design generation fails | Check OpenAI credits and API key permissions |
-| Google OAuth fails | Verify redirect URI in Google Console matches Supabase |
+| Google OAuth `redirect_uri_mismatch` | Verify redirect URIs in Google Console match exactly (including Supabase callback). See [SUPABASE_SETUP.md](./SUPABASE_SETUP.md) |
+| Google OAuth `origin_mismatch` | Add your app's origin to "Authorized JavaScript origins" in Google Console. See [SUPABASE_SETUP.md](./SUPABASE_SETUP.md) |
+| Google OAuth works locally not in production | Add production URLs to Google Console and Supabase redirect URLs. See [SUPABASE_SETUP.md](./SUPABASE_SETUP.md) |
+| OAuth redirects to wrong URL | Check Supabase Site URL and ensure it's in the redirect URLs allow list. See [SUPABASE_SETUP.md](./SUPABASE_SETUP.md) |
+
+**For comprehensive OAuth troubleshooting**, see the [OAuth Troubleshooting section in SUPABASE_SETUP.md](./SUPABASE_SETUP.md#troubleshooting)
 
 ---
 
