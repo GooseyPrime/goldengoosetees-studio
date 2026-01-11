@@ -2,6 +2,47 @@
 
 This guide will help you integrate Supabase for database storage and Google OAuth authentication.
 
+## Quick Reference: OAuth URLs
+
+Before you begin, understand the key URLs you'll be configuring:
+
+### Development Environment (Local)
+```
+App URL (Site URL):          http://localhost:5173
+JavaScript Origin:           http://localhost:5173
+Redirect URLs:               http://localhost:5173
+                            http://localhost:5173/**
+Supabase Callback:          https://YOUR-PROJECT-REF.supabase.co/auth/v1/callback
+```
+
+### Production Environment (Vercel/Custom Domain)
+```
+App URL (Site URL):          https://your-app.vercel.app
+JavaScript Origins:          https://your-app.vercel.app
+                            https://goldengoosetees.com
+Redirect URLs:               https://your-app.vercel.app
+                            https://your-app.vercel.app/**
+                            https://goldengoosetees.com
+                            https://goldengoosetees.com/**
+Supabase Callback:          https://YOUR-PROJECT-REF.supabase.co/auth/v1/callback
+```
+
+### Where to Configure These URLs
+
+| URL Type | Google Cloud Console | Supabase Console |
+|----------|---------------------|------------------|
+| **JavaScript Origins** | ✅ Credentials → OAuth 2.0 Client → Authorized JavaScript origins | ❌ Not needed |
+| **App Base URLs** | ✅ Credentials → OAuth 2.0 Client → Authorized redirect URIs | ✅ Authentication → URL Configuration → Redirect URLs |
+| **Supabase Callback** | ✅ Credentials → OAuth 2.0 Client → Authorized redirect URIs | ❌ Auto-configured (don't add) |
+| **Site URL (Primary)** | ❌ Not needed | ✅ Authentication → URL Configuration → Site URL |
+
+**Important**: 
+- Replace `YOUR-PROJECT-REF` with your actual Supabase project reference (found in your project URL)
+- Replace `your-app.vercel.app` with your actual Vercel domain
+- Replace `goldengoosetees.com` with your actual custom domain (if applicable)
+
+---
+
 ## Prerequisites
 
 - A Supabase account (sign up at [supabase.com](https://supabase.com))
@@ -150,28 +191,194 @@ CREATE TRIGGER update_orders_updated_at BEFORE UPDATE ON orders
 
 ## Step 4: Configure Google OAuth
 
-### In Google Cloud Console:
+This step requires configuration in **both** Google Cloud Console and Supabase Console. The callback/redirect URLs must match exactly between both platforms.
+
+### A. Google Cloud Console Configuration
+
+#### 4.1: Create/Select Project
 
 1. Go to [console.cloud.google.com](https://console.cloud.google.com)
 2. Create a new project or select an existing one
-3. Go to **APIs & Services** → **Credentials**
-4. Click **Create Credentials** → **OAuth 2.0 Client ID**
-5. Configure the consent screen if prompted
-6. For Application type, select **Web application**
-7. Add authorized redirect URIs:
-   ```
-   https://YOUR-PROJECT-REF.supabase.co/auth/v1/callback
-   ```
-   (Replace `YOUR-PROJECT-REF` with your Supabase project reference)
-8. Save and copy the **Client ID** and **Client Secret**
+3. Note your project name for reference
 
-### In Supabase:
+#### 4.2: Enable Required APIs
 
-1. Go to **Authentication** → **Providers**
-2. Find **Google** and click to expand
-3. Enable Google provider
-4. Paste your Google **Client ID** and **Client Secret**
-5. Save changes
+1. Go to **APIs & Services** → **Library**
+2. Search for "Google+ API" and enable it
+3. Search for "People API" and enable it (optional but recommended)
+
+#### 4.3: Configure OAuth Consent Screen
+
+1. Go to **APIs & Services** → **OAuth consent screen**
+2. Select **External** user type (or Internal if using Google Workspace)
+3. Fill in required fields:
+   - **App name**: GoldenGooseTees Kiosk
+   - **User support email**: Your email
+   - **Developer contact email**: Your email
+4. Click **Save and Continue**
+5. On "Scopes" screen, click **Save and Continue** (default scopes are sufficient)
+6. Add test users if needed, then click **Save and Continue**
+
+#### 4.4: Create OAuth 2.0 Credentials
+
+1. Go to **APIs & Services** → **Credentials**
+2. Click **+ CREATE CREDENTIALS** → **OAuth client ID**
+3. For **Application type**, select **Web application**
+4. Give it a name (e.g., "GoldenGooseTees Web Client")
+
+#### 4.5: Configure Authorized JavaScript Origins
+
+Add the following origins where your app will be accessed from:
+
+**For Development:**
+```
+http://localhost:5173
+http://localhost:5000
+http://127.0.0.1:5173
+```
+
+**For Production (replace with your actual domains):**
+```
+https://your-app.vercel.app
+https://goldengoosetees.com
+https://www.goldengoosetees.com
+```
+
+**Important Notes:**
+- Do NOT include trailing slashes (/)
+- Must use https:// for production (http:// only allowed for localhost)
+- Include all domains and subdomains where your app is hosted
+- Port numbers are required for localhost during development
+
+#### 4.6: Configure Authorized Redirect URIs
+
+These are the callback URLs where Google sends users after authentication. You need **BOTH** your Supabase URL and your app URL.
+
+**Critical: Get Your Supabase Project Reference**
+1. Go to your Supabase project dashboard
+2. Copy the URL - it looks like: `https://abcdefghijklmnop.supabase.co`
+3. Your project reference is the subdomain: `abcdefghijklmnop`
+
+**For Development:**
+```
+http://localhost:5173
+http://localhost:5000
+https://abcdefghijklmnop.supabase.co/auth/v1/callback
+```
+(Replace `abcdefghijklmnop` with your actual Supabase project reference)
+
+**For Production:**
+```
+https://your-app.vercel.app
+https://goldengoosetees.com
+https://www.goldengoosetees.com
+https://abcdefghijklmnop.supabase.co/auth/v1/callback
+```
+(Replace with your actual production domain(s) and Supabase project reference)
+
+**Important Notes:**
+- The Supabase callback URL **MUST** be exactly: `https://YOUR-PROJECT-REF.supabase.co/auth/v1/callback`
+- Include your app's base URL(s) in addition to the Supabase callback URL
+- Do NOT add trailing slashes to the app URLs
+- The Supabase callback URL path must be exactly `/auth/v1/callback`
+
+#### 4.7: Save and Copy Credentials
+
+1. Click **CREATE**
+2. A dialog will show your **Client ID** and **Client Secret**
+3. **IMPORTANT**: Copy both values immediately and save them securely
+4. You can also download the JSON file for backup
+5. Click **OK**
+
+### B. Supabase Console Configuration
+
+#### 4.8: Configure Google Provider in Supabase
+
+1. Go to your Supabase project dashboard
+2. Navigate to **Authentication** → **Providers**
+3. Find **Google** in the list and click to expand
+4. Toggle **Enable Google provider** to ON
+5. Paste your **Client ID** from Google Cloud Console
+6. Paste your **Client Secret** from Google Cloud Console
+7. Click **Save**
+
+#### 4.9: Configure Site URL
+
+The Site URL is where Supabase redirects users after authentication.
+
+1. In Supabase, go to **Authentication** → **URL Configuration**
+2. Set **Site URL** to:
+
+**For Development:**
+```
+http://localhost:5173
+```
+
+**For Production:**
+```
+https://your-app.vercel.app
+```
+(Use your primary production domain)
+
+**Important Notes:**
+- This should match your main app URL
+- Do NOT include trailing slashes
+- Only ONE site URL can be set (use your primary domain)
+
+#### 4.10: Configure Redirect URLs (Allowed List)
+
+These are additional URLs where Supabase will allow redirects after authentication.
+
+1. In Supabase, go to **Authentication** → **URL Configuration**
+2. Under **Redirect URLs**, add all URLs where your app can be accessed:
+
+**For Development:**
+```
+http://localhost:5173
+http://localhost:5173/**
+http://localhost:5000
+http://localhost:5000/**
+http://127.0.0.1:5173
+http://127.0.0.1:5173/**
+```
+
+**For Production:**
+```
+https://your-app.vercel.app
+https://your-app.vercel.app/**
+https://goldengoosetees.com
+https://goldengoosetees.com/**
+https://www.goldengoosetees.com
+https://www.goldengoosetees.com/**
+```
+
+**Important Notes:**
+- Each URL should be on a separate line
+- Use `/**` wildcard to allow all paths under a domain
+- Include ALL domains and subdomains where your app is accessible
+- Include both with and without `www` if applicable
+- Must match the JavaScript origins configured in Google Cloud Console
+
+### C. Verification and Testing
+
+#### 4.11: Verify Configuration Matches
+
+Double-check that your URLs match across both platforms:
+
+| Configuration | Google Cloud Console | Supabase Console |
+|---------------|---------------------|------------------|
+| **Origins** | Authorized JavaScript origins | Must match redirect URLs |
+| **Callbacks** | Authorized redirect URIs | Must include Supabase callback + Site URL |
+| **Supabase Callback** | Must include `/auth/v1/callback` | Automatically used |
+
+#### 4.12: Test the OAuth Flow
+
+1. Clear your browser cache and cookies
+2. Open your app in a new incognito/private window
+3. Click the "Sign in with Google" button
+4. Complete the Google sign-in flow
+5. Verify you're redirected back to your app successfully
+6. Check that user data is saved in Supabase Users table
 
 ## Step 5: Configure in Admin Dashboard
 
@@ -202,10 +409,83 @@ CREATE TRIGGER update_orders_updated_at BEFORE UPDATE ON orders
 - Verify both URL and Anon Key are correct
 - Refresh the page after saving
 
-### Google OAuth not working
-- Check that your redirect URI is exactly correct in Google Cloud Console
-- Verify Google provider is enabled in Supabase
-- Make sure Client ID and Secret are correct
+### Google OAuth Errors
+
+#### "redirect_uri_mismatch" Error
+This is the most common OAuth error. It means the redirect URI doesn't match exactly between Google Cloud Console and your request.
+
+**Solution:**
+1. Check the error message for the exact redirect URI that was attempted
+2. Go to Google Cloud Console → Credentials → Your OAuth Client
+3. Ensure the **EXACT** redirect URI is in the "Authorized redirect URIs" list
+4. Common issues:
+   - Missing trailing slash (or extra trailing slash)
+   - HTTP vs HTTPS mismatch
+   - Missing port number for localhost
+   - Wrong Supabase project reference
+   - Missing `/auth/v1/callback` path
+
+**Example of correct URIs:**
+```
+http://localhost:5173
+https://abcdefghijklmnop.supabase.co/auth/v1/callback
+```
+
+#### "origin_mismatch" Error
+The JavaScript origin doesn't match the configured origins.
+
+**Solution:**
+1. Go to Google Cloud Console → Credentials → Your OAuth Client
+2. Check "Authorized JavaScript origins"
+3. Add the exact origin where your app is running
+4. Do NOT include paths or trailing slashes in origins
+5. Format: `http://localhost:5173` or `https://your-app.vercel.app`
+
+#### "access_denied" Error
+User cancelled sign-in or Google denied access.
+
+**Solution:**
+1. Verify OAuth consent screen is properly configured
+2. Check that test users are added (if in testing mode)
+3. Ensure required scopes are not restricted
+4. Try with a different Google account
+
+#### "invalid_client" Error
+Client ID or Secret is incorrect.
+
+**Solution:**
+1. Verify Client ID and Secret are correctly copied from Google Cloud Console
+2. Check for extra spaces or hidden characters
+3. Ensure the OAuth client hasn't been deleted or disabled
+4. Verify credentials in both Google Cloud Console AND Supabase
+
+#### OAuth Works Locally but Not in Production
+
+**Solution:**
+1. Ensure production URLs are added to Google Cloud Console:
+   - Add to "Authorized JavaScript origins"
+   - Add to "Authorized redirect URIs"
+2. Update Supabase Site URL to production domain
+3. Add production domain to Supabase Redirect URLs
+4. Clear browser cache and test in incognito mode
+5. Verify environment variables are set in Vercel/production
+
+#### OAuth Redirects to Wrong URL
+
+**Solution:**
+1. Check `redirectTo` parameter in your code (default is `window.location.origin`)
+2. Verify Supabase Site URL is set to your preferred redirect
+3. Ensure the redirect URL is in the Supabase allowed list
+4. Check `VITE_APP_URL` environment variable
+
+#### User Authenticated but Not Saved to Database
+
+**Solution:**
+1. Check browser console for errors
+2. Verify the `users` table exists in Supabase
+3. Ensure RLS policies allow INSERT for authenticated users
+4. Check the `saveUser` function is being called after OAuth callback
+5. Verify Supabase service role key (if used server-side)
 
 ### Database connection errors
 - Verify the SQL schema was created successfully
@@ -215,6 +495,25 @@ CREATE TRIGGER update_orders_updated_at BEFORE UPDATE ON orders
 ### "Relation does not exist" errors
 - Re-run the SQL schema setup from Step 3
 - Make sure you're running it in the correct Supabase project
+
+### Testing OAuth Configuration
+
+Use this checklist to verify your OAuth setup:
+
+- [ ] Google Cloud Console - OAuth client created
+- [ ] Google Cloud Console - Authorized JavaScript origins added (all domains)
+- [ ] Google Cloud Console - Authorized redirect URIs added (app + Supabase callback)
+- [ ] Google Cloud Console - OAuth consent screen configured
+- [ ] Supabase - Google provider enabled
+- [ ] Supabase - Client ID and Secret configured
+- [ ] Supabase - Site URL set to primary domain
+- [ ] Supabase - All redirect URLs added to allowed list
+- [ ] Environment variables - VITE_SUPABASE_URL set correctly
+- [ ] Environment variables - VITE_SUPABASE_ANON_KEY set correctly
+- [ ] Test - Can click "Sign in with Google" without errors
+- [ ] Test - Redirected to Google sign-in page
+- [ ] Test - After signing in, redirected back to app
+- [ ] Test - User session persists after page refresh
 
 ## Security Notes
 
