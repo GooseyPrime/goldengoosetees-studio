@@ -67,7 +67,7 @@ async function generateImageWithDALLE3(
   } = {}
 ): Promise<string> {
   if (!OPENAI_API_KEY) {
-    throw new Error('OpenAI API key not configured. Set VITE_OPENAI_API_KEY.')
+    throw new Error('OpenAI API key not configured. Please set VITE_OPENAI_API_KEY in your environment.')
   }
 
   const {
@@ -78,46 +78,75 @@ async function generateImageWithDALLE3(
 
   // Enhance prompt for t-shirt design - ensure visual elements are emphasized
   const enhancedPrompt = `Create a detailed, high-quality t-shirt graphic design with the following concept: ${prompt}
-    
-    IMPORTANT: This should be a complete, visually rich illustration or artwork, NOT just text or typography.
-    - Include ALL visual elements described (characters, objects, scenes, backgrounds, etc.)
+
+    CRITICAL REQUIREMENTS:
+    - This MUST be a complete, visually rich illustration or artwork
+    - NOT just text or typography - include visual imagery
+    - Include ALL visual elements described (characters, objects, scenes, etc.)
     - If text is mentioned, incorporate it as part of the overall design composition
-    - Use a transparent or white background suitable for t-shirt printing
+    - Use a pure white or transparent background suitable for t-shirt printing
     - Style: Bold, eye-catching, colorful artwork with professional print-ready quality
     - Make it vibrant and detailed with clear, sharp graphics
-    - Do NOT create a mockup of a t-shirt - create only the graphic artwork itself`
+    - Do NOT create a mockup of a t-shirt - create ONLY the graphic artwork itself
+    - Ensure high contrast and visibility for printing on fabric`
 
-  const response = await fetch(`${OPENAI_API_BASE}/images/generations`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${OPENAI_API_KEY}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      model: 'dall-e-3',
-      prompt: enhancedPrompt,
-      n: 1,
-      size,
-      quality,
-      style,
-      response_format: 'b64_json'
+  try {
+    const response = await fetch(`${OPENAI_API_BASE}/images/generations`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'dall-e-3',
+        prompt: enhancedPrompt,
+        n: 1,
+        size,
+        quality,
+        style,
+        response_format: 'b64_json'
+      })
     })
-  })
 
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({}))
-    throw new Error(error.error?.message || `DALL-E API error: ${response.statusText}`)
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}))
+      const errorMessage = error.error?.message || `DALL-E API error: ${response.statusText}`
+
+      // Provide user-friendly error messages
+      if (response.status === 401) {
+        throw new Error('Invalid OpenAI API key. Please check your configuration.')
+      }
+      if (response.status === 429) {
+        throw new Error('Rate limit exceeded. Please wait a moment and try again.')
+      }
+      if (response.status === 400 && errorMessage.includes('safety')) {
+        throw new Error('Content policy violation. Please try a different design concept.')
+      }
+      throw new Error(errorMessage)
+    }
+
+    const data = await response.json()
+    const base64Image = data.data[0]?.b64_json
+    const revisedPrompt = data.data[0]?.revised_prompt
+
+    if (!base64Image) {
+      throw new Error('No image was generated. Please try again with a different prompt.')
+    }
+
+    // Log the revised prompt for debugging/transparency
+    if (revisedPrompt) {
+      console.log('DALL-E revised prompt:', revisedPrompt)
+    }
+
+    // Return as data URL (PNG)
+    return `data:image/png;base64,${base64Image}`
+  } catch (error: any) {
+    // Re-throw with better context if it's a network error
+    if (error.name === 'TypeError' && error.message.includes('fetch')) {
+      throw new Error('Network error. Please check your internet connection and try again.')
+    }
+    throw error
   }
-
-  const data = await response.json()
-  const base64Image = data.data[0]?.b64_json
-
-  if (!base64Image) {
-    throw new Error('No image generated')
-  }
-
-  // Return as data URL (PNG)
-  return `data:image/png;base64,${base64Image}`
 }
 
 async function editImageWithDALLE(
