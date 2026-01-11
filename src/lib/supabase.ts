@@ -1,48 +1,44 @@
 import { createClient, SupabaseClient, AuthChangeEvent, Session } from '@supabase/supabase-js'
 
-let supabaseClient: SupabaseClient | null = null
-let isConfigured = false
-let initializationPromise: Promise<void> | null = null
-
 // Environment variables (Vite)
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
 
+// Initialize Supabase client IMMEDIATELY at module load time
+// This is critical for OAuth callback detection - the client must exist
+// before React mounts so it can detect tokens in the URL hash
+let supabaseClient: SupabaseClient | null = null
+let isConfigured = false
+
+if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+  try {
+    supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: {
+        // Automatically detect OAuth callback in URL
+        detectSessionInUrl: true,
+        // Persist session in localStorage
+        persistSession: true,
+        // Auto refresh token before expiry
+        autoRefreshToken: true,
+        // Use PKCE flow for better security
+        flowType: 'pkce',
+      }
+    })
+    isConfigured = true
+    console.log('Supabase client initialized')
+  } catch (error) {
+    console.error('Failed to initialize Supabase:', error)
+    isConfigured = false
+  }
+} else {
+  console.warn('Supabase not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.')
+}
+
 export const supabaseService = {
   initialize() {
-    // Return existing promise if already initializing
-    if (initializationPromise) return initializationPromise
-    if (supabaseClient) return Promise.resolve()
-
-    initializationPromise = new Promise<void>((resolve) => {
-      if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-        console.warn('Supabase not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY. Using mock mode.')
-        isConfigured = false
-        resolve()
-        return
-      }
-
-      try {
-        supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-          auth: {
-            // Automatically detect OAuth callback in URL
-            detectSessionInUrl: true,
-            // Persist session in localStorage
-            persistSession: true,
-            // Auto refresh token before expiry
-            autoRefreshToken: true,
-          }
-        })
-        isConfigured = true
-        console.log('Supabase initialized successfully')
-      } catch (error) {
-        console.error('Failed to initialize Supabase:', error)
-        isConfigured = false
-      }
-      resolve()
-    })
-
-    return initializationPromise
+    // Client is already initialized at module load time
+    // This method is kept for backward compatibility
+    return Promise.resolve()
   },
 
   isConfigured() {
@@ -57,9 +53,8 @@ export const supabaseService = {
   },
 
   async signInWithGoogle() {
-    await this.initialize()
     if (!this.isConfigured()) {
-      throw new Error('Supabase not configured')
+      throw new Error('Supabase not configured. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.')
     }
 
     const { data, error } = await supabaseClient!.auth.signInWithOAuth({
@@ -67,7 +62,6 @@ export const supabaseService = {
       options: {
         redirectTo: window.location.origin,
         queryParams: {
-          // Request offline access for refresh tokens
           access_type: 'offline',
           prompt: 'consent',
         },
@@ -139,9 +133,6 @@ export const supabaseService = {
   },
 
   onAuthStateChange(callback: (event: AuthChangeEvent, session: Session | null) => void) {
-    // Initialize first if not done
-    this.initialize()
-
     if (!this.isConfigured()) {
       return { data: { subscription: { unsubscribe: () => {} } } }
     }
