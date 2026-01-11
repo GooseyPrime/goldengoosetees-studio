@@ -45,6 +45,12 @@ import logoImage from '@/assets/images/GoldenGooseTees.jpg'
 // Check if kiosk mode is enabled
 const KIOSK_MODE = import.meta.env.VITE_KIOSK_MODE === 'true'
 
+// Helper to detect if we're returning from OAuth redirect
+const isOAuthRedirect = () => {
+  return window.location.hash?.includes('access_token') ||
+         window.location.search?.includes('code=')
+}
+
 function App() {
   const [currentUser, setCurrentUser] = useAppKV<User | null>('current-user', null)
   const [, setSavedDesigns] = useAppKV<Design[]>('saved-designs', [])
@@ -138,8 +144,7 @@ function App() {
         if (existingUser) {
           setCurrentUser(existingUser)
           // Show welcome message if we just returned from OAuth
-          if (window.location.hash?.includes('access_token') ||
-              window.location.search?.includes('code=')) {
+          if (isOAuthRedirect()) {
             toast.success(`Welcome, ${existingUser.name || existingUser.email}!`)
             // Clean up URL hash/params
             window.history.replaceState(null, '', window.location.pathname)
@@ -166,8 +171,7 @@ function App() {
           if (user) {
             setCurrentUser(user)
             // Show welcome toast only on new sign-in (not on page refresh)
-            if (!window.location.hash?.includes('access_token') &&
-                !window.location.search?.includes('code=')) {
+            if (!isOAuthRedirect()) {
               toast.success(`Welcome, ${user.name || user.email}!`)
             }
           }
