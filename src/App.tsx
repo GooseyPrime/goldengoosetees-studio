@@ -473,7 +473,15 @@ function App() {
       const printArea = selectedProduct.printAreas.find(pa => pa.id === targetPrintArea)
       if (!printArea) return
 
-      const designUrl = await api.ai.generateDesign(prompt, printArea.constraints, currentUser || null)
+      const designUrl = await api.ai.generateDesign(
+        prompt,
+        {
+          ...printArea.constraints,
+          widthInches: printArea.widthInches,
+          heightInches: printArea.heightInches,
+        },
+        currentUser || null
+      )
       const metrics = await getImageMetrics(designUrl, printArea)
       
       const newDesign: DesignFile = {
@@ -805,7 +813,15 @@ function App() {
       const printArea = selectedProduct.printAreas.find(pa => pa.id === currentPrintArea)
       if (!printArea) return
 
-      const designUrl = await api.ai.generateDesign(recentUserMessages, printArea.constraints, currentUser || null)
+      const designUrl = await api.ai.generateDesign(
+        recentUserMessages,
+        {
+          ...printArea.constraints,
+          widthInches: printArea.widthInches,
+          heightInches: printArea.heightInches,
+        },
+        currentUser || null
+      )
       const metrics = await getImageMetrics(designUrl, printArea)
 
       const newDesign: DesignFile = {

@@ -47,7 +47,8 @@ class StripeService {
   }
 
   isConfigured(): boolean {
-    return !!(this.publishableKey && this.secretKey)
+    // Publishable key is required client-side; secret key should be server-side in production.
+    return !!this.publishableKey
   }
 
   getPublishableKey(): string | null {
@@ -59,36 +60,58 @@ class StripeService {
   }
 
   async createPaymentIntent(order: Order): Promise<PaymentIntent> {
-    if (!this.secretKey) {
-      throw new Error('Stripe not configured. Please set up Stripe in Admin Settings.')
-    }
-
     const amountInCents = Math.round(order.totalAmount * 100)
 
-    const formData = new URLSearchParams()
-    formData.append('amount', amountInCents.toString())
-    formData.append('currency', 'usd')
-    formData.append('automatic_payment_methods[enabled]', 'true')
-    formData.append('metadata[order_id]', order.id)
-    formData.append('metadata[user_id]', order.userId)
-    formData.append('metadata[design_id]', order.designId)
-    formData.append('description', `GoldenGooseTees Order #${order.id.slice(-8).toUpperCase()}`)
+    const description = `GoldenGooseTees Order #${order.id.slice(-8).toUpperCase()}`
 
-    const response = await fetch(`${STRIPE_API_BASE}/payment_intents`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${this.secretKey}`,
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: formData.toString()
-    })
+    // Prefer server-side Stripe secret key; fall back to direct calls if explicitly provided.
+    let data: any
+    if (!this.secretKey) {
+      const response = await fetch('/api/stripe/create-payment-intent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount: amountInCents,
+          currency: 'usd',
+          description,
+          metadata: {
+            order_id: order.id,
+            user_id: order.userId,
+            design_id: order.designId,
+          },
+        }),
+      })
+      const json = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(json?.error || 'Failed to create payment intent')
+      }
+      data = json
+    } else {
+      const formData = new URLSearchParams()
+      formData.append('amount', amountInCents.toString())
+      formData.append('currency', 'usd')
+      formData.append('automatic_payment_methods[enabled]', 'true')
+      formData.append('metadata[order_id]', order.id)
+      formData.append('metadata[user_id]', order.userId)
+      formData.append('metadata[design_id]', order.designId)
+      formData.append('description', description)
 
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error?.message || 'Failed to create payment intent')
+      const response = await fetch(`${STRIPE_API_BASE}/payment_intents`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${this.secretKey}`,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: formData.toString()
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error?.message || 'Failed to create payment intent')
+      }
+
+      data = await response.json()
     }
-
-    const data = await response.json()
 
     return {
       id: data.id,
@@ -216,28 +239,42 @@ class StripeService {
   ): Promise<PaymentResult> {
     const paymentIntentId = clientSecret.split('_secret_')[0]
 
-    const formData = new URLSearchParams()
-    formData.append('payment_method_data[type]', 'card')
-    formData.append('payment_method_data[card][token]', tokenId)
-
-    const response = await fetch(
-      `${STRIPE_API_BASE}/payment_intents/${paymentIntentId}/confirm`,
-      {
+    let data: any
+    if (!this.secretKey) {
+      const response = await fetch('/api/stripe/confirm-payment-intent', {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${this.secretKey}`,
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: formData.toString()
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paymentIntentId, tokenId }),
+      })
+      const json = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        return { success: false, error: json?.error || 'Payment confirmation failed' }
       }
-    )
+      data = json
+    } else {
+      const formData = new URLSearchParams()
+      formData.append('payment_method_data[type]', 'card')
+      formData.append('payment_method_data[card][token]', tokenId)
 
-    const data = await response.json()
+      const response = await fetch(
+        `${STRIPE_API_BASE}/payment_intents/${paymentIntentId}/confirm`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${this.secretKey}`,
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: formData.toString()
+        }
+      )
 
-    if (!response.ok) {
-      return {
-        success: false,
-        error: data.error?.message || 'Payment confirmation failed'
+      data = await response.json()
+
+      if (!response.ok) {
+        return {
+          success: false,
+          error: data.error?.message || 'Payment confirmation failed'
+        }
       }
     }
 
@@ -331,57 +368,67 @@ class StripeService {
     cancelUrl: string
     metadata?: Record<string, string>
   }): Promise<CheckoutSession> {
+    let data: any
     if (!this.secretKey) {
-      throw new Error('Stripe not configured. Set STRIPE_SECRET_KEY.')
-    }
-
-    const amountInCents = Math.round(options.amount * 100)
-
-    const formData = new URLSearchParams()
-    formData.append('mode', 'payment')
-    formData.append('success_url', options.successUrl)
-    formData.append('cancel_url', options.cancelUrl)
-    formData.append('customer_email', options.customerEmail)
-
-    // Line item
-    formData.append('line_items[0][price_data][currency]', 'usd')
-    formData.append('line_items[0][price_data][unit_amount]', amountInCents.toString())
-    formData.append('line_items[0][price_data][product_data][name]', options.productName)
-    if (options.productDescription) {
-      formData.append('line_items[0][price_data][product_data][description]', options.productDescription)
-    }
-    if (options.productImage) {
-      formData.append('line_items[0][price_data][product_data][images][0]', options.productImage)
-    }
-    formData.append('line_items[0][quantity]', '1')
-
-    // Metadata
-    formData.append('metadata[order_id]', options.orderId)
-    if (options.metadata) {
-      Object.entries(options.metadata).forEach(([key, value]) => {
-        formData.append(`metadata[${key}]`, value)
+      const response = await fetch('/api/stripe/create-checkout-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(options),
       })
+      const json = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(json?.error || 'Failed to create checkout session')
+      }
+      data = json
+    } else {
+      const amountInCents = Math.round(options.amount * 100)
+
+      const formData = new URLSearchParams()
+      formData.append('mode', 'payment')
+      formData.append('success_url', options.successUrl)
+      formData.append('cancel_url', options.cancelUrl)
+      formData.append('customer_email', options.customerEmail)
+
+      // Line item
+      formData.append('line_items[0][price_data][currency]', 'usd')
+      formData.append('line_items[0][price_data][unit_amount]', amountInCents.toString())
+      formData.append('line_items[0][price_data][product_data][name]', options.productName)
+      if (options.productDescription) {
+        formData.append('line_items[0][price_data][product_data][description]', options.productDescription)
+      }
+      if (options.productImage) {
+        formData.append('line_items[0][price_data][product_data][images][0]', options.productImage)
+      }
+      formData.append('line_items[0][quantity]', '1')
+
+      // Metadata
+      formData.append('metadata[order_id]', options.orderId)
+      if (options.metadata) {
+        Object.entries(options.metadata).forEach(([key, value]) => {
+          formData.append(`metadata[${key}]`, value)
+        })
+      }
+
+      // Shipping address collection
+      formData.append('shipping_address_collection[allowed_countries][0]', 'US')
+      formData.append('shipping_address_collection[allowed_countries][1]', 'CA')
+
+      const response = await fetch(`${STRIPE_API_BASE}/checkout/sessions`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${this.secretKey}`,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: formData.toString()
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error?.message || 'Failed to create checkout session')
+      }
+
+      data = await response.json()
     }
-
-    // Shipping address collection
-    formData.append('shipping_address_collection[allowed_countries][0]', 'US')
-    formData.append('shipping_address_collection[allowed_countries][1]', 'CA')
-
-    const response = await fetch(`${STRIPE_API_BASE}/checkout/sessions`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${this.secretKey}`,
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: formData.toString()
-    })
-
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error?.message || 'Failed to create checkout session')
-    }
-
-    const data = await response.json()
 
     return {
       id: data.id,
@@ -390,19 +437,12 @@ class StripeService {
   }
 
   async getCheckoutSession(sessionId: string): Promise<any> {
-    if (!this.secretKey) {
-      return null
-    }
-
     try {
-      const response = await fetch(
-        `${STRIPE_API_BASE}/checkout/sessions/${sessionId}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${this.secretKey}`,
-          }
-        }
-      )
+      const response = this.secretKey
+        ? await fetch(`${STRIPE_API_BASE}/checkout/sessions/${sessionId}`, {
+            headers: { 'Authorization': `Bearer ${this.secretKey}` },
+          })
+        : await fetch(`/api/stripe/get-checkout-session?session_id=${encodeURIComponent(sessionId)}`)
 
       if (!response.ok) {
         return null
