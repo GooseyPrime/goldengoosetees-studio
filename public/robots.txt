@@ -3,7 +3,7 @@ User-agent: *
 Allow: /
 
 # Sitemap location
-Sitemap: https://goldengoosetees.vercel.app/sitemap.xml
+Sitemap: https://www.goldengoosetees.com/sitemap.xml
 
 # Disallow admin and checkout pages
 Disallow: /#/admin
