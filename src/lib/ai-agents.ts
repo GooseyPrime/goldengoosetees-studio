@@ -1,12 +1,7 @@
 import { ChatMessage, Product, User } from './types'
 
-// Environment variables (Vite)
-const OPENROUTER_API_KEY = import.meta.env.VITE_OPENROUTER_API_KEY
-const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY
-
-// API endpoints
-const OPENROUTER_API_BASE = 'https://openrouter.ai/api/v1'
-const OPENAI_API_BASE = 'https://api.openai.com/v1'
+// Backend API endpoints (Vercel serverless functions)
+const API_BASE = '/api/ai'
 
 // ============================================
 // API Helper Functions
@@ -19,43 +14,39 @@ async function callOpenRouter(
     temperature?: number
     maxTokens?: number
     jsonMode?: boolean
+    systemPrompt?: string
   } = {}
 ): Promise<string> {
-  if (!OPENROUTER_API_KEY) {
-    throw new Error('OpenRouter API key not configured. Set VITE_OPENROUTER_API_KEY.')
-  }
-
   const {
     model = 'openai/gpt-4o',
     temperature = 0.7,
     maxTokens = 1024,
-    jsonMode = false
+    jsonMode = false,
+    systemPrompt
   } = options
 
-  const response = await fetch(`${OPENROUTER_API_BASE}/chat/completions`, {
+  const response = await fetch(`${API_BASE}/chat`, {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-      'Content-Type': 'application/json',
-      'HTTP-Referer': window.location.origin,
-      'X-Title': 'Golden Goose Tees Kiosk'
+      'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      model,
       messages,
+      systemPrompt,
       temperature,
-      max_tokens: maxTokens,
-      ...(jsonMode && { response_format: { type: 'json_object' } })
+      maxTokens,
+      jsonMode,
+      model
     })
   })
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({}))
-    throw new Error(error.error?.message || `OpenRouter API error: ${response.statusText}`)
+    throw new Error(error.error || `Chat API error: ${response.statusText}`)
   }
 
   const data = await response.json()
-  return data.choices[0]?.message?.content || ''
+  return data.content || ''
 }
 
 async function generateImageWithDALLE3(
@@ -66,80 +57,39 @@ async function generateImageWithDALLE3(
     style?: 'vivid' | 'natural'
   } = {}
 ): Promise<string> {
-  if (!OPENAI_API_KEY) {
-    throw new Error('OpenAI API key not configured. Please set VITE_OPENAI_API_KEY in your environment.')
-  }
-
   const {
     size = '1024x1024',
     quality = 'hd',
     style = 'vivid'
   } = options
 
-  // Enhance prompt for t-shirt design - ensure visual elements are emphasized
-  const enhancedPrompt = `Create a detailed, high-quality t-shirt graphic design with the following concept: ${prompt}
-
-    CRITICAL REQUIREMENTS:
-    - This MUST be a complete, visually rich illustration or artwork
-    - NOT just text or typography - include visual imagery
-    - Include ALL visual elements described (characters, objects, scenes, etc.)
-    - If text is mentioned, incorporate it as part of the overall design composition
-    - Use a pure white or transparent background suitable for t-shirt printing
-    - Style: Bold, eye-catching, colorful artwork with professional print-ready quality
-    - Make it vibrant and detailed with clear, sharp graphics
-    - Do NOT create a mockup of a t-shirt - create ONLY the graphic artwork itself
-    - Ensure high contrast and visibility for printing on fabric`
-
   try {
-    const response = await fetch(`${OPENAI_API_BASE}/images/generations`, {
+    const response = await fetch(`${API_BASE}/generate-design`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'dall-e-3',
-        prompt: enhancedPrompt,
-        n: 1,
+        prompt,
         size,
         quality,
-        style,
-        response_format: 'b64_json'
+        style
       })
     })
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}))
-      const errorMessage = error.error?.message || `DALL-E API error: ${response.statusText}`
-
-      // Provide user-friendly error messages
-      if (response.status === 401) {
-        throw new Error('Invalid OpenAI API key. Please check your configuration.')
-      }
-      if (response.status === 429) {
-        throw new Error('Rate limit exceeded. Please wait a moment and try again.')
-      }
-      if (response.status === 400 && errorMessage.includes('safety')) {
-        throw new Error('Content policy violation. Please try a different design concept.')
-      }
-      throw new Error(errorMessage)
+      throw new Error(error.error || `Image generation failed: ${response.statusText}`)
     }
 
     const data = await response.json()
-    const base64Image = data.data[0]?.b64_json
-    const revisedPrompt = data.data[0]?.revised_prompt
-
-    if (!base64Image) {
-      throw new Error('No image was generated. Please try again with a different prompt.')
-    }
-
+    
     // Log the revised prompt for debugging/transparency
-    if (revisedPrompt) {
-      console.log('DALL-E revised prompt:', revisedPrompt)
+    if (data.revisedPrompt) {
+      console.log('DALL-E revised prompt:', data.revisedPrompt)
     }
 
-    // Return as data URL (PNG)
-    return `data:image/png;base64,${base64Image}`
+    return data.imageUrl
   } catch (error: any) {
     // Re-throw with better context if it's a network error
     if (error.name === 'TypeError' && error.message.includes('fetch')) {
@@ -153,10 +103,6 @@ async function editImageWithDALLE(
   imageDataUrl: string,
   prompt: string
 ): Promise<string> {
-  if (!OPENAI_API_KEY) {
-    throw new Error('OpenAI API key not configured. Set VITE_OPENAI_API_KEY.')
-  }
-
   // For editing, we'll use DALL-E 3 with a modified prompt
   // Note: DALL-E 3 doesn't support direct image editing, so we generate a new image
   // based on the description. For true editing, you'd need DALL-E 2 edit endpoint.
@@ -197,16 +143,21 @@ export interface AdminQueryResult {
 
 export const aiAgents = {
   // Check if AI services are configured
+  // Note: These now check the backend API availability
   isConfigured(): boolean {
-    return !!(OPENROUTER_API_KEY && OPENAI_API_KEY)
+    // Always return true since we're using backend APIs
+    // The backend will handle API key validation
+    return true
   },
 
   hasOpenRouter(): boolean {
-    return !!OPENROUTER_API_KEY
+    // Always return true since we're using backend APIs
+    return true
   },
 
   hasOpenAI(): boolean {
-    return !!OPENAI_API_KEY
+    // Always return true since we're using backend APIs
+    return true
   },
 
   // ==========================================
@@ -255,22 +206,24 @@ You must respond ONLY with valid JSON, no additional text.`,
 
     async moderate(prompt: string, user: User | null): Promise<ContentModerationResult> {
       try {
-        const response = await callOpenRouter([
-          { role: 'system', content: this.systemPrompt },
-          {
-            role: 'user',
-            content: `USER AGE: ${user?.ageVerified ? '18+' : 'Unknown (treat as under 18)'}
-USER ROLE: ${user?.role || 'guest'}
+        const response = await fetch(`${API_BASE}/moderate-content`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            prompt,
+            userAgeVerified: user?.ageVerified,
+            userRole: user?.role
+          })
+        })
 
-DESIGN PROMPT TO REVIEW:
-"${prompt}"
+        if (!response.ok) {
+          throw new Error('Content moderation service error')
+        }
 
-Analyze this prompt and respond with JSON only.`
-          }
-        ], { jsonMode: true, temperature: 0.3 })
-
-        const result = JSON.parse(response) as ContentModerationResult
-        return result
+        const result = await response.json()
+        return result as ContentModerationResult
       } catch (error) {
         console.error('Content moderation failed:', error)
         // Fail open with warning for API errors
@@ -333,19 +286,22 @@ You must respond ONLY with valid JSON, no additional text.`,
 
     async check(prompt: string): Promise<IPCheckResult> {
       try {
-        const response = await callOpenRouter([
-          { role: 'system', content: this.systemPrompt },
-          {
-            role: 'user',
-            content: `DESIGN PROMPT TO ANALYZE:
-"${prompt}"
+        const response = await fetch(`${API_BASE}/check-ip`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            prompt
+          })
+        })
 
-Check for potential IP violations and respond with JSON only.`
-          }
-        ], { jsonMode: true, temperature: 0.3 })
+        if (!response.ok) {
+          throw new Error('IP check service error')
+        }
 
-        const result = JSON.parse(response) as IPCheckResult
-        return result
+        const result = await response.json()
+        return result as IPCheckResult
       } catch (error) {
         console.error('IP check failed:', error)
         return {
@@ -442,21 +398,26 @@ Remember: Your job is to CREATE, not to interview. Users came here to make a shi
         content: msg.content
       }))
 
-      try {
-        const response = await callOpenRouter([
-          { role: 'system', content: this.systemPrompt },
-          {
-            role: 'system',
-            content: `CURRENT CONTEXT:
+      const contextMessage = {
+        role: 'system',
+        content: `CURRENT CONTEXT:
 - Product: ${product.name} ($${product.basePrice})
 - Print Area: ${area?.name} (${area?.widthInches}" × ${area?.heightInches}")
 - Required DPI: ${area?.constraints.minDPI}-${area?.constraints.maxDPI}
 - Formats: ${area?.constraints.formats.join(', ')}
 - Color Mode: ${area?.constraints.colorMode}
 - User Age Verified: ${user?.ageVerified ? 'Yes (18+)' : 'No (treat as under 18)'}`
-          },
-          ...conversationHistory
-        ], { temperature: 0.8, maxTokens: 512 })
+      }
+
+      try {
+        const response = await callOpenRouter(
+          [contextMessage, ...conversationHistory],
+          { 
+            temperature: 0.8, 
+            maxTokens: 512,
+            systemPrompt: this.systemPrompt
+          }
+        )
 
         return response
       } catch (error) {
@@ -556,11 +517,9 @@ Remember: Your job is to CREATE, not to interview. Users came here to make a shi
 
     async getInitialMessage(product: Product): Promise<string> {
       try {
-        const response = await callOpenRouter([
-          { role: 'system', content: this.systemPrompt },
-          {
-            role: 'user',
-            content: `The user just selected: ${product.name} ($${product.basePrice})
+        const userMessage = {
+          role: 'user',
+          content: `The user just selected: ${product.name} ($${product.basePrice})
 
 Available print areas: ${product.printAreas.map((pa) => `${pa.name} (${pa.widthInches}" × ${pa.heightInches}")`).join(', ')}
 
@@ -571,8 +530,16 @@ Generate a warm, enthusiastic greeting that:
 4. Keeps it to 2-3 sentences
 
 Be excited but professional. Use one emoji if natural.`
+        }
+
+        const response = await callOpenRouter(
+          [userMessage],
+          { 
+            temperature: 0.9, 
+            maxTokens: 256,
+            systemPrompt: this.systemPrompt
           }
-        ], { temperature: 0.9, maxTokens: 256 })
+        )
 
         return response
       } catch (error) {
@@ -587,19 +554,25 @@ Be excited but professional. Use one emoji if natural.`
 
     async getApprovalMessage(): Promise<string> {
       try {
-        const response = await callOpenRouter([
-          { role: 'system', content: this.systemPrompt },
-          {
-            role: 'user',
-            content: `The user has approved their design! Generate an enthusiastic response that:
+        const userMessage = {
+          role: 'user',
+          content: `The user has approved their design! Generate an enthusiastic response that:
 1. Celebrates their approval
 2. Explains they can either checkout to order OR publish to catalog
 3. Asks what they'd like to do next
 4. Keep it to 2-3 sentences
 
 Be excited and clear about next steps.`
+        }
+
+        const response = await callOpenRouter(
+          [userMessage],
+          { 
+            temperature: 0.9, 
+            maxTokens: 256,
+            systemPrompt: this.systemPrompt
           }
-        ], { temperature: 0.9, maxTokens: 256 })
+        )
 
         return response
       } catch (error) {
@@ -669,19 +642,25 @@ You should respond with helpful insights based on the data context provided.`,
       }
     ): Promise<AdminQueryResult> {
       try {
-        const response = await callOpenRouter([
-          { role: 'system', content: this.systemPrompt },
-          {
-            role: 'user',
-            content: `DATA CONTEXT:
+        const userMessage = {
+          role: 'user',
+          content: `DATA CONTEXT:
 ${JSON.stringify(context, null, 2)}
 
 ADMIN QUESTION:
 "${question}"
 
 Provide a helpful, data-driven answer to this question.`
+        }
+
+        const response = await callOpenRouter(
+          [userMessage],
+          { 
+            temperature: 0.5, 
+            maxTokens: 1024,
+            systemPrompt: this.systemPrompt
           }
-        ], { temperature: 0.5, maxTokens: 1024 })
+        )
 
         return {
           answer: response,
@@ -703,11 +682,9 @@ Provide a helpful, data-driven answer to this question.`
       topProducts: string[]
     }): Promise<string> {
       try {
-        const response = await callOpenRouter([
-          { role: 'system', content: this.systemPrompt },
-          {
-            role: 'user',
-            content: `Generate 3-4 key business insights based on this data:
+        const userMessage = {
+          role: 'user',
+          content: `Generate 3-4 key business insights based on this data:
 
 Total Orders: ${data.totalOrders}
 Pending Orders: ${data.pendingOrders}
@@ -716,8 +693,16 @@ Total Revenue: $${data.totalRevenue.toFixed(2)}
 Top Products: ${data.topProducts.join(', ')}
 
 Keep insights actionable and concise.`
+        }
+
+        const response = await callOpenRouter(
+          [userMessage],
+          { 
+            temperature: 0.7, 
+            maxTokens: 512,
+            systemPrompt: this.systemPrompt
           }
-        ], { temperature: 0.7, maxTokens: 512 })
+        )
 
         return response
       } catch (error) {
