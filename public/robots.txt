@@ -1,0 +1,11 @@
+# Robots.txt for GoldenGooseTees
+User-agent: *
+Allow: /
+
+# Sitemap location
+Sitemap: https://goldengoosetees.vercel.app/sitemap.xml
+
+# Disallow admin and checkout pages
+Disallow: /#/admin
+Disallow: /#/checkout
+Disallow: /api/
