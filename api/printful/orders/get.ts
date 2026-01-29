@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { requireAdmin } from '../../_lib/auth'
+import { requireAuth } from '../../_lib/auth'
 import { printfulServer } from '../../_lib/printful'
 
 export default async function handler(
@@ -12,8 +12,8 @@ export default async function handler(
   }
 
   try {
-    // Require admin authentication
-    await requireAdmin(req)
+    // Require user authentication
+    await requireAuth(req)
 
     const { orderId } = req.query
 
