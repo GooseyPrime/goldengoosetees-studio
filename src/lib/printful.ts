@@ -219,7 +219,7 @@ export class PrintfulService {
 
   async getVariant(variantId: number): Promise<PrintfulVariant> {
     const response = await this.request<{ variant: PrintfulVariant }>(
-      `/api/printful/variants/get?variantId=${variantId}`,
+      `/variants/get?variantId=${variantId}`,
       { method: 'GET' }
     )
     return response.variant
