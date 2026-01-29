@@ -12,13 +12,21 @@ import { PrintfulConfig } from '@/components/admin/PrintfulConfig'
 import { StripeConfig } from '@/components/admin/StripeConfig'
 import { SupabaseConfig } from '@/components/admin/SupabaseConfig'
 import { GoogleOAuthConfig } from '@/components/admin/GoogleOAuthConfig'
+import { UserManager } from '@/components/admin/UserManager'
+import { MetricsDashboard } from '@/components/admin/MetricsDashboard'
+import { LLMStatus } from '@/components/admin/LLMStatus'
+import { SystemStatus } from '@/components/admin/SystemStatus'
 import { 
   ChartBar, 
   Package, 
   ShoppingCart, 
   CheckCircle,
   XCircle,
-  Gear
+  Gear,
+  Users,
+  TrendingUp,
+  Brain,
+  Activity
 } from '@phosphor-icons/react'
 import { Product, Order, Design } from '@/lib/types'
 
@@ -95,6 +103,10 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
             />
           </TabsContent>
 
+          <TabsContent value="metrics" className="space-y-6">
+            <MetricsDashboard />
+          </TabsContent>
+
           <TabsContent value="products">
             <ProductManager 
               products={products || []}
@@ -104,10 +116,12 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
 
           <TabsContent value="orders">
             <OrderManager 
-              orders={orders || []}
-              onOrdersChange={setOrders}
               products={products || []}
             />
+          </TabsContent>
+
+          <TabsContent value="users">
+            <UserManager />
           </TabsContent>
 
           <TabsContent value="approvals">
@@ -116,6 +130,14 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
               onDesignsChange={setPendingDesigns}
               products={products || []}
             />
+          </TabsContent>
+
+          <TabsContent value="llm-status" className="space-y-6">
+            <LLMStatus />
+          </TabsContent>
+
+          <TabsContent value="system-status" className="space-y-6">
+            <SystemStatus />
           </TabsContent>
 
           <TabsContent value="settings" className="space-y-6">

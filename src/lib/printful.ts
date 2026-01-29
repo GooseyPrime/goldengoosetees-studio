@@ -1,16 +1,8 @@
 import { DesignFile, Product, Order } from './types'
-import { kvService } from './kv'
+import { supabaseService } from './supabase'
 
-// Environment variables (Vite)
-const PRINTFUL_API_KEY = import.meta.env.VITE_PRINTFUL_API_KEY
-const PRINTFUL_STORE_ID = import.meta.env.VITE_PRINTFUL_STORE_ID
-
-const PRINTFUL_API_BASE = 'https://api.printful.com'
-
-interface PrintfulConfig {
-  apiKey: string
-  storeId?: string
-}
+// Client-side wrapper for server-side Printful API
+// All actual Printful API calls are made server-side via /api/printful/* endpoints
 
 export interface PrintfulProduct {
   id: number
@@ -137,110 +129,98 @@ export interface PrintfulOrderResponse {
   }>
 }
 
-export class PrintfulService {
-  private config: PrintfulConfig | null = null
+/**
+ * Get authorization header for admin API calls
+ */
+async function getAuthHeader(): Promise<string> {
+  const session = await supabaseService.getSession()
+  if (!session?.access_token) {
+    throw new Error('Authentication required. Please sign in.')
+  }
+  return `Bearer ${session.access_token}`
+}
 
-  initialize(): void {
-    if (!PRINTFUL_API_KEY) {
-      console.warn('Printful API key not configured. Set VITE_PRINTFUL_API_KEY.')
-      return
-    }
+/**
+ * Make a request to our backend Printful API
+ */
+async function apiRequest<T>(
+  endpoint: string,
+  options: RequestInit = {}
+): Promise<T> {
+  const authHeader = await getAuthHeader()
+  
+  const response = await fetch(`/api/printful${endpoint}`, {
+    ...options,
+    headers: {
+      'Authorization': authHeader,
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  })
 
-    this.config = {
-      apiKey: PRINTFUL_API_KEY,
-      storeId: PRINTFUL_STORE_ID || undefined
-    }
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}))
+    throw new Error(
+      error.error || `Printful API error: ${response.statusText}`
+    )
   }
 
-  isConfigured(): boolean {
-    // Ensure config is initialized lazily so UI checks work without requiring an API call first.
-    if (!this.config) {
-      this.initialize()
-    }
-    if (this.config !== null && !!this.config.apiKey) return true
+  const data = await response.json()
+  return data.result || data.order || data.file || data
+}
 
-    // Fallback: allow config stored via kvService (Admin UI) to be detected in the browser.
-    // kvService uses localStorage when Spark KV is unavailable.
+export class PrintfulService {
+  /**
+   * Check if Printful is configured on the server
+   */
+  async isConfigured(): Promise<boolean> {
     try {
-      return typeof window !== 'undefined' && !!window.localStorage.getItem('ggt-kv:printful-api-key')
+      const authHeader = await getAuthHeader()
+      const response = await fetch('/api/printful/status', {
+        headers: {
+          'Authorization': authHeader,
+        },
+      })
+
+      if (!response.ok) {
+        return false
+      }
+
+      const data = await response.json()
+      return data.configured === true
     } catch {
       return false
     }
   }
 
-  private async ensureConfig(): Promise<void> {
-    if (this.config?.apiKey) return
-
-    // Try env-based init first.
-    this.initialize()
-    if (this.config?.apiKey) return
-
-    // Then try Admin-configured key from KV/localStorage.
-    const apiKey = await kvService.get<string>('printful-api-key')
-    if (!apiKey) return
-
-    const storeId = await kvService.get<string>('printful-store-id')
-    this.config = { apiKey, storeId: storeId || undefined }
-  }
-
-  private async request<T>(
-    endpoint: string,
-    options: RequestInit = {}
-  ): Promise<T> {
-    await this.ensureConfig()
-
-    if (!this.config?.apiKey) {
-      throw new Error('Printful API key not configured. Set VITE_PRINTFUL_API_KEY.')
-    }
-
-    const response = await fetch(`${PRINTFUL_API_BASE}${endpoint}`, {
-      ...options,
-      headers: {
-        'Authorization': `Bearer ${this.config!.apiKey}`,
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
-    })
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}))
-      throw new Error(
-        error.error?.message || `Printful API error: ${response.statusText}`
-      )
-    }
-
-    const data = await response.json()
-    return data.result as T
-  }
-
+  // Note: These methods require backend endpoints to be implemented
+  // For now, they throw errors indicating server-side implementation needed
   async getProducts(): Promise<PrintfulProduct[]> {
-    return this.request<PrintfulProduct[]>('/products')
+    throw new Error('getProducts() requires server-side implementation. Use /api/printful/products endpoint.')
   }
 
   async getProduct(productId: number): Promise<PrintfulProduct> {
-    return this.request<PrintfulProduct>(`/products/${productId}`)
+    throw new Error('getProduct() requires server-side implementation.')
   }
 
   async getVariants(productId: number): Promise<PrintfulVariant[]> {
-    return this.request<PrintfulVariant[]>(`/products/${productId}`)
+    throw new Error('getVariants() requires server-side implementation.')
   }
 
   async getVariant(variantId: number): Promise<PrintfulVariant> {
-    return this.request<PrintfulVariant>(`/products/variant/${variantId}`)
+    throw new Error('getVariant() requires server-side implementation.')
   }
 
-  // Get sync products from the connected store
   async getSyncProducts(): Promise<any[]> {
-    return this.request<any[]>('/store/products')
+    throw new Error('getSyncProducts() requires server-side implementation.')
   }
 
   async getSyncProduct(syncProductId: number): Promise<any> {
-    return this.request<any>(`/store/products/${syncProductId}`)
+    throw new Error('getSyncProduct() requires server-side implementation.')
   }
 
   async getSyncVariants(syncProductId: number): Promise<any[]> {
-    const product = await this.request<any>(`/store/products/${syncProductId}`)
-    return product.sync_variants || []
+    throw new Error('getSyncVariants() requires server-side implementation.')
   }
 
   // Mockup generation
@@ -343,29 +323,21 @@ export class PrintfulService {
   }
 
   async uploadFile(file: Blob, filename: string): Promise<{ id: string; url: string }> {
-    const formData = new FormData()
-    formData.append('file', file, filename)
-
-    await this.ensureConfig()
-
-    if (!this.config?.apiKey) {
-      throw new Error('Printful API key not configured. Set VITE_PRINTFUL_API_KEY.')
-    }
-
-    const response = await fetch(`${PRINTFUL_API_BASE}/files`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${this.config!.apiKey}`,
-      },
-      body: formData,
+    // Convert blob to base64 data URL
+    const reader = new FileReader()
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      reader.onload = () => resolve(reader.result as string)
+      reader.onerror = reject
+      reader.readAsDataURL(file)
     })
 
-    if (!response.ok) {
-      throw new Error('Failed to upload file to Printful')
-    }
-
-    const data = await response.json()
-    return data.result
+    return apiRequest<{ id: string; url: string }>('/files/upload', {
+      method: 'POST',
+      body: JSON.stringify({
+        fileData: dataUrl,
+        filename,
+      }),
+    })
   }
 
   async convertDesignFileToPrintfulFile(
@@ -420,6 +392,8 @@ export class PrintfulService {
   async getEstimatedDelivery(
     recipient: PrintfulOrderRequest['recipient']
   ): Promise<string> {
+    // Calculate estimated delivery (7 business days)
+    // This is a simple calculation that doesn't require API call
     const businessDays = 7
     const today = new Date()
     let daysAdded = 0
