@@ -218,7 +218,11 @@ export class PrintfulService {
   }
 
   async getVariant(variantId: number): Promise<PrintfulVariant> {
-    throw new Error('getVariant() requires server-side implementation.')
+    const response = await this.request<{ variant: PrintfulVariant }>(
+      `/api/printful/variants/get?variantId=${variantId}`,
+      { method: 'GET' }
+    )
+    return response.variant
   }
 
   async getSyncProducts(): Promise<any[]> {
