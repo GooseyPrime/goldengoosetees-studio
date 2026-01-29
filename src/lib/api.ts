@@ -423,13 +423,22 @@ export const api = {
       } catch (error) {
         console.error('Printful submission failed:', error)
         
-        const fallbackDelivery = new Date()
-        fallbackDelivery.setDate(fallbackDelivery.getDate() + 7)
+        // In production, do not create mock orders
+        // Failed orders should be persisted with error status for manual intervention
+        // Mock orders are only allowed if explicitly enabled via server-side env var ALLOW_PRINTFUL_MOCK_ORDERS
+        // This check happens server-side - client should never create mock orders
         
-        return {
-          printfulOrderId: `pf-mock-${Date.now()}`,
-          estimatedDelivery: fallbackDelivery.toISOString()
+        // Update order status to failed
+        const failedOrder: Order = {
+          ...order,
+          status: 'failed',
+          updatedAt: new Date().toISOString()
         }
+        
+        await kvService.set(`order-${orderId}`, failedOrder)
+        
+        // Re-throw error so caller can handle it appropriately
+        throw new Error(`Printful submission failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
       }
     },
     

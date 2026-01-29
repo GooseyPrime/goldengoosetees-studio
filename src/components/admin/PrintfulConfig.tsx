@@ -1,89 +1,83 @@
 import { useState, useEffect } from 'react'
-import { useAppKV } from '@/hooks/useAppKV'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
-import { printfulService } from '@/lib/printful'
-import { kvService } from '@/lib/kv'
+import { supabaseService } from '@/lib/supabase'
 import { Key, CheckCircle, XCircle, Spinner, Link as LinkIcon } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 
 export function PrintfulConfig() {
-  const [apiKey, setApiKey] = useAppKV<string>('printful-api-key', '')
-  const [storeId, setStoreId] = useAppKV<string>('printful-store-id', '')
-  const [localApiKey, setLocalApiKey] = useState('')
-  const [localStoreId, setLocalStoreId] = useState('')
+  const [isConfigured, setIsConfigured] = useState<boolean | null>(null)
+  const [storeId, setStoreId] = useState<string | undefined>(undefined)
   const [isTestingConnection, setIsTestingConnection] = useState(false)
-  const [connectionStatus, setConnectionStatus] = useState<'idle' | 'success' | 'error'>('idle')
-  const [isSaving, setIsSaving] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    setLocalApiKey(apiKey || '')
-    setLocalStoreId(storeId || '')
-    if (apiKey) {
-      setConnectionStatus('success')
-    }
-  }, [apiKey, storeId])
+    checkStatus()
+  }, [])
 
-  const testConnection = async () => {
-    if (!localApiKey) {
-      toast.error('Please enter an API key')
-      return
-    }
-
-    setIsTestingConnection(true)
-    setConnectionStatus('idle')
-
+  const checkStatus = async () => {
+    setIsLoading(true)
     try {
-      await kvService.set('printful-api-key', localApiKey)
-      if (localStoreId) {
-        await kvService.set('printful-store-id', localStoreId)
+      const session = await supabaseService.getSession()
+      if (!session?.access_token) {
+        setIsConfigured(false)
+        return
       }
 
-      await printfulService.getProducts()
-      
-      setConnectionStatus('success')
-      toast.success('Successfully connected to Printful!')
+      const response = await fetch('/api/printful/status', {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setIsConfigured(data.configured === true)
+        setStoreId(data.storeId)
+      } else {
+        setIsConfigured(false)
+      }
     } catch (error) {
-      setConnectionStatus('error')
-      toast.error('Failed to connect to Printful. Please check your API key.')
-      console.error('Printful connection error:', error)
+      console.error('Failed to check Printful status:', error)
+      setIsConfigured(false)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const testConnection = async () => {
+    setIsTestingConnection(true)
+    try {
+      const session = await supabaseService.getSession()
+      if (!session?.access_token) {
+        toast.error('Please sign in to test connection')
+        return
+      }
+
+      const response = await fetch('/api/printful/test', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+      })
+
+      const data = await response.json()
+
+      if (data.ok) {
+        toast.success('Successfully connected to Printful!')
+        await checkStatus() // Refresh status
+      } else {
+        toast.error(data.error || 'Failed to connect to Printful')
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to test connection')
+      console.error('Printful connection test error:', error)
     } finally {
       setIsTestingConnection(false)
     }
-  }
-
-  const handleSave = async () => {
-    if (!localApiKey) {
-      toast.error('API key is required')
-      return
-    }
-
-    setIsSaving(true)
-    try {
-      setApiKey(localApiKey)
-      if (localStoreId) {
-        setStoreId(localStoreId)
-      }
-      toast.success('Printful configuration saved!')
-    } catch (error) {
-      toast.error('Failed to save configuration')
-    } finally {
-      setIsSaving(false)
-    }
-  }
-
-  const clearConfiguration = async () => {
-    setApiKey('')
-    setStoreId('')
-    setLocalApiKey('')
-    setLocalStoreId('')
-    setConnectionStatus('idle')
-    toast.success('Configuration cleared')
   }
 
   return (
@@ -101,72 +95,65 @@ export function PrintfulConfig() {
         <Alert>
           <AlertDescription className="text-sm">
             <div className="space-y-2">
-              <p className="font-semibold">How to get your Printful API key:</p>
-              <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
-                <li>Log in to your Printful account</li>
-                <li>Go to Settings → Stores</li>
-                <li>Select your store or create a new one</li>
-                <li>Click "Add API Access" in the API section</li>
-                <li>Copy the generated API key and paste it below</li>
+              <p className="font-semibold">Server-Side Configuration Required</p>
+              <p className="text-muted-foreground">
+                Printful API keys are now configured server-side for security. To configure Printful:
+              </p>
+              <ol className="list-decimal list-inside space-y-1 text-muted-foreground mt-2">
+                <li>Go to your Vercel project dashboard</li>
+                <li>Navigate to Settings → Environment Variables</li>
+                <li>Add <code className="bg-muted px-1 rounded">PRINTFUL_API_KEY</code> with your Printful API key</li>
+                <li>Optionally add <code className="bg-muted px-1 rounded">PRINTFUL_STORE_ID</code> if you have multiple stores</li>
+                <li>Redeploy your application</li>
               </ol>
             </div>
           </AlertDescription>
         </Alert>
 
         <div className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="api-key">API Key *</Label>
-            <Input
-              id="api-key"
-              type="password"
-              placeholder="sk_live_..."
-              value={localApiKey}
-              onChange={(e) => setLocalApiKey(e.target.value)}
-              className="font-mono text-sm"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="store-id">Store ID (Optional)</Label>
-            <Input
-              id="store-id"
-              type="text"
-              placeholder="Enter your Printful Store ID"
-              value={localStoreId}
-              onChange={(e) => setLocalStoreId(e.target.value)}
-            />
-            <p className="text-xs text-muted-foreground">
-              Only needed if you have multiple stores
-            </p>
-          </div>
-        </div>
-
-        <Separator />
-
-        <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium">Connection Status:</span>
-            {connectionStatus === 'idle' && (
-              <Badge variant="secondary">Not Tested</Badge>
-            )}
-            {connectionStatus === 'success' && (
+          <div className="flex items-center justify-between p-4 border rounded-lg">
+            <div>
+              <p className="font-medium">Configured on Server</p>
+              <p className="text-sm text-muted-foreground">
+                {isLoading ? 'Checking...' : isConfigured ? 'Yes' : 'No'}
+                {storeId && ` • Store ID: ${storeId}`}
+              </p>
+            </div>
+            {isLoading ? (
+              <Spinner size={20} className="animate-spin" />
+            ) : isConfigured ? (
               <Badge variant="default" className="bg-green-500">
                 <CheckCircle size={14} className="mr-1" />
-                Connected
+                Configured
               </Badge>
-            )}
-            {connectionStatus === 'error' && (
+            ) : (
               <Badge variant="destructive">
                 <XCircle size={14} className="mr-1" />
-                Failed
+                Not Configured
               </Badge>
             )}
           </div>
 
           <div className="flex gap-2">
             <Button
+              onClick={checkStatus}
+              variant="outline"
+              className="flex-1"
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <>
+                  <Spinner size={16} className="mr-2 animate-spin" />
+                  Checking...
+                </>
+              ) : (
+                'Refresh Status'
+              )}
+            </Button>
+
+            <Button
               onClick={testConnection}
-              disabled={!localApiKey || isTestingConnection}
+              disabled={!isConfigured || isTestingConnection}
               variant="outline"
               className="flex-1"
             >
@@ -182,40 +169,25 @@ export function PrintfulConfig() {
                 </>
               )}
             </Button>
-
-            <Button
-              onClick={handleSave}
-              disabled={!localApiKey || isSaving || connectionStatus === 'error'}
-              className="flex-1"
-            >
-              {isSaving ? (
-                <>
-                  <Spinner size={16} className="mr-2 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                'Save Configuration'
-              )}
-            </Button>
           </div>
-
-          {apiKey && (
-            <Button
-              onClick={clearConfiguration}
-              variant="outline"
-              className="w-full"
-            >
-              Clear Configuration
-            </Button>
-          )}
         </div>
 
-        {connectionStatus === 'success' && (
+        {isConfigured && (
           <Alert className="bg-green-50 border-green-200">
             <CheckCircle size={20} className="text-green-600" />
             <AlertDescription className="text-green-800">
-              Your Printful API is configured and ready to process orders. Orders will be
+              Printful is configured on the server and ready to process orders. Orders will be
               automatically submitted to Printful after successful payment.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {!isConfigured && !isLoading && (
+          <Alert variant="destructive">
+            <XCircle size={20} />
+            <AlertDescription>
+              Printful is not configured. Please set the PRINTFUL_API_KEY environment variable in Vercel
+              and redeploy your application.
             </AlertDescription>
           </Alert>
         )}

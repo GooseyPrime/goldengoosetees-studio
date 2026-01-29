@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -13,17 +13,24 @@ import {
   CheckCircle,
   XCircle,
   Eye,
-  ArrowsClockwise
+  ArrowsClockwise,
+  Trash
 } from '@phosphor-icons/react'
 import { Order, Product, OrderStatus } from '@/lib/types'
-import { api } from '@/lib/api'
+import { supabaseService } from '@/lib/supabase'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 
 interface OrderManagerProps {
-  orders: Order[]
-  onOrdersChange: (updater: (prev: Order[]) => Order[]) => void
   products: Product[]
+}
+
+interface OrderWithUser extends Order {
+  users?: {
+    id: string
+    email: string
+    name: string
+  }
 }
 
 export function OrderManager({ orders, onOrdersChange, products }: OrderManagerProps) {
@@ -46,41 +53,72 @@ export function OrderManager({ orders, onOrdersChange, products }: OrderManagerP
   const handleSyncWithPrintful = async (orderId: string) => {
     setIsSyncing(true)
     try {
-      const updatedOrder = await api.orders.syncWithPrintful(orderId)
-      if (updatedOrder) {
-        onOrdersChange((prev) =>
-          prev.map(o => o.id === orderId ? updatedOrder : o)
-        )
-        toast.success('Order synced with Printful')
-      } else {
-        toast.error('Order not found or has no Printful order ID')
+      const session = await supabaseService.getSession()
+      if (!session?.access_token) {
+        toast.error('Please sign in')
+        return
       }
-    } catch (error) {
-      toast.error('Failed to sync with Printful')
+
+      const response = await fetch('/api/admin/orders/resync-printful', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ orderId }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to sync with Printful')
+      }
+
+      const data = await response.json()
+      toast.success('Order synced with Printful')
+      await loadOrders() // Reload orders
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to sync with Printful')
       console.error(error)
     } finally {
       setIsSyncing(false)
     }
   }
 
-  const handleUpdateStatus = (orderId: string, newStatus: OrderStatus) => {
-    onOrdersChange((prev) =>
-      prev.map(o => o.id === orderId 
-        ? { ...o, status: newStatus, updatedAt: new Date().toISOString() }
-        : o
-      )
-    )
-    toast.success(`Order ${orderId} updated to ${newStatus}`)
-  }
+  const handleDeleteOrder = async (orderId: string, reason?: string) => {
+    if (!confirm('Are you sure you want to delete this order? This action cannot be undone.')) {
+      return
+    }
 
-  const handleAddTrackingNumber = (orderId: string, trackingNumber: string) => {
-    onOrdersChange((prev) =>
-      prev.map(o => o.id === orderId 
-        ? { ...o, trackingNumber, updatedAt: new Date().toISOString() }
-        : o
-      )
-    )
-    toast.success('Tracking number added')
+    try {
+      const session = await supabaseService.getSession()
+      if (!session?.access_token) {
+        toast.error('Please sign in')
+        return
+      }
+
+      const response = await fetch('/api/admin/orders/delete', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ orderId, reason }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to delete order')
+      }
+
+      toast.success('Order deleted')
+      await loadOrders() // Reload orders
+      if (viewingOrder?.id === orderId) {
+        setViewingOrder(null)
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to delete order')
+      console.error(error)
+    }
   }
 
   const getProduct = (productId: string) => {
@@ -151,7 +189,13 @@ export function OrderManager({ orders, onOrdersChange, products }: OrderManagerP
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredOrders.length === 0 ? (
+              {isLoading ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                    Loading orders...
+                  </TableCell>
+                </TableRow>
+              ) : filteredOrders.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                     No orders found
@@ -295,69 +339,23 @@ export function OrderManager({ orders, onOrdersChange, products }: OrderManagerP
                 </div>
               )}
 
-              <div className="space-y-2">
-                <Label>Update Status</Label>
-                <div className="flex gap-2 flex-wrap">
-                  <Button
-                    size="sm"
-                    variant={viewingOrder.status === 'processing' ? 'default' : 'outline'}
-                    onClick={() => handleUpdateStatus(viewingOrder.id, 'processing')}
-                  >
-                    <Package size={16} className="mr-2" />
-                    Processing
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant={viewingOrder.status === 'fulfilled' ? 'default' : 'outline'}
-                    onClick={() => handleUpdateStatus(viewingOrder.id, 'fulfilled')}
-                  >
-                    <CheckCircle size={16} className="mr-2" />
-                    Fulfilled
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant={viewingOrder.status === 'shipped' ? 'default' : 'outline'}
-                    onClick={() => handleUpdateStatus(viewingOrder.id, 'shipped')}
-                  >
-                    <Truck size={16} className="mr-2" />
-                    Shipped
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant={viewingOrder.status === 'delivered' ? 'default' : 'outline'}
-                    onClick={() => handleUpdateStatus(viewingOrder.id, 'delivered')}
-                  >
-                    <CheckCircle size={16} weight="fill" className="mr-2" />
-                    Delivered
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant={viewingOrder.status === 'failed' ? 'destructive' : 'outline'}
-                    onClick={() => handleUpdateStatus(viewingOrder.id, 'failed')}
-                  >
-                    <XCircle size={16} className="mr-2" />
-                    Failed
-                  </Button>
-                </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => handleSyncWithPrintful(viewingOrder.id)}
+                  disabled={!viewingOrder.printfulOrderId || isSyncing}
+                >
+                  <ArrowsClockwise size={16} className={`mr-2 ${isSyncing ? 'animate-spin' : ''}`} />
+                  Sync with Printful
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => handleDeleteOrder(viewingOrder.id)}
+                >
+                  <Trash size={16} className="mr-2" />
+                  Delete Order
+                </Button>
               </div>
-
-              {!viewingOrder.trackingNumber && viewingOrder.status === 'shipped' && (
-                <div className="space-y-2">
-                  <Label htmlFor="tracking">Add Tracking Number</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      id="tracking"
-                      placeholder="Enter tracking number..."
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && e.currentTarget.value) {
-                          handleAddTrackingNumber(viewingOrder.id, e.currentTarget.value)
-                          e.currentTarget.value = ''
-                        }
-                      }}
-                    />
-                  </div>
-                </div>
-              )}
             </div>
           )}
         </DialogContent>

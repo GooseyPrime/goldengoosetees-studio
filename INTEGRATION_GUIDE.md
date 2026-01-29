@@ -263,14 +263,20 @@ The Printful integration is now production-ready and includes:
    - Click "Add API Access"
    - Copy your API key
 
-2. **Configure in the Kiosk**:
+2. **Configure in Vercel (Server-Side)**:
+   - Go to your Vercel project dashboard
+   - Navigate to **Settings** → **Environment Variables**
+   - Add `PRINTFUL_API_KEY` with your API key
+   - (Optional) Add `PRINTFUL_STORE_ID` if you have multiple stores
+   - **Redeploy** your application
+
+3. **Verify in the Kiosk**:
    - Log in as an admin user
    - Click **Admin** in the header
    - Go to the **Settings** tab
-   - Paste your API key
-   - (Optional) Enter Store ID for multiple stores
-   - Click **Test Connection**
-   - Click **Save Configuration**
+   - Find **Printful Configuration**
+   - Click **Refresh Status** to check configuration
+   - Click **Test Connection** to verify
 
 3. **Product SKU Mapping**:
    - Go to **Admin** → **Products**
@@ -300,8 +306,9 @@ The Printful integration is now production-ready and includes:
 ```
 
 **Admin Features**:
-- **API Key Management**: Secure storage in Spark KV
-- **Connection Testing**: Verify API key before saving
+- **Server-Side Configuration**: API keys configured in Vercel environment variables (never exposed to browser)
+- **Status Display**: Shows if Printful is configured on the server
+- **Connection Testing**: Verify API key works (requires admin auth)
 - **Order Syncing**: Manual sync button for each order
 - **Status Tracking**: Real-time order status from Printful
 - **Tracking Numbers**: Automatically fetched when available
@@ -400,9 +407,10 @@ SUPABASE_ANON_KEY=your_supabase_anon_key
 STRIPE_SECRET_KEY=your_stripe_secret_key
 STRIPE_PUBLISHABLE_KEY=your_stripe_publishable_key
 
-# Printful (configured via Admin Settings UI)
-PRINTFUL_API_KEY=your_printful_api_key  # Set in Admin → Settings tab
-PRINTFUL_STORE_ID=your_store_id  # Optional, set in Admin → Settings tab
+# Printful (server-side only - set in Vercel Environment Variables)
+PRINTFUL_API_KEY=your_printful_api_key  # Required, server-only
+PRINTFUL_STORE_ID=your_store_id  # Optional, server-only
+ALLOW_PRINTFUL_MOCK_ORDERS=false  # Optional, default: false (disables mock orders in production)
 
 # OpenAI (for AI features)
 OPENAI_API_KEY=your_openai_api_key
