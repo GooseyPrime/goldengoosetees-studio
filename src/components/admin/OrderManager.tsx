@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -33,11 +33,47 @@ interface OrderWithUser extends Order {
   }
 }
 
-export function OrderManager({ orders, onOrdersChange, products }: OrderManagerProps) {
+export function OrderManager({ products }: OrderManagerProps) {
+  const [orders, setOrders] = useState<OrderWithUser[]>([])
+  const [isLoading, setIsLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<OrderStatus | 'all'>('all')
   const [viewingOrder, setViewingOrder] = useState<Order | null>(null)
   const [isSyncing, setIsSyncing] = useState(false)
+
+  const loadOrders = useCallback(async () => {
+    setIsLoading(true)
+    try {
+      const session = await supabaseService.getSession()
+      if (!session?.access_token) {
+        setIsLoading(false)
+        return
+      }
+
+      const response = await fetch('/api/admin/orders', {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to load orders')
+      }
+
+      const data = await response.json()
+      setOrders(data.orders || [])
+    } catch (error: any) {
+      console.error('Failed to load orders:', error)
+      toast.error('Failed to load orders')
+    } finally {
+      setIsLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    loadOrders()
+  }, [loadOrders])
 
   const filteredOrders = orders.filter(order => {
     const matchesSearch = 
