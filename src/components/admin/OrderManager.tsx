@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -41,15 +41,12 @@ export function OrderManager({ products }: OrderManagerProps) {
   const [viewingOrder, setViewingOrder] = useState<Order | null>(null)
   const [isSyncing, setIsSyncing] = useState(false)
 
-  useEffect(() => {
-    loadOrders()
-  }, [])
-
-  const loadOrders = async () => {
+  const loadOrders = useCallback(async () => {
     setIsLoading(true)
     try {
       const session = await supabaseService.getSession()
       if (!session?.access_token) {
+        setIsLoading(false)
         return
       }
 
@@ -72,7 +69,11 @@ export function OrderManager({ products }: OrderManagerProps) {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    loadOrders()
+  }, [loadOrders])
 
   const filteredOrders = orders.filter(order => {
     const matchesSearch = 
