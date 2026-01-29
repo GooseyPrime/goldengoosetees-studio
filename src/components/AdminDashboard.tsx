@@ -24,9 +24,9 @@ import {
   XCircle,
   Gear,
   Users,
-  TrendingUp,
+  TrendUp,
   Brain,
-  Activity
+  Cpu
 } from '@phosphor-icons/react'
 import { Product, Order, Design } from '@/lib/types'
 
@@ -90,7 +90,7 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
               )}
             </TabsTrigger>
             <TabsTrigger value="metrics" className="gap-2">
-              <TrendingUp size={20} />
+              <TrendUp size={20} />
               Metrics
             </TabsTrigger>
             <TabsTrigger value="users" className="gap-2">
@@ -102,7 +102,7 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
               LLM Status
             </TabsTrigger>
             <TabsTrigger value="system-status" className="gap-2">
-              <Activity size={20} />
+              <Cpu size={20} />
               System
             </TabsTrigger>
             <TabsTrigger value="settings" className="gap-2">

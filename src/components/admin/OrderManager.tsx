@@ -33,11 +33,46 @@ interface OrderWithUser extends Order {
   }
 }
 
-export function OrderManager({ orders, onOrdersChange, products }: OrderManagerProps) {
+export function OrderManager({ products }: OrderManagerProps) {
+  const [orders, setOrders] = useState<OrderWithUser[]>([])
+  const [isLoading, setIsLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<OrderStatus | 'all'>('all')
   const [viewingOrder, setViewingOrder] = useState<Order | null>(null)
   const [isSyncing, setIsSyncing] = useState(false)
+
+  useEffect(() => {
+    loadOrders()
+  }, [])
+
+  const loadOrders = async () => {
+    setIsLoading(true)
+    try {
+      const session = await supabaseService.getSession()
+      if (!session?.access_token) {
+        return
+      }
+
+      const response = await fetch('/api/admin/orders', {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to load orders')
+      }
+
+      const data = await response.json()
+      setOrders(data.orders || [])
+    } catch (error: any) {
+      console.error('Failed to load orders:', error)
+      toast.error('Failed to load orders')
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   const filteredOrders = orders.filter(order => {
     const matchesSearch = 
