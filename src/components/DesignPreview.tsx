@@ -298,9 +298,23 @@ export function DesignPreview({
   // Prefer Printful mockup by default (required), but don't fight explicit user choice.
   useEffect(() => {
     if (mockupPreferenceSet) return
-    if (showMockupOption && printfulService.isConfigured() && designFiles.length > 0) {
-      setUseMockup(true)
-      setMockupPreferenceSet(true)
+    
+    let isMounted = true
+    
+    const checkPrintfulConfig = async () => {
+      if (showMockupOption && designFiles.length > 0) {
+        const isConfigured = await printfulService.isConfigured()
+        if (isConfigured && isMounted) {
+          setUseMockup(true)
+          setMockupPreferenceSet(true)
+        }
+      }
+    }
+    
+    checkPrintfulConfig()
+    
+    return () => {
+      isMounted = false
     }
   }, [designFiles.length, mockupPreferenceSet, showMockupOption])
 

@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { requireAdmin } from '../../_lib/auth'
+import { requireAuth } from '../../_lib/auth'
 import { printfulServer } from '../../_lib/printful'
 
 export default async function handler(
@@ -12,8 +12,10 @@ export default async function handler(
   }
 
   try {
-    // Require admin authentication
-    await requireAdmin(req)
+    // Require user authentication
+    // Note: This endpoint is required for users to upload design files during checkout.
+    // Rate limiting and abuse prevention should be implemented at the infrastructure level (e.g., Vercel rate limits)
+    await requireAuth(req)
 
     // Handle file upload
     // Note: Vercel serverless functions handle FormData differently
