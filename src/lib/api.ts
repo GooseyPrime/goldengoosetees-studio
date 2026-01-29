@@ -492,9 +492,9 @@ export const api = {
   
   ai: {
     async generateDesign(prompt: string, constraints: any, user: User | null): Promise<string> {
-      // Check if OpenAI is configured
-      if (!aiAgents.hasOpenAI()) {
-        throw new Error('Image generation service not configured. Please set up OpenAI API key.')
+      // Image generation: Gemini is primary, OpenAI is fallback.
+      if (!aiAgents.hasGemini() && !aiAgents.hasOpenAI()) {
+        throw new Error('Image generation service not configured. Please set up Gemini (preferred) or OpenAI as fallback.')
       }
 
       const hasOpenRouter = aiAgents.hasOpenRouter()
@@ -578,18 +578,18 @@ export const api = {
       editPrompt: string,
       constraints: any
     ): Promise<string> {
-      // Require OpenAI for design editing
-      if (!aiAgents.hasOpenAI()) {
-        throw new Error('Image editing service not configured. Please set up OpenAI API key.')
+      // Prefer Gemini for editing; fallback to OpenAI when available.
+      if (!aiAgents.hasGemini() && !aiAgents.hasOpenAI()) {
+        throw new Error('Image editing service not configured. Please set up Gemini (preferred) or OpenAI as fallback.')
       }
 
       return await aiAgents.designGenerator.edit(currentImageUrl, editPrompt)
     },
 
     async removeBackground(imageDataUrl: string): Promise<string> {
-      // Require OpenAI for background removal
-      if (!aiAgents.hasOpenAI()) {
-        throw new Error('Background removal service not configured. Please set up OpenAI API key.')
+      // Prefer Gemini for background removal; fallback to OpenAI when available.
+      if (!aiAgents.hasGemini() && !aiAgents.hasOpenAI()) {
+        throw new Error('Background removal service not configured. Please set up Gemini (preferred) or OpenAI as fallback.')
       }
 
       return await aiAgents.designGenerator.removeBackground(imageDataUrl)

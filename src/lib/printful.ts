@@ -1,4 +1,5 @@
 import { DesignFile, Product, Order } from './types'
+import { kvService } from './kv'
 
 // Environment variables (Vite)
 const PRINTFUL_API_KEY = import.meta.env.VITE_PRINTFUL_API_KEY
@@ -152,16 +153,41 @@ export class PrintfulService {
   }
 
   isConfigured(): boolean {
-    return this.config !== null && !!this.config.apiKey
+    // Ensure config is initialized lazily so UI checks work without requiring an API call first.
+    if (!this.config) {
+      this.initialize()
+    }
+    if (this.config !== null && !!this.config.apiKey) return true
+
+    // Fallback: allow config stored via kvService (Admin UI) to be detected in the browser.
+    // kvService uses localStorage when Spark KV is unavailable.
+    try {
+      return typeof window !== 'undefined' && !!window.localStorage.getItem('ggt-kv:printful-api-key')
+    } catch {
+      return false
+    }
+  }
+
+  private async ensureConfig(): Promise<void> {
+    if (this.config?.apiKey) return
+
+    // Try env-based init first.
+    this.initialize()
+    if (this.config?.apiKey) return
+
+    // Then try Admin-configured key from KV/localStorage.
+    const apiKey = await kvService.get<string>('printful-api-key')
+    if (!apiKey) return
+
+    const storeId = await kvService.get<string>('printful-store-id')
+    this.config = { apiKey, storeId: storeId || undefined }
   }
 
   private async request<T>(
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
-    if (!this.config) {
-      this.initialize()
-    }
+    await this.ensureConfig()
 
     if (!this.config?.apiKey) {
       throw new Error('Printful API key not configured. Set VITE_PRINTFUL_API_KEY.')
@@ -225,6 +251,7 @@ export class PrintfulService {
     options?: {
       format?: 'jpg' | 'png'
       width?: number
+      placement?: 'front' | 'back' | 'left_sleeve' | 'right_sleeve'
     }
   ): Promise<{ mockup_url: string; extra: any[] }> {
     const mockupTaskResponse = await this.request<{ task_key: string }>('/mockup-generator/create-task/' + productId, {
@@ -235,7 +262,7 @@ export class PrintfulService {
         width: options?.width || 1000,
         files: [
           {
-            placement: 'front',
+            placement: options?.placement || 'front',
             image_url: designUrl,
             position: {
               area_width: 1800,
@@ -319,9 +346,7 @@ export class PrintfulService {
     const formData = new FormData()
     formData.append('file', file, filename)
 
-    if (!this.config) {
-      this.initialize()
-    }
+    await this.ensureConfig()
 
     if (!this.config?.apiKey) {
       throw new Error('Printful API key not configured. Set VITE_PRINTFUL_API_KEY.')

@@ -3,6 +3,10 @@ import { ChatMessage, Product, User } from './types'
 // Backend API endpoints (Vercel serverless functions)
 const API_BASE = '/api/ai'
 
+// Client-side Gemini (design generator uses for image gen, edit, remove-background)
+const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY
+const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta'
+
 // ============================================
 // API Helper Functions
 // ============================================
@@ -99,6 +103,122 @@ async function generateImageWithDALLE3(
   }
 }
 
+type GeminiImageModel = 'gemini-2.5-flash-image' | 'gemini-3-pro-image-preview'
+
+function pickClosestGeminiAspectRatio(inputWidth?: number, inputHeight?: number): string | undefined {
+  if (!inputWidth || !inputHeight || inputWidth <= 0 || inputHeight <= 0) return undefined
+  const ratio = inputWidth / inputHeight
+  const candidates: Array<{ ar: string; r: number }> = [
+    { ar: '1:1', r: 1 },
+    { ar: '2:3', r: 2 / 3 },
+    { ar: '3:2', r: 3 / 2 },
+    { ar: '3:4', r: 3 / 4 },
+    { ar: '4:3', r: 4 / 3 },
+    { ar: '4:5', r: 4 / 5 },
+    { ar: '5:4', r: 5 / 4 },
+    { ar: '9:16', r: 9 / 16 },
+    { ar: '16:9', r: 16 / 9 },
+    { ar: '21:9', r: 21 / 9 },
+  ]
+  let best = candidates[0]!
+  let bestDiff = Infinity
+  for (const c of candidates) {
+    const diff = Math.abs(c.r - ratio)
+    if (diff < bestDiff) {
+      best = c
+      bestDiff = diff
+    }
+  }
+  return best.ar
+}
+
+function buildGeminiTeeGraphicPrompt(prompt: string, context?: { widthInches?: number; heightInches?: number }): string {
+  const ar = pickClosestGeminiAspectRatio(context?.widthInches, context?.heightInches)
+  return `Create a print-ready T-shirt graphic based on this concept:
+"${prompt}"
+
+This is NOT a photo of a shirt and NOT a mockup. Generate ONLY the standalone artwork for printing.
+
+Build the scene step-by-step if the concept has multiple elements:
+1) Establish the overall style and mood that fits a T-shirt graphic.
+2) Place the primary subject(s) with clear silhouettes and strong contrast.
+3) Add supporting details that reinforce the theme without clutter.
+4) Finish with crisp edges and print-friendly color separation.
+
+Visual requirements:
+- Hyper-specific, vivid, and complete illustration (not just text)
+- Professional, print-ready quality with clean shapes and sharp detail
+- White or transparent background suitable for printing
+- Positive phrasing (describe what should exist, not what shouldn't)
+- If the concept includes words/slogans, render them legibly as part of the design composition
+
+Composition:
+- Centered, balanced layout suitable for a front/back print area
+- High contrast and readability at a distance
+${ar ? `- Keep the composition compatible with a ${ar} aspect ratio` : ''}`.trim()
+}
+
+async function generateImageWithGemini(
+  model: GeminiImageModel,
+  prompt: string,
+  options?: {
+    aspectRatio?: string
+    imageSize?: '1K' | '2K' | '4K'
+  }
+): Promise<string> {
+  if (!GEMINI_API_KEY) {
+    throw new Error('Gemini API key not configured. Set VITE_GEMINI_API_KEY.')
+  }
+
+  const response = await fetch(`${GEMINI_API_BASE}/models/${model}:generateContent`, {
+    method: 'POST',
+    headers: {
+      'x-goog-api-key': GEMINI_API_KEY,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      generationConfig: {
+        responseModalities: ['IMAGE'],
+        imageConfig: {
+          ...(options?.aspectRatio ? { aspectRatio: options.aspectRatio } : {}),
+          ...(options?.imageSize ? { imageSize: options.imageSize } : {}),
+        },
+      },
+    }),
+  })
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}))
+    const message = error?.error?.message || `Gemini API error: ${response.status} ${response.statusText}`
+    if (response.status === 401 || response.status === 403) {
+      throw new Error('Invalid Gemini API key or insufficient permissions. Please check your configuration.')
+    }
+    if (response.status === 429) {
+      throw new Error('Gemini rate limit exceeded. Please wait a moment and try again.')
+    }
+    throw new Error(message)
+  }
+
+  const data = await response.json()
+  const parts = data?.candidates?.[0]?.content?.parts || []
+  const imagePart =
+    parts.find((p: any) => p?.inlineData?.data) ||
+    parts.find((p: any) => p?.inline_data?.data) ||
+    parts.find((p: any) => p?.inlineData) ||
+    parts.find((p: any) => p?.inline_data)
+
+  const inline = imagePart?.inlineData || imagePart?.inline_data
+  const base64 = inline?.data
+  const mimeType = inline?.mimeType || inline?.mime_type || 'image/png'
+
+  if (!base64) {
+    throw new Error('No image was generated. Please try again with a different prompt.')
+  }
+
+  return `data:${mimeType};base64,${base64}`
+}
+
 async function editImageWithDALLE(
   imageDataUrl: string,
   prompt: string
@@ -158,6 +278,10 @@ export const aiAgents = {
   hasOpenAI(): boolean {
     // Always return true since we're using backend APIs
     return true
+  },
+
+  hasGemini(): boolean {
+    return !!GEMINI_API_KEY
   },
 
   // ==========================================
@@ -587,6 +711,28 @@ Be excited and clear about next steps.`
   // ==========================================
   designGenerator: {
     async generate(prompt: string, constraints: any): Promise<string> {
+      const aspectRatio =
+        pickClosestGeminiAspectRatio(constraints?.widthInches, constraints?.heightInches) || '1:1'
+      const geminiPrompt = buildGeminiTeeGraphicPrompt(prompt, {
+        widthInches: constraints?.widthInches,
+        heightInches: constraints?.heightInches,
+      })
+
+      // Primary: Nano Banana (Gemini native image models)
+      if (GEMINI_API_KEY) {
+        try {
+          return await generateImageWithGemini('gemini-2.5-flash-image', geminiPrompt, { aspectRatio })
+        } catch (error) {
+          console.warn('Gemini 2.5 Flash Image failed, trying Gemini 3 Pro Image Preview...', error)
+          // High fidelity fallback within Gemini
+          return await generateImageWithGemini('gemini-3-pro-image-preview', geminiPrompt, {
+            aspectRatio,
+            imageSize: '2K',
+          })
+        }
+      }
+
+      // Fallback: DALL-E 3
       return generateImageWithDALLE3(prompt, {
         size: '1024x1024',
         quality: 'hd',
@@ -595,12 +741,110 @@ Be excited and clear about next steps.`
     },
 
     async edit(currentImageUrl: string, editPrompt: string): Promise<string> {
+      // Prefer Gemini image editing when available; fallback to regeneration-based editing via DALL-E.
+      if (GEMINI_API_KEY) {
+        const basePrompt = `Using the provided image, apply this edit request while keeping everything else consistent:
+"${editPrompt}"
+
+Output a single print-ready T-shirt graphic on a white or transparent background. Do NOT generate a shirt mockup.`
+        // For REST: include the image as inline_data.
+        const imgResp = await fetch(currentImageUrl)
+        const blob = await imgResp.blob()
+        const buffer = await blob.arrayBuffer()
+        const bytes = new Uint8Array(buffer)
+        let binary = ''
+        bytes.forEach((b) => { binary += String.fromCharCode(b) })
+        const base64 = btoa(binary)
+        const mimeType = blob.type || 'image/png'
+
+        const response = await fetch(`${GEMINI_API_BASE}/models/gemini-2.5-flash-image:generateContent`, {
+          method: 'POST',
+          headers: {
+            'x-goog-api-key': GEMINI_API_KEY,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            contents: [
+              {
+                role: 'user',
+                parts: [
+                  { inline_data: { mime_type: mimeType, data: base64 } },
+                  { text: basePrompt },
+                ],
+              },
+            ],
+            generationConfig: { responseModalities: ['IMAGE'] },
+          }),
+        })
+
+        if (!response.ok) {
+          throw new Error('Gemini image editing failed')
+        }
+        const data = await response.json()
+        const parts = data?.candidates?.[0]?.content?.parts || []
+        const imagePart =
+          parts.find((p: any) => p?.inlineData?.data) ||
+          parts.find((p: any) => p?.inline_data?.data)
+        const inline = imagePart?.inlineData || imagePart?.inline_data
+        if (!inline?.data) throw new Error('No edited image was generated')
+        const outMime = inline?.mimeType || inline?.mime_type || 'image/png'
+        return `data:${outMime};base64,${inline.data}`
+      }
+
       return editImageWithDALLE(currentImageUrl, editPrompt)
     },
 
     async removeBackground(imageDataUrl: string): Promise<string> {
-      // For background removal, we'll use a generation-based approach
-      // A proper solution would use a dedicated API like remove.bg or Clipdrop
+      // Prefer Gemini for background removal when available; fallback to DALL-E regeneration.
+      if (GEMINI_API_KEY) {
+        const basePrompt =
+          'Remove the background completely and keep only the main subject/design. ' +
+          'Output a clean, isolated design element on a transparent or pure white background, suitable for T-shirt printing. ' +
+          'Do not add new elements. Preserve the original colors and edges.'
+
+        const imgResp = await fetch(imageDataUrl)
+        const blob = await imgResp.blob()
+        const buffer = await blob.arrayBuffer()
+        const bytes = new Uint8Array(buffer)
+        let binary = ''
+        bytes.forEach((b) => { binary += String.fromCharCode(b) })
+        const base64 = btoa(binary)
+        const mimeType = blob.type || 'image/png'
+
+        const response = await fetch(`${GEMINI_API_BASE}/models/gemini-2.5-flash-image:generateContent`, {
+          method: 'POST',
+          headers: {
+            'x-goog-api-key': GEMINI_API_KEY,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            contents: [
+              {
+                role: 'user',
+                parts: [
+                  { inline_data: { mime_type: mimeType, data: base64 } },
+                  { text: basePrompt },
+                ],
+              },
+            ],
+            generationConfig: { responseModalities: ['IMAGE'] },
+          }),
+        })
+
+        if (!response.ok) {
+          throw new Error('Gemini background removal failed')
+        }
+        const data = await response.json()
+        const parts = data?.candidates?.[0]?.content?.parts || []
+        const imagePart =
+          parts.find((p: any) => p?.inlineData?.data) ||
+          parts.find((p: any) => p?.inline_data?.data)
+        const inline = imagePart?.inlineData || imagePart?.inline_data
+        if (!inline?.data) throw new Error('No image was generated')
+        const outMime = inline?.mimeType || inline?.mime_type || 'image/png'
+        return `data:${outMime};base64,${inline.data}`
+      }
+
       const prompt = 'A clean, isolated design element on a pure transparent background, suitable for t-shirt printing'
       return generateImageWithDALLE3(prompt, {
         size: '1024x1024',

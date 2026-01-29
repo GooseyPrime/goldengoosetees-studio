@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -288,10 +288,21 @@ export function DesignPreview({
   selectedSize
 }: DesignPreviewProps) {
   const [useMockup, setUseMockup] = useState(false)
+  const [mockupPreferenceSet, setMockupPreferenceSet] = useState(false)
   const [mockupUrl, setMockupUrl] = useState<string | null>(null)
   const [isLoadingMockup, setIsLoadingMockup] = useState(false)
   const [mockupError, setMockupError] = useState<string | null>(null)
   const [zoom, setZoom] = useState(100)
+  const uploadedUrlCacheRef = useRef<Map<string, string>>(new Map())
+
+  // Prefer Printful mockup by default (required), but don't fight explicit user choice.
+  useEffect(() => {
+    if (mockupPreferenceSet) return
+    if (showMockupOption && printfulService.isConfigured() && designFiles.length > 0) {
+      setUseMockup(true)
+      setMockupPreferenceSet(true)
+    }
+  }, [designFiles.length, mockupPreferenceSet, showMockupOption])
 
   // Generate Printful mockup when enabled and design is available
   useEffect(() => {
@@ -304,30 +315,64 @@ export function DesignPreview({
       setMockupError(null)
 
       try {
-        // Find any design (prefer one with storage URL, but accept dataUrl)
-        const currentDesignFile = designFiles.find(df => df.printAreaId === currentArea) || designFiles[0]
+        // Use the current print area design when possible (so placement matches)
+        const currentDesignFile =
+          designFiles.find(df => df.printAreaId === currentArea) || designFiles[0]
         if (!currentDesignFile) {
           setMockupError('No design available')
           setIsLoadingMockup(false)
           return
         }
 
-        const designUrl = currentDesignFile.storageUrl || currentDesignFile.dataUrl
-        
-        // Get the Printful product ID from SKU
-        const productId = parseInt(product.printfulSKU) || 71 // Default to basic tee
-        const variantId = productId + 100 // Simplified variant ID logic
+        // Determine placement from the product's print area definition (default front).
+        const printArea = product.printAreas.find(pa => pa.id === currentDesignFile.printAreaId)
+        const placement =
+          (printArea?.position as 'front' | 'back' | 'left_sleeve' | 'right_sleeve') || 'front'
+
+        // Product.printfulSKU is documented as the Printful *variant id*.
+        const variantId = parseInt(product.printfulSKU, 10)
+        if (!Number.isFinite(variantId)) {
+          throw new Error('Missing or invalid Printful variant ID for this product.')
+        }
+
+        // Printful mockup generator requires both product_id and variant_id.
+        const variant = await printfulService.getVariant(variantId)
+        const productId = variant.product_id
+
+        // Printful mockup generator requires a remotely accessible image URL.
+        // If we only have a data URL, upload it to Printful Files first.
+        let designUrl = currentDesignFile.storageUrl || currentDesignFile.dataUrl
+        if (designUrl.startsWith('data:')) {
+          const cached = uploadedUrlCacheRef.current.get(currentDesignFile.id)
+          if (cached) {
+            designUrl = cached
+          } else {
+            const response = await fetch(designUrl)
+            const blob = await response.blob()
+            const ext = blob.type.includes('jpeg') ? 'jpg' : 'png'
+            const uploaded = await printfulService.uploadFile(blob, `preview-${currentDesignFile.id}.${ext}`)
+            uploadedUrlCacheRef.current.set(currentDesignFile.id, uploaded.url)
+            designUrl = uploaded.url
+          }
+        }
 
         const result = await printfulService.generateMockup(
           productId,
           variantId,
-          designUrl
+          designUrl,
+          { placement }
         )
 
+        if (!result.mockup_url) {
+          throw new Error('Printful did not return a mockup image.')
+        }
         setMockupUrl(result.mockup_url)
       } catch (error) {
         console.error('Mockup generation failed:', error)
-        setMockupError('Failed to generate mockup. Using preview instead.')
+        setMockupUrl(null)
+        setMockupError('Printful mockup unavailable right now — showing simple preview instead.')
+        // Graceful fallback: switch to simple view but keep the warning visible.
+        setUseMockup(false)
       } finally {
         setIsLoadingMockup(false)
       }
@@ -418,13 +463,6 @@ export function DesignPreview({
               <Spinner size={48} className="animate-spin text-primary mx-auto" />
               <p className="text-sm text-muted-foreground">Generating mockup...</p>
             </div>
-          ) : useMockup && mockupError ? (
-            <div className="text-center space-y-4">
-              <p className="text-sm text-destructive">{mockupError}</p>
-              <Button variant="outline" size="sm" onClick={() => setUseMockup(false)}>
-                Use Simple Preview
-              </Button>
-            </div>
           ) : (
             /* T-Shirt Mockup Template View */
             <div style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'center' }}>
@@ -442,6 +480,13 @@ export function DesignPreview({
                              currentArea?.includes('left') ? 'left_sleeve' :
                              currentArea?.includes('right') ? 'right_sleeve' : 'front'}
                   />
+                  {mockupError && (
+                    <div className="mt-3 flex items-center justify-center">
+                      <Badge variant="outline" className="text-xs">
+                        {mockupError}
+                      </Badge>
+                    </div>
+                  )}
                 </div>
               </motion.div>
             </div>
@@ -454,11 +499,14 @@ export function DesignPreview({
             <Button
               variant={useMockup ? 'default' : 'outline'}
               size="sm"
-              onClick={() => setUseMockup(!useMockup)}
+              onClick={() => {
+                setUseMockup((v) => !v)
+                setMockupPreferenceSet(true)
+              }}
               disabled={isLoadingMockup}
             >
               <ImageSquare size={16} className="mr-2" />
-              {useMockup ? 'Simple View' : 'Show Mockup'}
+              {useMockup ? 'Use Simple Preview' : 'Show Printful Mockup'}
             </Button>
           </div>
         )}
