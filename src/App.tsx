@@ -1234,6 +1234,21 @@ function App() {
             </AnimatePresence>
           </main>
 
+          <footer className="border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 py-6 mt-12">
+            <div className="container mx-auto px-6 text-center text-sm text-muted-foreground">
+              <p className="mb-2">© 2026 GoldenGooseTees. All rights reserved.</p>
+              <div className="flex items-center justify-center gap-4">
+                <a href="/sitemap.xml" className="hover:text-foreground transition-colors" target="_blank" rel="noopener noreferrer">
+                  Sitemap
+                </a>
+                <span>•</span>
+                <a href="/robots.txt" className="hover:text-foreground transition-colors" target="_blank" rel="noopener noreferrer">
+                  Robots.txt
+                </a>
+              </div>
+            </div>
+          </footer>
+
           <AuthDialog
             open={showAuthDialog}
             onOpenChange={setShowAuthDialog}
