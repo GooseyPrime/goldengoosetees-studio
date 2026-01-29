@@ -299,10 +299,12 @@ export function DesignPreview({
   useEffect(() => {
     if (mockupPreferenceSet) return
     
+    let isMounted = true
+    
     const checkPrintfulConfig = async () => {
       if (showMockupOption && designFiles.length > 0) {
         const isConfigured = await printfulService.isConfigured()
-        if (isConfigured) {
+        if (isConfigured && isMounted) {
           setUseMockup(true)
           setMockupPreferenceSet(true)
         }
@@ -310,6 +312,10 @@ export function DesignPreview({
     }
     
     checkPrintfulConfig()
+    
+    return () => {
+      isMounted = false
+    }
   }, [designFiles.length, mockupPreferenceSet, showMockupOption])
 
   // Generate Printful mockup when enabled and design is available

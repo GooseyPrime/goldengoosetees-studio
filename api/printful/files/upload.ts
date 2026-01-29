@@ -13,6 +13,8 @@ export default async function handler(
 
   try {
     // Require user authentication
+    // Note: This endpoint is required for users to upload design files during checkout.
+    // Rate limiting and abuse prevention should be implemented at the infrastructure level (e.g., Vercel rate limits)
     await requireAuth(req)
 
     // Handle file upload
