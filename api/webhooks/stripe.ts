@@ -13,7 +13,7 @@
  * ENVIRONMENT VARIABLES REQUIRED (in Vercel):
  * - STRIPE_SECRET_KEY
  * - STRIPE_WEBHOOK_SECRET
- * - VITE_PRINTFUL_API_KEY
+ * - PRINTFUL_API_KEY (server-only, with backwards compatibility for VITE_PRINTFUL_API_KEY)
  * - VITE_SUPABASE_URL
  * - SUPABASE_SERVICE_ROLE_KEY
  */
@@ -23,7 +23,8 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 // Stripe webhook secret from environment
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET
-const PRINTFUL_API_KEY = process.env.VITE_PRINTFUL_API_KEY
+// Use PRINTFUL_API_KEY first, fallback to VITE_PRINTFUL_API_KEY for backwards compatibility
+const PRINTFUL_API_KEY = process.env.PRINTFUL_API_KEY ?? process.env.VITE_PRINTFUL_API_KEY
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
 

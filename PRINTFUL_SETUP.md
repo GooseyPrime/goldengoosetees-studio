@@ -33,14 +33,28 @@ Visit https://www.printful.com and log in to your account.
 3. Give your API key a name (e.g., "GoldenGooseTees Kiosk")
 4. Copy the generated API key immediately (you won't be able to see it again)
 
-### Step 4: Configure in GoldenGooseTees
+### Step 4: Configure in Vercel (Server-Side)
+**Important:** Printful API keys are now configured server-side only for security. They are never stored in the browser.
+
+1. Go to your Vercel project dashboard
+2. Navigate to **Settings** → **Environment Variables**
+3. Add a new environment variable:
+   - **Name:** `PRINTFUL_API_KEY`
+   - **Value:** Your Printful API key (paste the key you copied)
+   - **Environment:** Production, Preview, Development (select all that apply)
+4. (Optional) If you have multiple stores, add:
+   - **Name:** `PRINTFUL_STORE_ID`
+   - **Value:** Your store ID
+5. Click **Save**
+6. **Redeploy your application** for the changes to take effect
+
+### Step 5: Verify Configuration
 1. Log in to the kiosk as an admin user
 2. Click the **Admin** button in the header
 3. Navigate to the **Settings** tab
-4. Paste your API key in the **API Key** field
-5. (Optional) Enter your Store ID if you have multiple stores
+4. Find the **Printful Configuration** section
+5. Click **Refresh Status** to check if Printful is configured
 6. Click **Test Connection** to verify the API key works
-7. Click **Save Configuration** to save your settings
 
 ## Product SKU Mapping
 

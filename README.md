@@ -87,10 +87,12 @@ In your Vercel project settings (Settings → Environment Variables), add:
 
 | Variable | Example | Description |
 |----------|---------|-------------|
-| `VITE_PRINTFUL_API_KEY` | `abc123...` | Printful API access token |
-| `VITE_PRINTFUL_STORE_ID` | `12345` | Store ID (optional) |
+| `PRINTFUL_API_KEY` | `abc123...` | Printful API access token (server-only) |
+| `PRINTFUL_STORE_ID` | `12345` | Store ID (optional, server-only) |
 
 **Where to find:** [Printful Dashboard → Settings → API](https://www.printful.com/dashboard/settings)
+
+**Note:** Printful API keys are now configured server-side only for security. Set these in Vercel → Environment Variables (not in client code).
 
 #### AI Services (Required)
 

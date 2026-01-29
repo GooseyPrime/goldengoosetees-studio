@@ -415,6 +415,36 @@ INSERT INTO designs (user_id, product_id, title, is_public, files) VALUES
 */
 
 -- ============================================
+-- Admin Audit Log Table
+-- ============================================
+CREATE TABLE IF NOT EXISTS admin_audit_log (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    actor_user_id UUID NOT NULL REFERENCES users(id) ON DELETE SET NULL,
+    action TEXT NOT NULL,
+    target_type TEXT NOT NULL,
+    target_id TEXT,
+    metadata JSONB,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_admin_audit_log_actor ON admin_audit_log(actor_user_id);
+CREATE INDEX IF NOT EXISTS idx_admin_audit_log_created_at ON admin_audit_log(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_admin_audit_log_target ON admin_audit_log(target_type, target_id);
+
+-- Enable RLS on audit log
+ALTER TABLE admin_audit_log ENABLE ROW LEVEL SECURITY;
+
+-- Only admins can view audit logs
+DROP POLICY IF EXISTS "Admins can view audit logs" ON admin_audit_log;
+CREATE POLICY "Admins can view audit logs" ON admin_audit_log
+    FOR SELECT USING (
+        EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin')
+    );
+
+-- Service role can insert (for server-side logging)
+-- Note: Service role bypasses RLS automatically, so no policy needed for inserts
+
+-- ============================================
 -- Verification Query
 -- Run this to verify setup
 -- ============================================
