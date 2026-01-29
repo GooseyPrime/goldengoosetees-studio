@@ -193,6 +193,16 @@ export class PrintfulService {
     }
   }
 
+  /**
+   * Internal helper to make requests to backend Printful API
+   */
+  private async request<T>(
+    endpoint: string,
+    options: RequestInit = {}
+  ): Promise<T> {
+    return apiRequest<T>(endpoint, options)
+  }
+
   // Note: These methods require backend endpoints to be implemented
   // For now, they throw errors indicating server-side implementation needed
   async getProducts(): Promise<PrintfulProduct[]> {
