@@ -69,7 +69,7 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
   }, [])
 
   useEffect(() => {
-    if (activeTab === 'orders') {
+    if (activeTab === 'orders' || activeTab === 'stats') {
       loadOrders()
     }
   }, [activeTab, loadOrders])
