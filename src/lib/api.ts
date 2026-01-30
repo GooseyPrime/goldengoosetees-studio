@@ -548,13 +548,14 @@ export const api = {
   },
   
   ai: {
-    async generateDesign(prompt: string, constraints: any, user: User | null): Promise<string> {
+    async generateDesign(prompt: string, constraints: any, user: User | null): Promise<{ imageUrl: string; isNSFW: boolean }> {
       // Image generation: Gemini is primary, OpenAI is fallback.
       if (!aiAgents.hasGemini() && !aiAgents.hasOpenAI()) {
         throw new Error('Image generation service not configured. Please set up Gemini (preferred) or OpenAI as fallback.')
       }
 
       const hasOpenRouter = aiAgents.hasOpenRouter()
+      let isNSFW = false
 
       // Content moderation check (skip if OpenRouter not configured)
       if (hasOpenRouter) {
@@ -569,6 +570,16 @@ export const api = {
             }`
           )
         }
+
+        // Check if content is NSFW and user hasn't verified age
+        if (moderationResult.isNSFW && !user?.ageVerified) {
+          const error: any = new Error('Age verification required for NSFW content.')
+          error.requiresAgeVerification = true
+          throw error
+        }
+
+        // Mark as NSFW if detected
+        isNSFW = moderationResult.isNSFW || false
 
         // IP/Copyright check
         const ipResult = await aiAgents.ipChecker.check(prompt)
@@ -585,7 +596,8 @@ export const api = {
       }
 
       // Generate with DALL-E 3
-      return await aiAgents.designGenerator.generate(prompt, constraints)
+      const imageUrl = await aiAgents.designGenerator.generate(prompt, constraints)
+      return { imageUrl, isNSFW }
     },
     
     async chat(

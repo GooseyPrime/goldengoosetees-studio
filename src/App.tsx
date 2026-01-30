@@ -457,7 +457,7 @@ function App() {
       const printArea = selectedProduct.printAreas.find(pa => pa.id === targetPrintArea)
       if (!printArea) return
 
-      const designUrl = await api.ai.generateDesign(
+      const result = await api.ai.generateDesign(
         prompt,
         {
           ...printArea.constraints,
@@ -466,6 +466,10 @@ function App() {
         },
         currentUser || null
       )
+      
+      const designUrl = result.imageUrl
+      const isNSFW = result.isNSFW
+      
       const metrics = await getImageMetrics(designUrl, printArea)
       
       const newDesign: DesignFile = {
@@ -484,9 +488,21 @@ function App() {
         return [...filtered, newDesign]
       })
 
+      // Show NSFW warning if content is flagged
+      if (isNSFW) {
+        toast.warning('Content may contain mature language. For 18+ only.')
+      }
+
       toast.success('Design generated! Check the preview.')
     } catch (error: any) {
-      toast.error(error.message || 'Failed to generate design')
+      // Check if error is due to age verification requirement
+      if (error.requiresAgeVerification) {
+        setRequiresAgeVerification(true)
+        setShowAuthDialog(true)
+        toast.error('Age verification required to generate NSFW content.')
+      } else {
+        toast.error(error.message || 'Failed to generate design')
+      }
     }
   }
 
@@ -800,7 +816,7 @@ function App() {
       const printArea = selectedProduct.printAreas.find(pa => pa.id === currentPrintArea)
       if (!printArea) return
 
-      const designUrl = await api.ai.generateDesign(
+      const result = await api.ai.generateDesign(
         recentUserMessages,
         {
           ...printArea.constraints,
@@ -809,6 +825,10 @@ function App() {
         },
         currentUser || null
       )
+      
+      const designUrl = result.imageUrl
+      const isNSFW = result.isNSFW
+      
       const metrics = await getImageMetrics(designUrl, printArea)
 
       const newDesign: DesignFile = {
@@ -827,6 +847,11 @@ function App() {
         return [...filtered, newDesign]
       })
 
+      // Show NSFW warning if content is flagged
+      if (isNSFW) {
+        toast.warning('Content may contain mature language. For 18+ only.')
+      }
+
       toast.success('Design generated! Click the edit button in Design Progress to customize it.', {
         duration: 5000
       })
@@ -840,7 +865,14 @@ function App() {
       }
       setMessages((prev) => [...prev, assistantMessage])
     } catch (error: any) {
-      toast.error(error.message || 'Failed to generate design')
+      // Check if error is due to age verification requirement
+      if (error.requiresAgeVerification) {
+        setRequiresAgeVerification(true)
+        setShowAuthDialog(true)
+        toast.error('Age verification required to generate NSFW content.')
+      } else {
+        toast.error(error.message || 'Failed to generate design')
+      }
     } finally {
       setIsGenerating(false)
     }

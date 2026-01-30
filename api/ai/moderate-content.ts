@@ -34,9 +34,16 @@ CRITICAL RULES:
    - Satire and parody have some protections
    - Always err on the side of caution
 
+5. NSFW CLASSIFICATION:
+   - Mark content as NSFW if it contains: profanity, crude language, sexual references, 
+     drug/alcohol references, violence themes, or mature content
+   - Content can be approved for 18+ users but still marked as NSFW
+   - This flag is used to enforce age restrictions and content warnings
+
 RESPONSE FORMAT (JSON):
 {
   "approved": boolean,
+  "isNSFW": boolean,
   "violations": ["list of specific violations"],
   "severity": "none" | "low" | "medium" | "high" | "critical",
   "suggestions": ["alternative ideas if rejected"]

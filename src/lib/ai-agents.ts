@@ -239,6 +239,7 @@ async function editImageWithDALLE(
 
 export interface ContentModerationResult {
   approved: boolean
+  isNSFW?: boolean
   violations: string[]
   severity: 'none' | 'low' | 'medium' | 'high' | 'critical'
   suggestions?: string[]
