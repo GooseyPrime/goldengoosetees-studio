@@ -40,7 +40,7 @@ async function checkStripe(): Promise<{ status: 'ok' | 'error', message: string 
     return { status: 'error', message: 'Stripe not configured' }
   }
 
-  const missing = []
+  const missing: string[] = []
   if (!secretKey) missing.push('STRIPE_SECRET_KEY')
   if (!publishableKey) missing.push('VITE_STRIPE_PUBLISHABLE_KEY')
   if (!webhookSecret) missing.push('STRIPE_WEBHOOK_SECRET')
