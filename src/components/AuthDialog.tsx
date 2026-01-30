@@ -217,6 +217,7 @@ export function AuthDialog({
                       value={fullName}
                       onChange={(e) => setFullName(e.target.value)}
                       required={authMode === 'signup'}
+                      autoComplete="name"
                     />
                   </div>
                 )}
@@ -229,6 +230,7 @@ export function AuthDialog({
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
+                    autoComplete="email"
                   />
                 </div>
                 <div className="space-y-2">
@@ -240,6 +242,7 @@ export function AuthDialog({
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
+                    autoComplete={authMode === 'signup' ? 'new-password' : 'current-password'}
                   />
                 </div>
 

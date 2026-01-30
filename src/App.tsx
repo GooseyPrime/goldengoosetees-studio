@@ -89,7 +89,7 @@ function App() {
       console.error('handleSignOut: Sign out error:', error)
       // Clear user state locally even if remote sign-out fails
       setCurrentUser(null)
-      toast.success('Signed out successfully.')
+      toast.success('Signed out locally.')
     }
   }
 
