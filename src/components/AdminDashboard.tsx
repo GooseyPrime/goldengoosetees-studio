@@ -69,10 +69,8 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
   }, [])
 
   useEffect(() => {
-    if (activeTab === 'orders') {
-      loadOrders()
-    }
-  }, [activeTab, loadOrders])
+    loadOrders()
+  }, [loadOrders])
 
   const pendingOrdersCount = (orders || []).filter(o => o.status === 'pending').length
   const pendingDesignsCount = (pendingDesigns || []).filter(d => d.isPublic && !d.catalogSection).length
