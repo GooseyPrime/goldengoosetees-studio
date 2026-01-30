@@ -134,9 +134,10 @@ function App() {
       console.log('Auth state change:', event, session?.user?.email)
 
       try {
-        if (event === 'SIGNED_IN' && session?.user) {
+        if (event === 'SIGNED_IN') {
           // User signed in - get or create user profile
-          console.log('Processing SIGNED_IN event')
+          // Don't check session?.user as it might not be populated immediately
+          console.log('Processing SIGNED_IN event, fetching user...')
           const user = await api.auth.getCurrentUser()
           if (user) {
             console.log('Setting current user from auth state change:', user.email)
