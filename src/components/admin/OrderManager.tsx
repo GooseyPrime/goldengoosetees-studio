@@ -48,8 +48,8 @@ export function OrderManager({ orders, onOrdersChange, products, ordersLoading: 
   const filteredOrders = (orders || []).filter(order => {
     const matchesSearch = 
       order.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      order.shippingAddress.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      order.shippingAddress.city.toLowerCase().includes(searchQuery.toLowerCase())
+      (order.shippingAddress?.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (order.shippingAddress?.city || '').toLowerCase().includes(searchQuery.toLowerCase())
     
     const matchesStatus = statusFilter === 'all' || order.status === statusFilter
 

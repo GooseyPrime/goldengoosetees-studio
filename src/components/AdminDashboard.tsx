@@ -16,6 +16,7 @@ import { UserManager } from '@/components/admin/UserManager'
 import { MetricsDashboard } from '@/components/admin/MetricsDashboard'
 import { LLMStatus } from '@/components/admin/LLMStatus'
 import { SystemStatus } from '@/components/admin/SystemStatus'
+import { toast } from 'sonner'
 import { 
   ChartBar, 
   Package, 
@@ -55,13 +56,17 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
         headers: { Authorization: `Bearer ${session.access_token}` }
       })
       if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}))
+        toast.error(errorData.error || 'Failed to load orders')
         setOrders([])
         return
       }
       const data = await res.json()
       const rows = (data.orders || []) as Record<string, unknown>[]
       setOrders(rows.map(orderRowToOrder))
-    } catch {
+    } catch (error) {
+      console.error('Error loading orders:', error)
+      toast.error('Failed to load orders')
       setOrders([])
     } finally {
       setOrdersLoading(false)
@@ -69,10 +74,8 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
   }, [])
 
   useEffect(() => {
-    if (activeTab === 'orders') {
-      loadOrders()
-    }
-  }, [activeTab, loadOrders])
+    loadOrders()
+  }, [loadOrders])
 
   const pendingOrdersCount = (orders || []).filter(o => o.status === 'pending').length
   const pendingDesignsCount = (pendingDesigns || []).filter(d => d.isPublic && !d.catalogSection).length
