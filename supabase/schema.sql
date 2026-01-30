@@ -60,9 +60,6 @@ CREATE TABLE IF NOT EXISTS users (
 -- Index for email lookups
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 
--- Index for RLS policy performance (id column used in policy checks)
-CREATE INDEX IF NOT EXISTS idx_users_id_rls ON users(id);
-
 -- ============================================
 -- Designs Table
 -- ============================================
@@ -242,40 +239,56 @@ CREATE POLICY "Users can delete their own profile" ON users
     TO authenticated
     USING ((SELECT auth.uid()) = id);
 
--- Designs policies
+-- Designs policies (optimized with subselect pattern)
 DROP POLICY IF EXISTS "Users can view their own designs" ON designs;
 CREATE POLICY "Users can view their own designs" ON designs
-    FOR SELECT USING (auth.uid() = user_id OR is_public = TRUE);
+    FOR SELECT 
+    TO authenticated
+    USING ((SELECT auth.uid()) = user_id OR is_public = TRUE);
 
 DROP POLICY IF EXISTS "Users can create designs" ON designs;
 CREATE POLICY "Users can create designs" ON designs
-    FOR INSERT WITH CHECK (auth.uid() = user_id);
+    FOR INSERT 
+    TO authenticated
+    WITH CHECK ((SELECT auth.uid()) = user_id);
 
 DROP POLICY IF EXISTS "Users can update their own designs" ON designs;
 CREATE POLICY "Users can update their own designs" ON designs
-    FOR UPDATE USING (auth.uid() = user_id);
+    FOR UPDATE 
+    TO authenticated
+    USING ((SELECT auth.uid()) = user_id);
 
 DROP POLICY IF EXISTS "Users can delete their own designs" ON designs;
 CREATE POLICY "Users can delete their own designs" ON designs
-    FOR DELETE USING (auth.uid() = user_id);
+    FOR DELETE 
+    TO authenticated
+    USING ((SELECT auth.uid()) = user_id);
 
--- Orders policies
+-- Orders policies (optimized with subselect pattern)
 DROP POLICY IF EXISTS "Users can view their own orders" ON orders;
 CREATE POLICY "Users can view their own orders" ON orders
-    FOR SELECT USING (auth.uid() = user_id);
+    FOR SELECT 
+    TO authenticated
+    USING ((SELECT auth.uid()) = user_id);
 
 DROP POLICY IF EXISTS "Users can create orders" ON orders;
 CREATE POLICY "Users can create orders" ON orders
-    FOR INSERT WITH CHECK (auth.uid() = user_id);
+    FOR INSERT 
+    TO authenticated
+    WITH CHECK ((SELECT auth.uid()) = user_id);
 
 DROP POLICY IF EXISTS "Users can update their own orders" ON orders;
 CREATE POLICY "Users can update their own orders" ON orders
-    FOR UPDATE USING (auth.uid() = user_id);
+    FOR UPDATE 
+    TO authenticated
+    USING ((SELECT auth.uid()) = user_id);
 
--- Design sessions policies
+-- Design sessions policies (optimized with subselect pattern)
 DROP POLICY IF EXISTS "Users can manage their own sessions" ON design_sessions;
 CREATE POLICY "Users can manage their own sessions" ON design_sessions
-    FOR ALL USING (auth.uid() = user_id);
+    FOR ALL 
+    TO authenticated
+    USING ((SELECT auth.uid()) = user_id);
 
 -- Catalog sections policies (public read)
 DROP POLICY IF EXISTS "Anyone can view catalog sections" ON catalog_sections;
@@ -312,32 +325,56 @@ CREATE POLICY "Admins can update all users" ON users
         )
     );
 
--- Admin can view all designs
+-- Admin can view all designs (optimized with subselect)
 DROP POLICY IF EXISTS "Admins can view all designs" ON designs;
 CREATE POLICY "Admins can view all designs" ON designs
-    FOR SELECT USING (
-        EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin')
+    FOR SELECT 
+    TO authenticated
+    USING (
+        EXISTS (
+            SELECT 1 FROM users 
+            WHERE id = (SELECT auth.uid()) 
+            AND role = 'admin'
+        )
     );
 
 -- Admin can update all designs (for moderation)
 DROP POLICY IF EXISTS "Admins can update all designs" ON designs;
 CREATE POLICY "Admins can update all designs" ON designs
-    FOR UPDATE USING (
-        EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin')
+    FOR UPDATE 
+    TO authenticated
+    USING (
+        EXISTS (
+            SELECT 1 FROM users 
+            WHERE id = (SELECT auth.uid()) 
+            AND role = 'admin'
+        )
     );
 
--- Admin can view all orders
+-- Admin can view all orders (optimized with subselect)
 DROP POLICY IF EXISTS "Admins can view all orders" ON orders;
 CREATE POLICY "Admins can view all orders" ON orders
-    FOR SELECT USING (
-        EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin')
+    FOR SELECT 
+    TO authenticated
+    USING (
+        EXISTS (
+            SELECT 1 FROM users 
+            WHERE id = (SELECT auth.uid()) 
+            AND role = 'admin'
+        )
     );
 
--- Admin can update all orders
+-- Admin can update all orders (optimized with subselect)
 DROP POLICY IF EXISTS "Admins can update all orders" ON orders;
 CREATE POLICY "Admins can update all orders" ON orders
-    FOR UPDATE USING (
-        EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin')
+    FOR UPDATE 
+    TO authenticated
+    USING (
+        EXISTS (
+            SELECT 1 FROM users 
+            WHERE id = (SELECT auth.uid()) 
+            AND role = 'admin'
+        )
     );
 
 -- ============================================
@@ -469,11 +506,17 @@ CREATE INDEX IF NOT EXISTS idx_admin_audit_log_target ON admin_audit_log(target_
 -- Enable RLS on audit log
 ALTER TABLE admin_audit_log ENABLE ROW LEVEL SECURITY;
 
--- Only admins can view audit logs
+-- Only admins can view audit logs (optimized with subselect)
 DROP POLICY IF EXISTS "Admins can view audit logs" ON admin_audit_log;
 CREATE POLICY "Admins can view audit logs" ON admin_audit_log
-    FOR SELECT USING (
-        EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin')
+    FOR SELECT 
+    TO authenticated
+    USING (
+        EXISTS (
+            SELECT 1 FROM users 
+            WHERE id = (SELECT auth.uid()) 
+            AND role = 'admin'
+        )
     );
 
 -- Service role can insert (for server-side logging)

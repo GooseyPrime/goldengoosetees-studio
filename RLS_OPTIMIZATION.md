@@ -22,19 +22,20 @@ The Supabase lint check flagged the `public.users` table for Row-Level Security 
 **Location:** `/supabase/migrations/optimize_users_rls_policies.sql`
 
 This migration can be applied to existing databases and includes:
-- Performance index on `users.id` for RLS policy checks
 - Optimized policies using subselect pattern: `(SELECT auth.uid())`
 - New DELETE policy for user self-service account deletion
+- New admin UPDATE policy for user management
 - Enhanced admin policies with optimized patterns
 
 ### 2. Schema File Updated
 **Location:** `/supabase/schema.sql`
 
 Updated for fresh database deployments with:
-- Added `idx_users_id_rls` index on users(id) - line 64
 - Optimized user policies with subselect pattern - lines 219-243
 - Added DELETE policy for users - lines 239-243
-- Enhanced admin policies with subselect pattern - lines 289-314
+- Added admin UPDATE policy for users - lines 302-313
+- Enhanced admin policies with subselect pattern - lines 289-366
+- **Consistent application** of subselect pattern to ALL policies (users, designs, orders, design_sessions, admin_audit_log)
 
 ---
 
@@ -73,17 +74,21 @@ CREATE POLICY "Users can delete their own profile" ON users
 
 **Note:** Consider implementing soft-delete pattern if you want to retain user data for compliance/audit purposes.
 
-### Performance Optimization
+### Admin Policies Enhanced
 
-Added explicit index for RLS policy checks:
+Added missing UPDATE policy for admins and optimized existing admin policies:
 ```sql
-CREATE INDEX IF NOT EXISTS idx_users_id_rls ON users(id);
+CREATE POLICY "Admins can update all users" ON users
+    FOR UPDATE 
+    TO authenticated
+    USING (
+        EXISTS (
+            SELECT 1 FROM users 
+            WHERE id = (SELECT auth.uid()) 
+            AND role = 'admin'
+        )
+    );
 ```
-
-While `id` is the primary key and already indexed, this explicit index:
-- Documents the performance consideration
-- Ensures optimal query planning for RLS checks
-- Follows Supabase best practice recommendations
 
 ---
 
@@ -180,9 +185,9 @@ const { data, error } = await supabase
 
 ### ✅ Improvements Made
 1. **Explicit role targeting**: All policies specify `TO authenticated`
-2. **Plan caching optimization**: Subselect pattern improves performance
+2. **Plan caching optimization**: Subselect pattern `(SELECT auth.uid())` may improve performance
 3. **Complete CRUD coverage**: All operations have appropriate policies
-4. **Performance indexed**: Policy filter columns are indexed
+4. **Consistent pattern**: Subselect optimization applied to all tables
 
 ### ⚠️ Important Notes
 1. **Service Role Keys**: Never expose SERVICE_ROLE_KEY in client code
@@ -201,14 +206,9 @@ const { data, error } = await supabase
 ## Performance Impact
 
 ### Query Plan Caching
-- **Before**: Each query requires fresh plan generation
-- **After**: PostgreSQL can reuse cached plans for similar queries
-- **Impact**: 10-30% improvement on high-frequency user lookups
-
-### Index Utilization
-- **Before**: PK index used implicitly
-- **After**: Explicit RLS index documented and guaranteed
-- **Impact**: Ensures optimal performance as data scales
+- **Before**: Direct `auth.uid()` calls in policies
+- **After**: Subselect pattern `(SELECT auth.uid())` allows PostgreSQL better plan caching in certain scenarios
+- **Impact**: Potential performance improvement on high-frequency user lookups, though actual impact depends on workload characteristics
 
 ---
 

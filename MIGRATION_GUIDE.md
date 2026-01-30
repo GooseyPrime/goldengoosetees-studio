@@ -68,18 +68,7 @@ Expected: 6 policies
 - **UPDATE**: "Users can update their own profile", "Admins can update all users"
 - **DELETE**: "Users can delete their own profile"
 
-### 3. Check Index Exists
-```sql
-SELECT indexname, indexdef 
-FROM pg_indexes 
-WHERE schemaname = 'public' 
-AND tablename = 'users'
-AND indexname = 'idx_users_id_rls';
-```
-
-Expected result: 1 row with index definition
-
-### 4. Test Policies (Safe to Run)
+### 3. Test Policies (Safe to Run)
 ```sql
 -- This query will show policy definitions
 SELECT 
@@ -171,9 +160,6 @@ CREATE POLICY "Admins can view all users" ON users
     FOR SELECT USING (
         EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin')
     );
-
--- Remove performance index (optional)
-DROP INDEX IF EXISTS idx_users_id_rls;
 ```
 
 ---
