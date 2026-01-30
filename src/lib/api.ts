@@ -171,11 +171,12 @@ export const api = {
       return true
     },
 
-    async updateUserProfile(userId: string, updates: { ageVerified?: boolean; name?: string }) {
+    async updateUserProfile(userId: string, updates: { ageVerified?: boolean; birthdate?: string; name?: string }) {
       if (supabaseService.isConfigured()) {
         try {
           await supabaseService.updateUserProfile(userId, {
             age_verified: updates.ageVerified,
+            birthdate: updates.birthdate,
             name: updates.name
           })
         } catch (error) {

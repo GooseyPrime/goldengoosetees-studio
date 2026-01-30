@@ -155,8 +155,10 @@ export function AuthDialog({
         return
       }
 
+      // Update user profile with age verification and birthdate
       await api.auth.updateUserProfile(verifiedUser.id, {
         ageVerified,
+        birthdate, // Store the birthdate in the database
         name: verifiedUser.name
       })
       onAuthenticated(verifiedUser)
