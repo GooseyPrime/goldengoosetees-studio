@@ -6,6 +6,16 @@ import { aiAgents } from './ai-agents'
 import { kvService } from './kv'
 import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
 
+// Custom error for age verification requirement
+export class AgeVerificationRequiredError extends Error {
+  public requiresAgeVerification = true
+  
+  constructor(message: string = 'Age verification required for NSFW content.') {
+    super(message)
+    this.name = 'AgeVerificationRequiredError'
+  }
+}
+
 // Map Supabase/API orders row (snake_case) to client Order type (exported for admin list mapping)
 export function orderRowToOrder(row: Record<string, unknown>): Order {
   return {
@@ -171,11 +181,12 @@ export const api = {
       return true
     },
 
-    async updateUserProfile(userId: string, updates: { ageVerified?: boolean; name?: string }) {
+    async updateUserProfile(userId: string, updates: { ageVerified?: boolean; birthdate?: string; name?: string }) {
       if (supabaseService.isConfigured()) {
         try {
           await supabaseService.updateUserProfile(userId, {
             age_verified: updates.ageVerified,
+            birthdate: updates.birthdate,
             name: updates.name
           })
         } catch (error) {
@@ -547,13 +558,14 @@ export const api = {
   },
   
   ai: {
-    async generateDesign(prompt: string, constraints: any, user: User | null): Promise<string> {
+    async generateDesign(prompt: string, constraints: any, user: User | null): Promise<{ imageUrl: string; isNSFW: boolean }> {
       // Image generation: Gemini is primary, OpenAI is fallback.
       if (!aiAgents.hasGemini() && !aiAgents.hasOpenAI()) {
         throw new Error('Image generation service not configured. Please set up Gemini (preferred) or OpenAI as fallback.')
       }
 
       const hasOpenRouter = aiAgents.hasOpenRouter()
+      let isNSFW = false
 
       // Content moderation check (skip if OpenRouter not configured)
       if (hasOpenRouter) {
@@ -567,6 +579,14 @@ export const api = {
                 : ''
             }`
           )
+        }
+
+        // Set NSFW flag first for consistent behavior
+        isNSFW = moderationResult.isNSFW || false
+
+        // Check if content is NSFW and user hasn't verified age
+        if (isNSFW && !user?.ageVerified) {
+          throw new AgeVerificationRequiredError()
         }
 
         // IP/Copyright check
@@ -584,7 +604,8 @@ export const api = {
       }
 
       // Generate with DALL-E 3
-      return await aiAgents.designGenerator.generate(prompt, constraints)
+      const imageUrl = await aiAgents.designGenerator.generate(prompt, constraints)
+      return { imageUrl, isNSFW }
     },
     
     async chat(

@@ -118,6 +118,12 @@ export function AuthDialog({
   const calculateAge = (birthdate: string): number => {
     const today = new Date()
     const birth = new Date(birthdate)
+    
+    // Validate that birthdate is not in the future
+    if (birth > today) {
+      throw new Error('Birthdate cannot be in the future')
+    }
+    
     let age = today.getFullYear() - birth.getFullYear()
     const monthDiff = today.getMonth() - birth.getMonth()
     
@@ -155,8 +161,10 @@ export function AuthDialog({
         return
       }
 
+      // Update user profile with age verification and birthdate
       await api.auth.updateUserProfile(verifiedUser.id, {
         ageVerified,
+        birthdate, // Store the birthdate in the database
         name: verifiedUser.name
       })
       onAuthenticated(verifiedUser)

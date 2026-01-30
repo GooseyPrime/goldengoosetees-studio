@@ -16,7 +16,7 @@ import { DesignPreferencesForm, DesignPreferences, preferencesToPrompt } from '@
 import { AccountDialog } from '@/components/AccountDialog'
 import { MOCK_PRODUCTS } from '@/lib/mock-data'
 import { MOCK_PENDING_DESIGNS } from '@/lib/admin-mock-data'
-import { api } from '@/lib/api'
+import { api, AgeVerificationRequiredError } from '@/lib/api'
 import { kvService } from '@/lib/kv'
 import {
   Product,
@@ -81,16 +81,18 @@ function App() {
   const handleSignOut = async () => {
     try {
       if (import.meta.env.DEV) {
-        console.log('handleSignOut: Starting sign out process')
+        console.log('🔐 handleSignOut: Starting sign out process')
       }
       await api.auth.signOut()
       if (import.meta.env.DEV) {
-        console.log('handleSignOut: Sign out completed, clearing user state')
+        console.log('🔐 handleSignOut: Sign out completed, clearing user state')
       }
       setCurrentUser(null)
       toast.success('Signed out successfully.')
     } catch (error) {
-      console.error('handleSignOut: Sign out error:', error)
+      if (import.meta.env.DEV) {
+        console.error('🔐 handleSignOut: Sign out error:', error)
+      }
       // Clear user state locally even if remote sign-out fails
       setCurrentUser(null)
       toast.info('Signed out locally. Remote session may still be active.')
@@ -132,11 +134,13 @@ function App() {
   }, [])
 
   // Set up auth state change listener for OAuth flows
+  // This must be set up once on mount to properly catch OAuth callbacks
   useEffect(() => {
     // Set up the listener with proper event handling
     const subscription = api.auth.onAuthStateChange(async (event, session) => {
+      // Log auth state changes in development for debugging
       if (import.meta.env.DEV) {
-        console.log('Auth state change:', event, session?.user?.email)
+        console.log('🔐 Auth state change:', event, session?.user?.email || 'no email')
       }
 
       try {
@@ -146,12 +150,12 @@ function App() {
           // the session object may exist but the user property might not be
           // populated immediately. We fetch the current user directly instead.
           if (import.meta.env.DEV) {
-            console.log('Processing SIGNED_IN event, fetching user...')
+            console.log('🔐 Processing SIGNED_IN event, fetching user...')
           }
           const user = await api.auth.getCurrentUser()
           if (user) {
             if (import.meta.env.DEV) {
-              console.log('Setting current user from auth state change:', user.email)
+              console.log('🔐 Setting current user from auth state change:', user.email)
             }
             setCurrentUser(user)
             // Show welcome toast only on new sign-in (not on page refresh)
@@ -159,17 +163,19 @@ function App() {
               toast.success(`Welcome, ${user.name || user.email}!`)
             }
           } else {
-            console.warn('SIGNED_IN event but no user returned from getCurrentUser')
+            if (import.meta.env.DEV) {
+              console.warn('🔐 SIGNED_IN event but no user returned from getCurrentUser')
+            }
           }
         } else if (event === 'SIGNED_OUT') {
           if (import.meta.env.DEV) {
-            console.log('Processing SIGNED_OUT event')
+            console.log('🔐 Processing SIGNED_OUT event')
           }
           setCurrentUser(null)
         } else if (event === 'TOKEN_REFRESHED') {
           // Session was refreshed - silently update user data if needed
           if (import.meta.env.DEV) {
-            console.log('Processing TOKEN_REFRESHED event')
+            console.log('🔐 Processing TOKEN_REFRESHED event')
           }
           const user = await api.auth.getCurrentUser()
           if (user) {
@@ -178,7 +184,7 @@ function App() {
         } else if (event === 'USER_UPDATED') {
           // User data was updated - refresh the user object
           if (import.meta.env.DEV) {
-            console.log('Processing USER_UPDATED event')
+            console.log('🔐 Processing USER_UPDATED event')
           }
           const user = await api.auth.getCurrentUser()
           if (user) {
@@ -186,16 +192,25 @@ function App() {
           }
         }
       } catch (error) {
-        console.error('Error handling auth state change:', error)
+        if (import.meta.env.DEV) {
+          console.error('🔐 Error handling auth state change:', error)
+        }
       }
     })
 
+    if (import.meta.env.DEV) {
+      console.log('🔐 Auth state change listener registered')
+    }
+
     return () => {
+      if (import.meta.env.DEV) {
+        console.log('🔐 Auth state change listener unsubscribing')
+      }
       if (subscription?.data?.subscription) {
         subscription.data.subscription.unsubscribe()
       }
     }
-  }, [setCurrentUser])
+  }, []) // Empty dependency array - only set up once on mount to avoid race conditions
 
   // Only auto-load initial message if we skip the brief form and land directly in design view
   // This is a fallback for edge cases - normally handleSkipToChat or handleDesignPreferencesSubmit handle this
@@ -468,7 +483,7 @@ function App() {
       const printArea = selectedProduct.printAreas.find(pa => pa.id === targetPrintArea)
       if (!printArea) return
 
-      const designUrl = await api.ai.generateDesign(
+      const result = await api.ai.generateDesign(
         prompt,
         {
           ...printArea.constraints,
@@ -477,6 +492,10 @@ function App() {
         },
         currentUser || null
       )
+      
+      const designUrl = result.imageUrl
+      const isNSFW = result.isNSFW
+      
       const metrics = await getImageMetrics(designUrl, printArea)
       
       const newDesign: DesignFile = {
@@ -495,9 +514,21 @@ function App() {
         return [...filtered, newDesign]
       })
 
+      // Show NSFW warning if content is flagged
+      if (isNSFW) {
+        toast.warning('⚠️ This design contains mature content (18+ only). This may include language, themes, or references not suitable for minors.')
+      }
+
       toast.success('Design generated! Check the preview.')
     } catch (error: any) {
-      toast.error(error.message || 'Failed to generate design')
+      // Check if error is due to age verification requirement
+      if (error instanceof AgeVerificationRequiredError) {
+        setRequiresAgeVerification(true)
+        setShowAuthDialog(true)
+        toast.error('Age verification required to generate NSFW content.')
+      } else {
+        toast.error(error.message || 'Failed to generate design')
+      }
     }
   }
 
@@ -811,7 +842,7 @@ function App() {
       const printArea = selectedProduct.printAreas.find(pa => pa.id === currentPrintArea)
       if (!printArea) return
 
-      const designUrl = await api.ai.generateDesign(
+      const result = await api.ai.generateDesign(
         recentUserMessages,
         {
           ...printArea.constraints,
@@ -820,6 +851,10 @@ function App() {
         },
         currentUser || null
       )
+      
+      const designUrl = result.imageUrl
+      const isNSFW = result.isNSFW
+      
       const metrics = await getImageMetrics(designUrl, printArea)
 
       const newDesign: DesignFile = {
@@ -838,6 +873,11 @@ function App() {
         return [...filtered, newDesign]
       })
 
+      // Show NSFW warning if content is flagged
+      if (isNSFW) {
+        toast.warning('⚠️ This design contains mature content (18+ only). This may include language, themes, or references not suitable for minors.')
+      }
+
       toast.success('Design generated! Click the edit button in Design Progress to customize it.', {
         duration: 5000
       })
@@ -851,7 +891,14 @@ function App() {
       }
       setMessages((prev) => [...prev, assistantMessage])
     } catch (error: any) {
-      toast.error(error.message || 'Failed to generate design')
+      // Check if error is due to age verification requirement
+      if (error instanceof AgeVerificationRequiredError) {
+        setRequiresAgeVerification(true)
+        setShowAuthDialog(true)
+        toast.error('Age verification required to generate NSFW content.')
+      } else {
+        toast.error(error.message || 'Failed to generate design')
+      }
     } finally {
       setIsGenerating(false)
     }
