@@ -1,5 +1,7 @@
 # Stripe Payment Integration Setup Guide
 
+> **📚 Related Documentation**: [Documentation Library](./docs/README.md) | [README](./README.md) | [.env.example](./.env.example)
+
 This guide will walk you through setting up Stripe payment processing for GoldenGooseTees.
 
 ## Prerequisites

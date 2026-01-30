@@ -1,5 +1,7 @@
 # Iteration 9: Advanced Image Editing Tools
 
+> **📋 Historical Record**: This document describes a development iteration. For current architecture and features, see the [Documentation Library](./docs/README.md).
+
 ## Overview
 This iteration transforms the basic image editor into a professional-grade design tool with advanced features including crop, background removal, drawing tools, text addition, and shape insertion.
 

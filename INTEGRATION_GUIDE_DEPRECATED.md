@@ -1,5 +1,18 @@
 # GoldenGooseTees - Integration Guide
 
+> **⚠️ DEPRECATED**: This document contains outdated information and has been superseded by individual setup guides. For current, accurate documentation, see:
+> - **[Documentation Library](./docs/README.md)** - Complete indexed documentation
+> - **[Supabase Setup](./SUPABASE_SETUP.md)** - Authentication (Supabase Auth with Google OAuth, NOT Firebase)
+> - **[AI System Guide](./AI_SYSTEM_GUIDE.md)** - AI providers (Gemini-first, NOT OpenRouter-first)
+> - **[Stripe Setup](./STRIPE_SETUP.md)** - Payment processing
+> - **[Printful Setup](./PRINTFUL_SETUP.md)** - Order fulfillment
+>
+> **Historical Context**: This document was created during early development and references Firebase Auth and different AI provider priorities. The actual implementation uses Supabase Auth and Gemini as the primary AI provider.
+
+---
+
+# GoldenGooseTees - Integration Guide (HISTORICAL)
+
 This document outlines how to integrate the app with external services.
 
 ## 🔌 Integration Points

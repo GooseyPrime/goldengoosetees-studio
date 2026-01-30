@@ -1,5 +1,7 @@
 # Iteration 6 - Complete Summary
 
+> **📋 Historical Record**: This document describes development work completed in a previous iteration. For current architecture and setup, see the [Documentation Library](./docs/README.md).
+
 ## ✅ Tasks Completed
 
 ### 1. AI Agent System with Content Moderation

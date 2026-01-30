@@ -1,5 +1,7 @@
 # Branch Cleanup Summary
 
+> **📋 Historical Record**: This document was created for a specific branch cleanup task. For current development practices, see the [Documentation Library](./docs/README.md).
+
 ## Quick Answer
 
 **YES**, you can safely delete **4 out of 6** active branches. All their commits have been fully merged into `main`.
