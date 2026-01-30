@@ -170,12 +170,15 @@ ON CONFLICT (id) DO NOTHING;
 -- Function: Update timestamp trigger
 -- ============================================
 CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SET search_path = public, pg_catalog
+AS $$
 BEGIN
     NEW.updated_at = NOW();
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$;
 
 -- Apply trigger to all tables
 DROP TRIGGER IF EXISTS update_users_updated_at ON users;
