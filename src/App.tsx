@@ -16,7 +16,7 @@ import { DesignPreferencesForm, DesignPreferences, preferencesToPrompt } from '@
 import { AccountDialog } from '@/components/AccountDialog'
 import { MOCK_PRODUCTS } from '@/lib/mock-data'
 import { MOCK_PENDING_DESIGNS } from '@/lib/admin-mock-data'
-import { api } from '@/lib/api'
+import { api, AgeVerificationRequiredError } from '@/lib/api'
 import { kvService } from '@/lib/kv'
 import {
   Product,
@@ -80,13 +80,19 @@ function App() {
 
   const handleSignOut = async () => {
     try {
-      console.log('🔐 handleSignOut: Starting sign out process')
+      if (import.meta.env.DEV) {
+        console.log('🔐 handleSignOut: Starting sign out process')
+      }
       await api.auth.signOut()
-      console.log('🔐 handleSignOut: Sign out completed, clearing user state')
+      if (import.meta.env.DEV) {
+        console.log('🔐 handleSignOut: Sign out completed, clearing user state')
+      }
       setCurrentUser(null)
       toast.success('Signed out successfully.')
     } catch (error) {
-      console.error('🔐 handleSignOut: Sign out error:', error)
+      if (import.meta.env.DEV) {
+        console.error('🔐 handleSignOut: Sign out error:', error)
+      }
       // Clear user state locally even if remote sign-out fails
       setCurrentUser(null)
       toast.info('Signed out locally. Remote session may still be active.')
@@ -132,8 +138,10 @@ function App() {
   useEffect(() => {
     // Set up the listener with proper event handling
     const subscription = api.auth.onAuthStateChange(async (event, session) => {
-      // Always log auth state changes to help with debugging
-      console.log('🔐 Auth state change:', event, session?.user?.email || 'no email')
+      // Log auth state changes in development for debugging
+      if (import.meta.env.DEV) {
+        console.log('🔐 Auth state change:', event, session?.user?.email || 'no email')
+      }
 
       try {
         if (event === 'SIGNED_IN') {
@@ -141,45 +149,63 @@ function App() {
           // Note: We don't check session?.user because after OAuth redirect,
           // the session object may exist but the user property might not be
           // populated immediately. We fetch the current user directly instead.
-          console.log('🔐 Processing SIGNED_IN event, fetching user...')
+          if (import.meta.env.DEV) {
+            console.log('🔐 Processing SIGNED_IN event, fetching user...')
+          }
           const user = await api.auth.getCurrentUser()
           if (user) {
-            console.log('🔐 Setting current user from auth state change:', user.email)
+            if (import.meta.env.DEV) {
+              console.log('🔐 Setting current user from auth state change:', user.email)
+            }
             setCurrentUser(user)
             // Show welcome toast only on new sign-in (not on page refresh)
             if (!isOAuthRedirect()) {
               toast.success(`Welcome, ${user.name || user.email}!`)
             }
           } else {
-            console.warn('🔐 SIGNED_IN event but no user returned from getCurrentUser')
+            if (import.meta.env.DEV) {
+              console.warn('🔐 SIGNED_IN event but no user returned from getCurrentUser')
+            }
           }
         } else if (event === 'SIGNED_OUT') {
-          console.log('🔐 Processing SIGNED_OUT event')
+          if (import.meta.env.DEV) {
+            console.log('🔐 Processing SIGNED_OUT event')
+          }
           setCurrentUser(null)
         } else if (event === 'TOKEN_REFRESHED') {
           // Session was refreshed - silently update user data if needed
-          console.log('🔐 Processing TOKEN_REFRESHED event')
+          if (import.meta.env.DEV) {
+            console.log('🔐 Processing TOKEN_REFRESHED event')
+          }
           const user = await api.auth.getCurrentUser()
           if (user) {
             setCurrentUser(user)
           }
         } else if (event === 'USER_UPDATED') {
           // User data was updated - refresh the user object
-          console.log('🔐 Processing USER_UPDATED event')
+          if (import.meta.env.DEV) {
+            console.log('🔐 Processing USER_UPDATED event')
+          }
           const user = await api.auth.getCurrentUser()
           if (user) {
             setCurrentUser(user)
           }
         }
       } catch (error) {
-        console.error('🔐 Error handling auth state change:', error)
+        if (import.meta.env.DEV) {
+          console.error('🔐 Error handling auth state change:', error)
+        }
       }
     })
 
-    console.log('🔐 Auth state change listener registered')
+    if (import.meta.env.DEV) {
+      console.log('🔐 Auth state change listener registered')
+    }
 
     return () => {
-      console.log('🔐 Auth state change listener unsubscribing')
+      if (import.meta.env.DEV) {
+        console.log('🔐 Auth state change listener unsubscribing')
+      }
       if (subscription?.data?.subscription) {
         subscription.data.subscription.unsubscribe()
       }
@@ -490,13 +516,13 @@ function App() {
 
       // Show NSFW warning if content is flagged
       if (isNSFW) {
-        toast.warning('Content may contain mature language. For 18+ only.')
+        toast.warning('⚠️ This design contains mature content (18+ only). This may include language, themes, or references not suitable for minors.')
       }
 
       toast.success('Design generated! Check the preview.')
     } catch (error: any) {
       // Check if error is due to age verification requirement
-      if (error.requiresAgeVerification) {
+      if (error instanceof AgeVerificationRequiredError) {
         setRequiresAgeVerification(true)
         setShowAuthDialog(true)
         toast.error('Age verification required to generate NSFW content.')
@@ -849,7 +875,7 @@ function App() {
 
       // Show NSFW warning if content is flagged
       if (isNSFW) {
-        toast.warning('Content may contain mature language. For 18+ only.')
+        toast.warning('⚠️ This design contains mature content (18+ only). This may include language, themes, or references not suitable for minors.')
       }
 
       toast.success('Design generated! Click the edit button in Design Progress to customize it.', {
@@ -866,7 +892,7 @@ function App() {
       setMessages((prev) => [...prev, assistantMessage])
     } catch (error: any) {
       // Check if error is due to age verification requirement
-      if (error.requiresAgeVerification) {
+      if (error instanceof AgeVerificationRequiredError) {
         setRequiresAgeVerification(true)
         setShowAuthDialog(true)
         toast.error('Age verification required to generate NSFW content.')

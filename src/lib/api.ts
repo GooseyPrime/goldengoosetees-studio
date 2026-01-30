@@ -6,6 +6,16 @@ import { aiAgents } from './ai-agents'
 import { kvService } from './kv'
 import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
 
+// Custom error for age verification requirement
+export class AgeVerificationRequiredError extends Error {
+  public requiresAgeVerification = true
+  
+  constructor(message: string = 'Age verification required for NSFW content.') {
+    super(message)
+    this.name = 'AgeVerificationRequiredError'
+  }
+}
+
 // Map Supabase/API orders row (snake_case) to client Order type (exported for admin list mapping)
 export function orderRowToOrder(row: Record<string, unknown>): Order {
   return {
@@ -571,15 +581,13 @@ export const api = {
           )
         }
 
-        // Check if content is NSFW and user hasn't verified age
-        if (moderationResult.isNSFW && !user?.ageVerified) {
-          const error: any = new Error('Age verification required for NSFW content.')
-          error.requiresAgeVerification = true
-          throw error
-        }
-
-        // Mark as NSFW if detected
+        // Set NSFW flag first for consistent behavior
         isNSFW = moderationResult.isNSFW || false
+
+        // Check if content is NSFW and user hasn't verified age
+        if (isNSFW && !user?.ageVerified) {
+          throw new AgeVerificationRequiredError()
+        }
 
         // IP/Copyright check
         const ipResult = await aiAgents.ipChecker.check(prompt)
