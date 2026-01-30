@@ -194,9 +194,9 @@ CREATE POLICY "Users can insert own orders" ON orders FOR INSERT WITH CHECK (aut
    - Create OAuth 2.0 credentials
    - Configure **Authorized JavaScript origins**:
      - Development: `http://localhost:5173`
-     - Production: `https://your-app.vercel.app`
+     - Production: `https://goldengoosetees.com`
    - Configure **Authorized redirect URIs**:
-     - Your app URL(s): `http://localhost:5173`, `https://your-app.vercel.app`
+     - Your app URL(s): `http://localhost:5173`, `https://goldengoosetees.com`
      - Supabase callback: `https://YOUR-PROJECT-REF.supabase.co/auth/v1/callback`
    - Copy **Client ID** and **Client Secret**
 
@@ -205,10 +205,10 @@ CREATE POLICY "Users can insert own orders" ON orders FOR INSERT WITH CHECK (aut
    - Paste **Client ID** and **Client Secret** from Google
    
 3. **Supabase Console** - Authentication → URL Configuration
-   - Set **Site URL**: `http://localhost:5173` (dev) or `https://your-app.vercel.app` (prod)
+   - Set **Site URL**: `http://localhost:5173` (dev) or `https://goldengoosetees.com` (prod)
    - Add **Redirect URLs**:
      - Development: `http://localhost:5173`, `http://localhost:5173/**`
-     - Production: `https://your-app.vercel.app`, `https://your-app.vercel.app/**`
+     - Production: `https://goldengoosetees.com`, `https://goldengoosetees.com/**`
      - Add all domains where your app is accessible
 
 **⚠️ Critical Notes:**
@@ -229,7 +229,7 @@ See [SUPABASE_SETUP.md](./SUPABASE_SETUP.md) for comprehensive OAuth configurati
 ### Step 6: Configure Stripe Webhook
 
 1. Go to [Stripe Dashboard → Webhooks](https://dashboard.stripe.com/webhooks)
-2. Add endpoint: `https://your-app.vercel.app/api/webhooks/stripe`
+2. Add endpoint: `https://goldengoosetees.com/api/webhooks/stripe`
 3. Select events:
    - `checkout.session.completed`
    - `payment_intent.succeeded`
@@ -246,7 +246,7 @@ After configuring all environment variables, trigger a redeployment in Vercel.
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-org/goldengoosetees-kiosk.git
+git clone https://github.com/InTellMe/goldengoosetees-kiosk.git
 cd goldengoosetees-kiosk
 
 # Install dependencies
@@ -320,7 +320,7 @@ Set `VITE_STRIPE_TEST_MODE=true` and use Stripe test API keys.
 1. Sign in with Google OAuth
 2. Update your user role in Supabase:
 ```sql
-UPDATE users SET role = 'admin' WHERE email = 'your@email.com';
+UPDATE users SET role = 'admin' WHERE email = 'admin@goldengoosetees.com';
 ```
 3. Refresh the app - you'll see the Admin button in the header
 

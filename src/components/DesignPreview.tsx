@@ -293,16 +293,36 @@ export function DesignPreview({
   const [isLoadingMockup, setIsLoadingMockup] = useState(false)
   const [mockupError, setMockupError] = useState<string | null>(null)
   const [zoom, setZoom] = useState(100)
+  const [isPrintfulConfigured, setIsPrintfulConfigured] = useState(false)
   const uploadedUrlCacheRef = useRef<Map<string, string>>(new Map())
+
+  // Check Printful configuration status
+  useEffect(() => {
+    let isMounted = true
+    
+    const checkConfig = async () => {
+      const isConfigured = await printfulService.isConfigured()
+      if (isMounted) {
+        setIsPrintfulConfigured(isConfigured)
+      }
+    }
+    
+    checkConfig()
+    
+    return () => {
+      isMounted = false
+    }
+  }, [])
 
   // Prefer Printful mockup by default (required), but don't fight explicit user choice.
   useEffect(() => {
     if (mockupPreferenceSet) return
-    if (showMockupOption && printfulService.isConfigured() && designFiles.length > 0) {
+    
+    if (showMockupOption && isPrintfulConfigured && designFiles.length > 0) {
       setUseMockup(true)
       setMockupPreferenceSet(true)
     }
-  }, [designFiles.length, mockupPreferenceSet, showMockupOption])
+  }, [designFiles.length, mockupPreferenceSet, showMockupOption, isPrintfulConfigured])
 
   // Generate Printful mockup when enabled and design is available
   useEffect(() => {
@@ -494,7 +514,7 @@ export function DesignPreview({
         </div>
 
         {/* Mockup toggle button */}
-        {showMockupOption && printfulService.isConfigured() && designFiles.length > 0 && (
+        {showMockupOption && isPrintfulConfigured && designFiles.length > 0 && (
           <div className="absolute top-4 left-4">
             <Button
               variant={useMockup ? 'default' : 'outline'}

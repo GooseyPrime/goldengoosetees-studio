@@ -24,9 +24,9 @@ import {
   XCircle,
   Gear,
   Users,
-  TrendingUp,
+  TrendUp,
   Brain,
-  Activity
+  Cpu
 } from '@phosphor-icons/react'
 import { Product, Order, Design } from '@/lib/types'
 import { orderRowToOrder } from '@/lib/api'
@@ -96,7 +96,7 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
 
       <div className="container mx-auto px-6 py-8">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-5 mb-8">
+          <TabsList className="grid w-full grid-cols-9 mb-8">
             <TabsTrigger value="stats" className="gap-2">
               <ChartBar size={20} />
               Overview
@@ -122,6 +122,22 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
                   {pendingDesignsCount}
                 </Badge>
               )}
+            </TabsTrigger>
+            <TabsTrigger value="metrics" className="gap-2">
+              <TrendUp size={20} />
+              Metrics
+            </TabsTrigger>
+            <TabsTrigger value="users" className="gap-2">
+              <Users size={20} />
+              Users
+            </TabsTrigger>
+            <TabsTrigger value="llm-status" className="gap-2">
+              <Brain size={20} />
+              LLM Status
+            </TabsTrigger>
+            <TabsTrigger value="system-status" className="gap-2">
+              <Cpu size={20} />
+              System
             </TabsTrigger>
             <TabsTrigger value="settings" className="gap-2">
               <Gear size={20} />

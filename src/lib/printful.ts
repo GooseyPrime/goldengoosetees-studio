@@ -193,6 +193,16 @@ export class PrintfulService {
     }
   }
 
+  /**
+   * Internal helper to make requests to backend Printful API
+   */
+  private async request<T>(
+    endpoint: string,
+    options: RequestInit = {}
+  ): Promise<T> {
+    return apiRequest<T>(endpoint, options)
+  }
+
   // Note: These methods require backend endpoints to be implemented
   // For now, they throw errors indicating server-side implementation needed
   async getProducts(): Promise<PrintfulProduct[]> {
@@ -208,7 +218,11 @@ export class PrintfulService {
   }
 
   async getVariant(variantId: number): Promise<PrintfulVariant> {
-    throw new Error('getVariant() requires server-side implementation.')
+    const response = await this.request<{ variant: PrintfulVariant }>(
+      `/variants/get?variantId=${variantId}`,
+      { method: 'GET' }
+    )
+    return response.variant
   }
 
   async getSyncProducts(): Promise<any[]> {
@@ -234,7 +248,7 @@ export class PrintfulService {
       placement?: 'front' | 'back' | 'left_sleeve' | 'right_sleeve'
     }
   ): Promise<{ mockup_url: string; extra: any[] }> {
-    const mockupTaskResponse = await this.request<{ task_key: string }>('/mockup-generator/create-task/' + productId, {
+    const mockupTaskResponse = await apiRequest<{ task_key: string }>('/mockup-generator/create-task/' + productId, {
       method: 'POST',
       body: JSON.stringify({
         variant_ids: [variantId],
@@ -265,7 +279,7 @@ export class PrintfulService {
     while (attempts < maxAttempts) {
       await new Promise(resolve => setTimeout(resolve, 1000))
 
-      const result = await this.request<any>(`/mockup-generator/task?task_key=${taskKey}`)
+      const result = await apiRequest<any>(`/mockup-generator/task?task_key=${taskKey}`)
 
       if (result.status === 'completed') {
         return {
@@ -286,38 +300,38 @@ export class PrintfulService {
 
   // Get printfiles info for a product
   async getPrintfiles(productId: number): Promise<any> {
-    return this.request<any>(`/mockup-generator/printfiles/${productId}`)
+    return apiRequest<any>(`/mockup-generator/printfiles/${productId}`)
   }
 
   async getShippingRates(
     recipient: PrintfulOrderRequest['recipient'],
     items: PrintfulOrderRequest['items']
   ): Promise<any> {
-    return this.request('/shipping/rates', {
+    return apiRequest('/shipping/rates', {
       method: 'POST',
       body: JSON.stringify({ recipient, items }),
     })
   }
 
   async createOrder(orderData: PrintfulOrderRequest): Promise<PrintfulOrderResponse> {
-    return this.request<PrintfulOrderResponse>('/orders', {
+    return apiRequest<PrintfulOrderResponse>('/orders', {
       method: 'POST',
       body: JSON.stringify(orderData),
     })
   }
 
   async confirmOrder(orderId: number): Promise<PrintfulOrderResponse> {
-    return this.request<PrintfulOrderResponse>(`/orders/${orderId}/confirm`, {
+    return apiRequest<PrintfulOrderResponse>(`/orders/${orderId}/confirm`, {
       method: 'POST',
     })
   }
 
   async getOrder(orderId: number | string): Promise<PrintfulOrderResponse> {
-    return this.request<PrintfulOrderResponse>(`/orders/${orderId}`)
+    return apiRequest<PrintfulOrderResponse>(`/orders/${orderId}`)
   }
 
   async cancelOrder(orderId: number): Promise<PrintfulOrderResponse> {
-    return this.request<PrintfulOrderResponse>(`/orders/${orderId}`, {
+    return apiRequest<PrintfulOrderResponse>(`/orders/${orderId}`, {
       method: 'DELETE',
     })
   }

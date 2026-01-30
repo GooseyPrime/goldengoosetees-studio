@@ -17,13 +17,13 @@ Supabase Callback:          https://YOUR-PROJECT-REF.supabase.co/auth/v1/callbac
 
 ### Production Environment (Vercel/Custom Domain)
 ```
-App URL (Site URL):          https://your-app.vercel.app
-JavaScript Origins:          https://your-app.vercel.app
-                            https://goldengoosetees.com
-Redirect URLs:               https://your-app.vercel.app
-                            https://your-app.vercel.app/**
-                            https://goldengoosetees.com
+App URL (Site URL):          https://goldengoosetees.com
+JavaScript Origins:          https://goldengoosetees.com
+                            https://www.goldengoosetees.com
+Redirect URLs:               https://goldengoosetees.com
                             https://goldengoosetees.com/**
+                            https://www.goldengoosetees.com
+                            https://www.goldengoosetees.com/**
 Supabase Callback:          https://YOUR-PROJECT-REF.supabase.co/auth/v1/callback
 ```
 
@@ -38,8 +38,7 @@ Supabase Callback:          https://YOUR-PROJECT-REF.supabase.co/auth/v1/callbac
 
 **Important**: 
 - Replace `YOUR-PROJECT-REF` with your actual Supabase project reference (found in your project URL)
-- Replace `your-app.vercel.app` with your actual Vercel domain
-- Replace `goldengoosetees.com` with your actual custom domain (if applicable)
+- The app will be deployed to `https://goldengoosetees.com` (primary domain) and `https://www.goldengoosetees.com` (www subdomain)
 
 ---
 
@@ -171,12 +170,15 @@ CREATE POLICY "Users can create their own orders"
 
 -- Function to automatically update updated_at timestamp
 CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SET search_path = public, pg_catalog
+AS $$
 BEGIN
   NEW.updated_at = NOW();
   RETURN NEW;
 END;
-$$ language 'plpgsql';
+$$;
 
 -- Triggers for updated_at
 CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users
@@ -240,7 +242,6 @@ http://127.0.0.1:5173
 
 **For Production (replace with your actual domains):**
 ```
-https://your-app.vercel.app
 https://goldengoosetees.com
 https://www.goldengoosetees.com
 ```
@@ -270,7 +271,6 @@ https://abcdefghijklmnop.supabase.co/auth/v1/callback
 
 **For Production:**
 ```
-https://your-app.vercel.app
 https://goldengoosetees.com
 https://www.goldengoosetees.com
 https://abcdefghijklmnop.supabase.co/auth/v1/callback
@@ -317,7 +317,7 @@ http://localhost:5173
 
 **For Production:**
 ```
-https://your-app.vercel.app
+https://goldengoosetees.com
 ```
 (Use your primary production domain)
 
@@ -345,8 +345,6 @@ http://127.0.0.1:5173/**
 
 **For Production:**
 ```
-https://your-app.vercel.app
-https://your-app.vercel.app/**
 https://goldengoosetees.com
 https://goldengoosetees.com/**
 https://www.goldengoosetees.com
@@ -440,7 +438,7 @@ The JavaScript origin doesn't match the configured origins.
 2. Check "Authorized JavaScript origins"
 3. Add the exact origin where your app is running
 4. Do NOT include paths or trailing slashes in origins
-5. Format: `http://localhost:5173` or `https://your-app.vercel.app`
+5. Format: `http://localhost:5173` or `https://goldengoosetees.com`
 
 #### "access_denied" Error
 User cancelled sign-in or Google denied access.

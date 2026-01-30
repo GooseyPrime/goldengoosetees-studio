@@ -6,31 +6,31 @@ export default async function handler(
   req: VercelRequest,
   res: VercelResponse
 ): Promise<void> {
-  if (req.method !== 'POST') {
+  if (req.method !== 'GET') {
     res.status(405).json({ error: 'Method not allowed' })
     return
   }
 
   try {
-    // Require user authentication - regular users need to confirm orders during checkout
+    // Require user authentication - users need this for mockup generation
     await requireAuth(req)
 
-    const { orderId } = req.body
+    const { variantId } = req.query
 
-    if (!orderId) {
-      res.status(400).json({ error: 'Order ID is required' })
+    if (!variantId || typeof variantId !== 'string') {
+      res.status(400).json({ error: 'Variant ID is required' })
       return
     }
 
-    // Confirm order in Printful
-    const confirmedOrder = await printfulServer.confirmOrder(Number(orderId))
+    // Get variant from Printful
+    const variant = await printfulServer.getVariant(Number(variantId))
 
     res.status(200).json({
       success: true,
-      order: confirmedOrder
+      variant
     })
   } catch (error: any) {
-    const errorMessage = error.message || 'Failed to confirm Printful order'
+    const errorMessage = error.message || 'Failed to get Printful variant'
     const sanitizedMessage = errorMessage.replace(/Bearer\s+[^\s]+/gi, 'Bearer [REDACTED]')
 
     res.status(500).json({
