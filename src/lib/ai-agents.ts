@@ -3,7 +3,11 @@ import { ChatMessage, Product, User } from './types'
 // Backend API endpoints (Vercel serverless functions)
 const API_BASE = '/api/ai'
 
-// Client-side Gemini (design generator uses for image gen, edit, remove-background)
+/** Single fallback when the conversational LLM is unavailable (no fake assistant replies). */
+const FALLBACK_ASSISTANT_MESSAGE =
+  "I'm having a bit of trouble connecting right now. Please try again in a moment — I'm here to help you create something awesome!"
+
+// Client-side Gemini (edit/remove-background only; image generation is server-side)
 const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta'
 
@@ -53,54 +57,50 @@ async function callOpenRouter(
   return data.content || ''
 }
 
-async function generateImageWithDALLE3(
+/** Call backend generate-design (Gemini first, then DALL-E fallback). */
+async function callGenerateDesignApi(
   prompt: string,
   options: {
+    widthInches?: number
+    heightInches?: number
     size?: '1024x1024' | '1792x1024' | '1024x1792'
     quality?: 'standard' | 'hd'
     style?: 'vivid' | 'natural'
   } = {}
 ): Promise<string> {
   const {
+    widthInches,
+    heightInches,
     size = '1024x1024',
     quality = 'hd',
     style = 'vivid'
   } = options
 
-  try {
-    const response = await fetch(`${API_BASE}/generate-design`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        prompt,
-        size,
-        quality,
-        style
-      })
+  const response = await fetch(`${API_BASE}/generate-design`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      prompt,
+      widthInches,
+      heightInches,
+      size,
+      quality,
+      style
     })
+  })
 
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}))
-      throw new Error(error.error || `Image generation failed: ${response.statusText}`)
-    }
-
-    const data = await response.json()
-    
-    // Log the revised prompt for debugging/transparency
-    if (data.revisedPrompt) {
-      console.log('DALL-E revised prompt:', data.revisedPrompt)
-    }
-
-    return data.imageUrl
-  } catch (error: any) {
-    // Re-throw with better context if it's a network error
-    if (error.name === 'TypeError' && error.message.includes('fetch')) {
-      throw new Error('Network error. Please check your internet connection and try again.')
-    }
-    throw error
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}))
+    throw new Error(error.error || `Image generation failed: ${response.statusText}`)
   }
+
+  const data = await response.json()
+  if (data.revisedPrompt) {
+    console.log('Revised prompt:', data.revisedPrompt)
+  }
+  return data.imageUrl
 }
 
 type GeminiImageModel = 'gemini-2.5-flash-image' | 'gemini-3-pro-image-preview'
@@ -217,20 +217,6 @@ async function generateImageWithGemini(
   }
 
   return `data:${mimeType};base64,${base64}`
-}
-
-async function editImageWithDALLE(
-  imageDataUrl: string,
-  prompt: string
-): Promise<string> {
-  // For editing, we'll use DALL-E 3 with a modified prompt
-  // Note: DALL-E 3 doesn't support direct image editing, so we generate a new image
-  // based on the description. For true editing, you'd need DALL-E 2 edit endpoint.
-  const enhancedPrompt = `Create a t-shirt design based on this edit request: ${prompt}.
-    The design should be on a transparent or white background, suitable for printing.
-    Make it bold, colorful, and print-ready.`
-
-  return generateImageWithDALLE3(enhancedPrompt)
 }
 
 // ============================================
@@ -546,7 +532,7 @@ Remember: Your job is to CREATE, not to interview. Users came here to make a shi
         return response
       } catch (error) {
         console.error('Design assistant chat failed:', error)
-        return "I'm having a bit of trouble connecting right now. Could you try again? I'm excited to help you create something awesome!"
+        return FALLBACK_ASSISTANT_MESSAGE
       }
     },
 
@@ -668,11 +654,7 @@ Be excited but professional. Use one emoji if natural.`
         return response
       } catch (error) {
         console.error('Initial message generation failed:', error)
-        return `Great choice! You've selected the **${product.name}**. ${
-          product.printAreas.length > 1
-            ? `This has ${product.printAreas.length} print areas: ${product.printAreas.map((a) => a.name).join(', ')}.`
-            : `You can design the ${product.printAreas[0]?.name}.`
-        } What kind of design are you imagining?`
+        return FALLBACK_ASSISTANT_MESSAGE
       }
     },
 
@@ -701,39 +683,19 @@ Be excited and clear about next steps.`
         return response
       } catch (error) {
         console.error('Approval message generation failed:', error)
-        return `Excellent! Your design looks amazing! You can either proceed to checkout to order your custom tee, or publish it to our catalog to share with the community. What would you like to do?`
+        return FALLBACK_ASSISTANT_MESSAGE
       }
     },
   },
 
   // ==========================================
-  // Design Generator (DALL-E 3)
+  // Design Generator (backend: Gemini first, DALL-E fallback)
   // ==========================================
   designGenerator: {
     async generate(prompt: string, constraints: any): Promise<string> {
-      const aspectRatio =
-        pickClosestGeminiAspectRatio(constraints?.widthInches, constraints?.heightInches) || '1:1'
-      const geminiPrompt = buildGeminiTeeGraphicPrompt(prompt, {
+      return callGenerateDesignApi(prompt, {
         widthInches: constraints?.widthInches,
         heightInches: constraints?.heightInches,
-      })
-
-      // Primary: Nano Banana (Gemini native image models)
-      if (GEMINI_API_KEY) {
-        try {
-          return await generateImageWithGemini('gemini-2.5-flash-image', geminiPrompt, { aspectRatio })
-        } catch (error) {
-          console.warn('Gemini 2.5 Flash Image failed, trying Gemini 3 Pro Image Preview...', error)
-          // High fidelity fallback within Gemini
-          return await generateImageWithGemini('gemini-3-pro-image-preview', geminiPrompt, {
-            aspectRatio,
-            imageSize: '2K',
-          })
-        }
-      }
-
-      // Fallback: DALL-E 3
-      return generateImageWithDALLE3(prompt, {
         size: '1024x1024',
         quality: 'hd',
         style: 'vivid'
@@ -741,116 +703,31 @@ Be excited and clear about next steps.`
     },
 
     async edit(currentImageUrl: string, editPrompt: string): Promise<string> {
-      // Prefer Gemini image editing when available; fallback to regeneration-based editing via DALL-E.
-      if (GEMINI_API_KEY) {
-        const basePrompt = `Using the provided image, apply this edit request while keeping everything else consistent:
-"${editPrompt}"
-
-Output a single print-ready T-shirt graphic on a white or transparent background. Do NOT generate a shirt mockup.`
-        // For REST: include the image as inline_data.
-        const imgResp = await fetch(currentImageUrl)
-        const blob = await imgResp.blob()
-        const buffer = await blob.arrayBuffer()
-        const bytes = new Uint8Array(buffer)
-        let binary = ''
-        bytes.forEach((b) => { binary += String.fromCharCode(b) })
-        const base64 = btoa(binary)
-        const mimeType = blob.type || 'image/png'
-
-        const response = await fetch(`${GEMINI_API_BASE}/models/gemini-2.5-flash-image:generateContent`, {
-          method: 'POST',
-          headers: {
-            'x-goog-api-key': GEMINI_API_KEY,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            contents: [
-              {
-                role: 'user',
-                parts: [
-                  { inline_data: { mime_type: mimeType, data: base64 } },
-                  { text: basePrompt },
-                ],
-              },
-            ],
-            generationConfig: { responseModalities: ['IMAGE'] },
-          }),
-        })
-
-        if (!response.ok) {
-          throw new Error('Gemini image editing failed')
-        }
-        const data = await response.json()
-        const parts = data?.candidates?.[0]?.content?.parts || []
-        const imagePart =
-          parts.find((p: any) => p?.inlineData?.data) ||
-          parts.find((p: any) => p?.inline_data?.data)
-        const inline = imagePart?.inlineData || imagePart?.inline_data
-        if (!inline?.data) throw new Error('No edited image was generated')
-        const outMime = inline?.mimeType || inline?.mime_type || 'image/png'
-        return `data:${outMime};base64,${inline.data}`
+      const response = await fetch(`${API_BASE}/edit-design`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageUrl: currentImageUrl, editPrompt }),
+      })
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}))
+        throw new Error(err.error || `Edit failed: ${response.statusText}`)
       }
-
-      return editImageWithDALLE(currentImageUrl, editPrompt)
+      const data = await response.json()
+      return data.imageUrl
     },
 
     async removeBackground(imageDataUrl: string): Promise<string> {
-      // Prefer Gemini for background removal when available; fallback to DALL-E regeneration.
-      if (GEMINI_API_KEY) {
-        const basePrompt =
-          'Remove the background completely and keep only the main subject/design. ' +
-          'Output a clean, isolated design element on a transparent or pure white background, suitable for T-shirt printing. ' +
-          'Do not add new elements. Preserve the original colors and edges.'
-
-        const imgResp = await fetch(imageDataUrl)
-        const blob = await imgResp.blob()
-        const buffer = await blob.arrayBuffer()
-        const bytes = new Uint8Array(buffer)
-        let binary = ''
-        bytes.forEach((b) => { binary += String.fromCharCode(b) })
-        const base64 = btoa(binary)
-        const mimeType = blob.type || 'image/png'
-
-        const response = await fetch(`${GEMINI_API_BASE}/models/gemini-2.5-flash-image:generateContent`, {
-          method: 'POST',
-          headers: {
-            'x-goog-api-key': GEMINI_API_KEY,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            contents: [
-              {
-                role: 'user',
-                parts: [
-                  { inline_data: { mime_type: mimeType, data: base64 } },
-                  { text: basePrompt },
-                ],
-              },
-            ],
-            generationConfig: { responseModalities: ['IMAGE'] },
-          }),
-        })
-
-        if (!response.ok) {
-          throw new Error('Gemini background removal failed')
-        }
-        const data = await response.json()
-        const parts = data?.candidates?.[0]?.content?.parts || []
-        const imagePart =
-          parts.find((p: any) => p?.inlineData?.data) ||
-          parts.find((p: any) => p?.inline_data?.data)
-        const inline = imagePart?.inlineData || imagePart?.inline_data
-        if (!inline?.data) throw new Error('No image was generated')
-        const outMime = inline?.mimeType || inline?.mime_type || 'image/png'
-        return `data:${outMime};base64,${inline.data}`
-      }
-
-      const prompt = 'A clean, isolated design element on a pure transparent background, suitable for t-shirt printing'
-      return generateImageWithDALLE3(prompt, {
-        size: '1024x1024',
-        quality: 'hd',
-        style: 'natural'
+      const response = await fetch(`${API_BASE}/remove-background`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageUrl: imageDataUrl }),
       })
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}))
+        throw new Error(err.error || `Background removal failed: ${response.statusText}`)
+      }
+      const data = await response.json()
+      return data.imageUrl
     }
   },
 

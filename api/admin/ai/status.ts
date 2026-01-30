@@ -17,7 +17,7 @@ export default async function handler(
     // Check which AI providers are configured
     const openRouterConfigured = !!process.env.OPENROUTER_API_KEY
     const openAIConfigured = !!process.env.OPENAI_API_KEY
-    const geminiConfigured = !!process.env.VITE_GEMINI_API_KEY
+    const geminiConfigured = !!(process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY)
 
     res.status(200).json({
       providers: {

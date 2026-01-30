@@ -501,11 +501,7 @@ export const api = {
   
   ai: {
     async generateDesign(prompt: string, constraints: any, user: User | null): Promise<string> {
-      // Image generation: Gemini is primary, OpenAI is fallback.
-      if (!aiAgents.hasGemini() && !aiAgents.hasOpenAI()) {
-        throw new Error('Image generation service not configured. Please set up Gemini (preferred) or OpenAI as fallback.')
-      }
-
+      // Image generation: always via backend (Gemini first, then DALL-E fallback).
       const hasOpenRouter = aiAgents.hasOpenRouter()
 
       // Content moderation check (skip if OpenRouter not configured)
@@ -536,7 +532,6 @@ export const api = {
         }
       }
 
-      // Generate with DALL-E 3
       return await aiAgents.designGenerator.generate(prompt, constraints)
     },
     
@@ -582,25 +577,32 @@ export const api = {
       return await aiAgents.designAssistant.getApprovalMessage()
     },
 
+    async getDesignPhaseMessage(
+      type: 'creating' | 'ready' | 'error',
+      context?: { concept?: string; style?: string; text?: string; error?: string }
+    ): Promise<string> {
+      try {
+        const res = await fetch('/api/ai/design-phase-message', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type, ...context })
+        })
+        const data = await res.json().catch(() => ({}))
+        return data.content ?? (type === 'error' ? "Something went wrong. Please try again." : "Please wait…")
+      } catch {
+        return type === 'creating' ? "Creating your design now…" : type === 'ready' ? "Your design is ready!" : "Something went wrong. Please try again."
+      }
+    },
+
     async editDesign(
       currentImageUrl: string,
       editPrompt: string,
-      constraints: any
+      _constraints: any
     ): Promise<string> {
-      // Prefer Gemini for editing; fallback to OpenAI when available.
-      if (!aiAgents.hasGemini() && !aiAgents.hasOpenAI()) {
-        throw new Error('Image editing service not configured. Please set up Gemini (preferred) or OpenAI as fallback.')
-      }
-
       return await aiAgents.designGenerator.edit(currentImageUrl, editPrompt)
     },
 
     async removeBackground(imageDataUrl: string): Promise<string> {
-      // Prefer Gemini for background removal; fallback to OpenAI when available.
-      if (!aiAgents.hasGemini() && !aiAgents.hasOpenAI()) {
-        throw new Error('Background removal service not configured. Please set up Gemini (preferred) or OpenAI as fallback.')
-      }
-
       return await aiAgents.designGenerator.removeBackground(imageDataUrl)
     }
   }

@@ -272,26 +272,40 @@ function App() {
         timestamp: new Date().toISOString()
       }
 
+      const creatingContent = await api.ai.getDesignPhaseMessage('creating', {
+        concept: preferences.concept,
+        style: preferences.style,
+        text: preferences.text
+      })
       const generatingMessage: ChatMessage = {
         id: `msg-${Date.now() + 1}`,
         role: 'assistant',
-        content: `Creating your design now! 🎨 I'm working on: ${preferences.concept}${preferences.style ? ` in a ${preferences.style} style` : ''}${preferences.text ? ` with "${preferences.text}"` : ''}. Watch the preview!`,
+        content: creatingContent,
         timestamp: new Date().toISOString()
       }
-
       setMessages([contextMessage, generatingMessage])
 
-      // Generate the design immediately
-      await generateDesign(prompt, configuredProduct.printAreas[0]?.id)
-
-      // Add follow-up message
-      const followUpMessage: ChatMessage = {
-        id: `msg-${Date.now() + 2}`,
-        role: 'assistant',
-        content: "Your design is ready! Take a look at the preview. Want me to tweak anything? Just describe what you'd like changed.",
-        timestamp: new Date().toISOString()
+      try {
+        await generateDesign(prompt, configuredProduct.printAreas[0]?.id)
+        const readyContent = await api.ai.getDesignPhaseMessage('ready')
+        const followUpMessage: ChatMessage = {
+          id: `msg-${Date.now() + 2}`,
+          role: 'assistant',
+          content: readyContent,
+          timestamp: new Date().toISOString()
+        }
+        setMessages(prev => [...prev, followUpMessage])
+      } catch (err: any) {
+        const errorContent = await api.ai.getDesignPhaseMessage('error', { error: err?.message })
+        const errorMessage: ChatMessage = {
+          id: `msg-${Date.now() + 2}`,
+          role: 'assistant',
+          content: errorContent,
+          timestamp: new Date().toISOString()
+        }
+        setMessages(prev => [...prev, errorMessage])
+        toast.error(err?.message || 'Failed to generate design')
       }
-      setMessages(prev => [...prev, followUpMessage])
     }
   }
 
@@ -844,16 +858,24 @@ function App() {
         duration: 5000
       })
 
-      // Add an AI message acknowledging generation
+      const readyContent = await api.ai.getDesignPhaseMessage('ready')
       const assistantMessage: ChatMessage = {
         id: `msg-${Date.now()}`,
         role: 'assistant',
-        content: "I've generated your design! 🎨 You can see it in the preview on the left and in the Design Progress panel on the right. Click the edit (pencil) button to customize it further, or let me know if you'd like me to generate a different version.",
+        content: readyContent,
         timestamp: new Date().toISOString()
       }
       setMessages((prev) => [...prev, assistantMessage])
     } catch (error: any) {
       toast.error(error.message || 'Failed to generate design')
+      const errorContent = await api.ai.getDesignPhaseMessage('error', { error: error?.message })
+      const errorMessage: ChatMessage = {
+        id: `msg-${Date.now()}`,
+        role: 'assistant',
+        content: errorContent,
+        timestamp: new Date().toISOString()
+      }
+      setMessages((prev) => [...prev, errorMessage])
     } finally {
       setIsGenerating(false)
     }
