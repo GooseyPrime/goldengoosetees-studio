@@ -85,9 +85,15 @@ export function AccountDialog({
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Badge variant="secondary">{user.role.toUpperCase()}</Badge>
-                  <Badge variant={user.ageVerified ? 'default' : 'outline'}>
-                    {user.ageVerified ? 'Age verified' : 'Age verification needed'}
-                  </Badge>
+                  {user.ageVerified ? (
+                    <Badge variant="default" className="bg-green-600 hover:bg-green-700">
+                      ✓ Over 18
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="border-yellow-500 text-yellow-600">
+                      Age verification needed
+                    </Badge>
+                  )}
                 </div>
                 <Button variant="outline" onClick={handleSignOut} className="gap-2">
                   <SignOut size={16} />

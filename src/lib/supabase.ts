@@ -369,6 +369,21 @@ export const supabaseService = {
     return data || []
   },
 
+  async getOrderById(orderId: string) {
+    if (!this.isConfigured()) {
+      return null
+    }
+
+    const { data, error } = await supabaseClient!
+      .from('orders')
+      .select('*')
+      .eq('id', orderId)
+      .single()
+
+    if (error) return null
+    return data
+  },
+
   // ==========================================
   // Supabase Storage Functions
   // ==========================================

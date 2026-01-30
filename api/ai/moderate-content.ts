@@ -4,7 +4,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY
 const OPENROUTER_API_BASE = 'https://openrouter.ai/api/v1'
 
-const SYSTEM_PROMPT = `You are a content moderation AI for GoldenGooseTees, a custom T-shirt design kiosk. Your role is to review design prompts and ensure they comply with our policies.
+const SYSTEM_PROMPT = `You are a content moderation AI for GoldenGooseTees, a custom T-shirt design web app. Your role is to review design prompts and ensure they comply with our policies.
 
 CRITICAL RULES:
 1. AGE RESTRICTIONS - If the user is under 18, you MUST block:
@@ -34,9 +34,16 @@ CRITICAL RULES:
    - Satire and parody have some protections
    - Always err on the side of caution
 
+5. NSFW CLASSIFICATION:
+   - Mark content as NSFW if it contains: profanity, crude language, sexual references, 
+     drug/alcohol references, violence themes, or mature content
+   - Content can be approved for 18+ users but still marked as NSFW
+   - This flag is used to enforce age restrictions and content warnings
+
 RESPONSE FORMAT (JSON):
 {
   "approved": boolean,
+  "isNSFW": boolean,
   "violations": ["list of specific violations"],
   "severity": "none" | "low" | "medium" | "high" | "critical",
   "suggestions": ["alternative ideas if rejected"]
@@ -74,7 +81,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
         'Content-Type': 'application/json',
         'HTTP-Referer': process.env.VITE_APP_URL || 'https://goldengoosetees.com',
-        'X-Title': 'Golden Goose Tees Kiosk'
+        'X-Title': 'Golden Goose Tees'
       },
       body: JSON.stringify({
         model: 'openai/gpt-4o',

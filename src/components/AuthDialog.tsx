@@ -118,6 +118,12 @@ export function AuthDialog({
   const calculateAge = (birthdate: string): number => {
     const today = new Date()
     const birth = new Date(birthdate)
+    
+    // Validate that birthdate is not in the future
+    if (birth > today) {
+      throw new Error('Birthdate cannot be in the future')
+    }
+    
     let age = today.getFullYear() - birth.getFullYear()
     const monthDiff = today.getMonth() - birth.getMonth()
     
@@ -155,8 +161,10 @@ export function AuthDialog({
         return
       }
 
+      // Update user profile with age verification and birthdate
       await api.auth.updateUserProfile(verifiedUser.id, {
         ageVerified,
+        birthdate, // Store the birthdate in the database
         name: verifiedUser.name
       })
       onAuthenticated(verifiedUser)
@@ -217,6 +225,7 @@ export function AuthDialog({
                       value={fullName}
                       onChange={(e) => setFullName(e.target.value)}
                       required={authMode === 'signup'}
+                      autoComplete="name"
                     />
                   </div>
                 )}
@@ -229,6 +238,7 @@ export function AuthDialog({
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
+                    autoComplete="email"
                   />
                 </div>
                 <div className="space-y-2">
@@ -240,6 +250,7 @@ export function AuthDialog({
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
+                    autoComplete={authMode === 'signup' ? 'new-password' : 'current-password'}
                   />
                 </div>
 

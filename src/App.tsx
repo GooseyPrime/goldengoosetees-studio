@@ -15,9 +15,8 @@ import { DesignManagerPage } from '@/components/DesignManagerPage'
 import { DesignPreferencesForm, DesignPreferences, preferencesToPrompt } from '@/components/DesignPreferencesForm'
 import { AccountDialog } from '@/components/AccountDialog'
 import { MOCK_PRODUCTS } from '@/lib/mock-data'
-import { MOCK_ORDERS, MOCK_PENDING_DESIGNS } from '@/lib/admin-mock-data'
-import { api } from '@/lib/api'
-import { useKioskSession } from '@/hooks/useInactivityTimeout'
+import { MOCK_PENDING_DESIGNS } from '@/lib/admin-mock-data'
+import { api, AgeVerificationRequiredError } from '@/lib/api'
 import { kvService } from '@/lib/kv'
 import {
   Product,
@@ -41,9 +40,6 @@ import {
 import { toast, Toaster } from 'sonner'
 import { motion, AnimatePresence } from 'framer-motion'
 import logoImage from '@/assets/images/GoldenGooseTees.jpg'
-
-// Check if kiosk mode is enabled
-const KIOSK_MODE = import.meta.env.VITE_KIOSK_MODE === 'true'
 
 // Helper to detect if we're returning from OAuth redirect
 const isOAuthRedirect = () => {
@@ -82,54 +78,33 @@ function App() {
   const [uploadTargetArea, setUploadTargetArea] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
-  // Kiosk session timeout handler - resets all state after 5 minutes of inactivity
-  const handleSessionReset = useCallback(() => {
-    console.log('Kiosk session reset due to inactivity')
-    toast.info('Session reset due to inactivity. Starting fresh!')
-
-    // Reset all state
-    setCurrentUser(null)
-    setSelectedProduct(null)
-    setSelectedConfiguration(null)
-    setMessages([])
-    setDesignFiles([])
-    setCurrentPrintArea(undefined)
-    setShowAuthDialog(false)
-    setShowCheckout(false)
-    setPendingAction(null)
-    setCurrentDesign(null)
-    setActiveView('products')
-    setShowAdminDashboard(false)
-    setShowAccountDialog(false)
-    setDesignPreferences(null)
-
-    // Sign out from Supabase
-    api.auth.signOut().catch(console.error)
-  }, [setCurrentUser])
-
   const handleSignOut = async () => {
-    await api.auth.signOut()
-    setCurrentUser(null)
-    toast.success('Signed out successfully.')
+    try {
+      if (import.meta.env.DEV) {
+        console.log('🔐 handleSignOut: Starting sign out process')
+      }
+      await api.auth.signOut()
+      if (import.meta.env.DEV) {
+        console.log('🔐 handleSignOut: Sign out completed, clearing user state')
+      }
+      setCurrentUser(null)
+      toast.success('Signed out successfully.')
+    } catch (error) {
+      if (import.meta.env.DEV) {
+        console.error('🔐 handleSignOut: Sign out error:', error)
+      }
+      // Clear user state locally even if remote sign-out fails
+      setCurrentUser(null)
+      toast.info('Signed out locally. Remote session may still be active.')
+    }
   }
-
-  // Initialize kiosk session timeout
-  useKioskSession({
-    onSessionReset: handleSessionReset,
-    enabled: KIOSK_MODE
-  })
 
   useEffect(() => {
     const initializeApp = async () => {
-      // Initialize admin data
+      // Initialize admin product list (catalog) from KV fallback when empty
       const products = await kvService.get<Product[]>('admin-products')
       if (!products || products.length === 0) {
         await kvService.set('admin-products', MOCK_PRODUCTS)
-      }
-
-      const orders = await kvService.get('admin-orders')
-      if (!orders) {
-        await kvService.set('admin-orders', MOCK_ORDERS)
       }
 
       const pendingDesigns = await kvService.get('pending-designs')
@@ -159,48 +134,83 @@ function App() {
   }, [])
 
   // Set up auth state change listener for OAuth flows
+  // This must be set up once on mount to properly catch OAuth callbacks
   useEffect(() => {
     // Set up the listener with proper event handling
     const subscription = api.auth.onAuthStateChange(async (event, session) => {
-      console.log('Auth state change:', event, session?.user?.email)
+      // Log auth state changes in development for debugging
+      if (import.meta.env.DEV) {
+        console.log('🔐 Auth state change:', event, session?.user?.email || 'no email')
+      }
 
       try {
-        if (event === 'SIGNED_IN' && session?.user) {
+        if (event === 'SIGNED_IN') {
           // User signed in - get or create user profile
+          // Note: We don't check session?.user because after OAuth redirect,
+          // the session object may exist but the user property might not be
+          // populated immediately. We fetch the current user directly instead.
+          if (import.meta.env.DEV) {
+            console.log('🔐 Processing SIGNED_IN event, fetching user...')
+          }
           const user = await api.auth.getCurrentUser()
           if (user) {
+            if (import.meta.env.DEV) {
+              console.log('🔐 Setting current user from auth state change:', user.email)
+            }
             setCurrentUser(user)
             // Show welcome toast only on new sign-in (not on page refresh)
             if (!isOAuthRedirect()) {
               toast.success(`Welcome, ${user.name || user.email}!`)
             }
+          } else {
+            if (import.meta.env.DEV) {
+              console.warn('🔐 SIGNED_IN event but no user returned from getCurrentUser')
+            }
           }
         } else if (event === 'SIGNED_OUT') {
+          if (import.meta.env.DEV) {
+            console.log('🔐 Processing SIGNED_OUT event')
+          }
           setCurrentUser(null)
         } else if (event === 'TOKEN_REFRESHED') {
           // Session was refreshed - silently update user data if needed
+          if (import.meta.env.DEV) {
+            console.log('🔐 Processing TOKEN_REFRESHED event')
+          }
           const user = await api.auth.getCurrentUser()
           if (user) {
             setCurrentUser(user)
           }
         } else if (event === 'USER_UPDATED') {
           // User data was updated - refresh the user object
+          if (import.meta.env.DEV) {
+            console.log('🔐 Processing USER_UPDATED event')
+          }
           const user = await api.auth.getCurrentUser()
           if (user) {
             setCurrentUser(user)
           }
         }
       } catch (error) {
-        console.error('Error handling auth state change:', error)
+        if (import.meta.env.DEV) {
+          console.error('🔐 Error handling auth state change:', error)
+        }
       }
     })
 
+    if (import.meta.env.DEV) {
+      console.log('🔐 Auth state change listener registered')
+    }
+
     return () => {
+      if (import.meta.env.DEV) {
+        console.log('🔐 Auth state change listener unsubscribing')
+      }
       if (subscription?.data?.subscription) {
         subscription.data.subscription.unsubscribe()
       }
     }
-  }, [setCurrentUser])
+  }, []) // Empty dependency array - only set up once on mount to avoid race conditions
 
   // Only auto-load initial message if we skip the brief form and land directly in design view
   // This is a fallback for edge cases - normally handleSkipToChat or handleDesignPreferencesSubmit handle this
@@ -487,7 +497,7 @@ function App() {
       const printArea = selectedProduct.printAreas.find(pa => pa.id === targetPrintArea)
       if (!printArea) return
 
-      const designUrl = await api.ai.generateDesign(
+      const result = await api.ai.generateDesign(
         prompt,
         {
           ...printArea.constraints,
@@ -496,6 +506,10 @@ function App() {
         },
         currentUser || null
       )
+      
+      const designUrl = result.imageUrl
+      const isNSFW = result.isNSFW
+      
       const metrics = await getImageMetrics(designUrl, printArea)
       
       const newDesign: DesignFile = {
@@ -514,9 +528,21 @@ function App() {
         return [...filtered, newDesign]
       })
 
+      // Show NSFW warning if content is flagged
+      if (isNSFW) {
+        toast.warning('⚠️ This design contains mature content (18+ only). This may include language, themes, or references not suitable for minors.')
+      }
+
       toast.success('Design generated! Check the preview.')
     } catch (error: any) {
-      toast.error(error.message || 'Failed to generate design')
+      // Check if error is due to age verification requirement
+      if (error instanceof AgeVerificationRequiredError) {
+        setRequiresAgeVerification(true)
+        setShowAuthDialog(true)
+        toast.error('Age verification required to generate NSFW content.')
+      } else {
+        toast.error(error.message || 'Failed to generate design')
+      }
     }
   }
 
@@ -716,6 +742,9 @@ function App() {
   }
 
   const handleAuthenticated = (user: User) => {
+    if (import.meta.env.DEV) {
+      console.log('handleAuthenticated: User authenticated:', user.email)
+    }
     setCurrentUser(user)
     
     if (pendingAction === 'checkout') {
@@ -827,7 +856,7 @@ function App() {
       const printArea = selectedProduct.printAreas.find(pa => pa.id === currentPrintArea)
       if (!printArea) return
 
-      const designUrl = await api.ai.generateDesign(
+      const result = await api.ai.generateDesign(
         recentUserMessages,
         {
           ...printArea.constraints,
@@ -836,6 +865,10 @@ function App() {
         },
         currentUser || null
       )
+      
+      const designUrl = result.imageUrl
+      const isNSFW = result.isNSFW
+      
       const metrics = await getImageMetrics(designUrl, printArea)
 
       const newDesign: DesignFile = {
@@ -853,6 +886,11 @@ function App() {
         const filtered = prev.filter(df => df.printAreaId !== currentPrintArea)
         return [...filtered, newDesign]
       })
+
+      // Show NSFW warning if content is flagged
+      if (isNSFW) {
+        toast.warning('⚠️ This design contains mature content (18+ only). This may include language, themes, or references not suitable for minors.')
+      }
 
       toast.success('Design generated! Click the edit button in Design Progress to customize it.', {
         duration: 5000
@@ -914,7 +952,7 @@ function App() {
                 />
                 <div>
                   <h1 className="text-xl font-bold tracking-tight">GoldenGooseTees</h1>
-                  <p className="text-xs text-muted-foreground">AI Design Kiosk</p>
+                  <p className="text-xs text-muted-foreground">GoldenGooseTees</p>
                 </div>
               </div>
 

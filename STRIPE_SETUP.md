@@ -5,7 +5,7 @@ This guide will walk you through setting up Stripe payment processing for Golden
 ## Prerequisites
 
 - A Stripe account (sign up at [stripe.com](https://stripe.com))
-- Admin access to the GoldenGooseTees kiosk
+- Admin access to the GoldenGooseTees admin console
 
 ## Step 1: Get Your Stripe API Keys
 
@@ -58,7 +58,7 @@ For all test cards:
 
 ### Testing a Purchase
 
-1. Create a custom design in the kiosk
+1. Create a custom design in the app
 2. Click **Proceed to Checkout**
 3. Fill in shipping address
 4. Use a test card number (e.g., `4242 4242 4242 4242`)

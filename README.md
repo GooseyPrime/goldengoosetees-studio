@@ -1,6 +1,6 @@
-# GoldenGooseTees - AI T-Shirt Design Kiosk
+# GoldenGooseTees - AI T-Shirt Design
 
-A production-ready AI-powered T-shirt design kiosk that enables users to create custom designs through conversational AI (GPT-4o via OpenRouter), generate high-quality artwork (DALL-E 3), and seamlessly checkout with Stripe payments and Printful fulfillment.
+A production-ready AI-powered web app for custom T-shirt design. Users create designs through conversational AI (GPT-4o via OpenRouter), generate high-quality artwork (DALL-E 3), and checkout with Stripe payments and Printful fulfillment. Built for normal browser use with many concurrent users and server-backed orders.
 
 ## Features
 
@@ -109,9 +109,7 @@ In your Vercel project settings (Settings → Environment Variables), add:
 
 | Variable | Example | Description |
 |----------|---------|-------------|
-| `VITE_APP_URL` | `https://goldengoosetees.com` | Your deployed app URL |
-| `VITE_KIOSK_MODE` | `true` | Enable kiosk session timeout |
-| `VITE_SESSION_TIMEOUT_MINUTES` | `5` | Inactivity timeout in minutes |
+| `VITE_APP_URL` | `https://your-app.vercel.app` | Your deployed app URL (e.g. https://www.goldengoosetees.com) |
 
 ### Step 3: Set Up Supabase Database
 
@@ -268,7 +266,7 @@ npm run dev
 ## Project Structure
 
 ```
-goldengoosetees-kiosk/
+goldengoosetees/
 ├── api/
 │   └── webhooks/
 │       └── stripe.ts          # Vercel serverless webhook handler
@@ -282,7 +280,7 @@ goldengoosetees-kiosk/
 │   │   ├── DesignPreview.tsx  # Design + mockup preview
 │   │   └── ...
 │   ├── hooks/
-│   │   └── useInactivityTimeout.ts  # Kiosk session timeout
+│   │   └── useInactivityTimeout.ts  # Optional inactivity timeout utility
 │   ├── lib/
 │   │   ├── ai-agents.ts       # OpenRouter + DALL-E + Admin Agent
 │   │   ├── api.ts             # Main API facade
