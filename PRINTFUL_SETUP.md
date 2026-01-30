@@ -15,7 +15,7 @@ The Printful integration enables:
 
 1. A Printful account (sign up at https://www.printful.com)
 2. At least one store configured in your Printful account
-3. Admin access to the GoldenGooseTees kiosk
+3. Admin access to the GoldenGooseTees admin console
 
 ## Getting Your Printful API Key
 
@@ -30,7 +30,7 @@ Visit https://www.printful.com and log in to your account.
 ### Step 3: Generate API Key
 1. Scroll down to the **API** section
 2. Click **"Add API Access"**
-3. Give your API key a name (e.g., "GoldenGooseTees Kiosk")
+3. Give your API key a name (e.g., "GoldenGooseTees Web App")
 4. Copy the generated API key immediately (you won't be able to see it again)
 
 ### Step 4: Configure in Vercel (Server-Side)
@@ -49,7 +49,7 @@ Visit https://www.printful.com and log in to your account.
 6. **Redeploy your application** for the changes to take effect
 
 ### Step 5: Verify Configuration
-1. Log in to the kiosk as an admin user
+1. Log in as an admin user
 2. Click the **Admin** button in the header
 3. Navigate to the **Settings** tab
 4. Find the **Printful Configuration** section
@@ -58,7 +58,7 @@ Visit https://www.printful.com and log in to your account.
 
 ## Product SKU Mapping
 
-The kiosk uses Printful's product variant IDs for fulfillment. You need to ensure your products are mapped to the correct Printful SKUs.
+The app uses Printful's product variant IDs for fulfillment. You need to ensure your products are mapped to the correct Printful SKUs.
 
 ### Common Printful Product IDs:
 - **71** - Bella + Canvas 3001 (Unisex Jersey Short Sleeve Tee)
@@ -93,7 +93,7 @@ When a customer completes checkout:
 3. Order is shipped
 4. Tracking number is generated
 
-### 3. Order Tracking (Kiosk)
+### 3. Order Tracking
 Admins can:
 1. View all orders in **Admin** → **Orders** tab
 2. Click the sync button to fetch latest status from Printful
@@ -122,7 +122,7 @@ Different products have different print areas:
 - **Back Print**: Typically 12" x 16"
 - **Sleeve Print**: Typically 3" x 4"
 
-The kiosk automatically enforces these constraints during design creation.
+The app automatically enforces these constraints during design creation.
 
 ## Troubleshooting
 
@@ -153,7 +153,7 @@ Printful has the following rate limits:
 - **120 requests per minute** per API key
 - **14,400 requests per day** per API key
 
-The kiosk automatically handles rate limiting and will retry failed requests.
+The app automatically handles rate limiting and will retry failed requests.
 
 ## Costs and Pricing
 
@@ -226,6 +226,6 @@ For real-time order updates:
 
 ## Conclusion
 
-The Printful integration automates the entire fulfillment process, from order submission to tracking. Once configured, orders flow seamlessly from your kiosk to Printful without manual intervention.
+The Printful integration automates the entire fulfillment process, from order submission to tracking. Once configured, orders flow seamlessly from your site to Printful without manual intervention.
 
 For additional help, consult the Printful documentation or contact their support team.

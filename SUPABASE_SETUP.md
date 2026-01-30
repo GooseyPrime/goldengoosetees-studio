@@ -213,7 +213,7 @@ This step requires configuration in **both** Google Cloud Console and Supabase C
 1. Go to **APIs & Services** → **OAuth consent screen**
 2. Select **External** user type (or Internal if using Google Workspace)
 3. Fill in required fields:
-   - **App name**: GoldenGooseTees Kiosk
+   - **App name**: GoldenGooseTees
    - **User support email**: Your email
    - **Developer contact email**: Your email
 4. Click **Save and Continue**
@@ -397,7 +397,7 @@ Double-check that your URLs match across both platforms:
 ## Step 6: Test the Integration
 
 1. Log out of any existing sessions
-2. Go to the main kiosk page
+2. Go to the main page
 3. Click **Sign In**
 4. You should see a Google sign-in button
 5. Complete the Google OAuth flow

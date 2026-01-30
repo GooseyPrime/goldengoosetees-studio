@@ -1,8 +1,8 @@
-# AI System Guide - GoldenGooseTees Kiosk
+# AI System Guide - GoldenGooseTees
 
 ## Overview
 
-The GoldenGooseTees kiosk uses a multi-agent AI system to provide safe, helpful, and legally compliant design assistance. All agents use GPT-4 for dynamic, context-aware responses.
+The GoldenGooseTees app uses a multi-agent AI system to provide safe, helpful, and legally compliant design assistance. All agents use GPT-4 for dynamic, context-aware responses.
 
 ## Agent Architecture
 
