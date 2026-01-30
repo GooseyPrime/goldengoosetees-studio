@@ -60,6 +60,9 @@ CREATE TABLE IF NOT EXISTS users (
 -- Index for email lookups
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 
+-- Index for RLS policy performance (id column used in policy checks)
+CREATE INDEX IF NOT EXISTS idx_users_id_rls ON users(id);
+
 -- ============================================
 -- Designs Table
 -- ============================================
@@ -213,18 +216,31 @@ ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE design_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE catalog_sections ENABLE ROW LEVEL SECURITY;
 
--- Users policies
+-- Users policies (optimized with subselect pattern for better plan caching)
 DROP POLICY IF EXISTS "Users can view their own profile" ON users;
 CREATE POLICY "Users can view their own profile" ON users
-    FOR SELECT USING (auth.uid() = id);
-
-DROP POLICY IF EXISTS "Users can update their own profile" ON users;
-CREATE POLICY "Users can update their own profile" ON users
-    FOR UPDATE USING (auth.uid() = id);
+    FOR SELECT 
+    TO authenticated
+    USING ((SELECT auth.uid()) = id);
 
 DROP POLICY IF EXISTS "Users can insert their own profile" ON users;
 CREATE POLICY "Users can insert their own profile" ON users
-    FOR INSERT WITH CHECK (auth.uid() = id);
+    FOR INSERT 
+    TO authenticated
+    WITH CHECK ((SELECT auth.uid()) = id);
+
+DROP POLICY IF EXISTS "Users can update their own profile" ON users;
+CREATE POLICY "Users can update their own profile" ON users
+    FOR UPDATE 
+    TO authenticated
+    USING ((SELECT auth.uid()) = id)
+    WITH CHECK ((SELECT auth.uid()) = id);
+
+DROP POLICY IF EXISTS "Users can delete their own profile" ON users;
+CREATE POLICY "Users can delete their own profile" ON users
+    FOR DELETE 
+    TO authenticated
+    USING ((SELECT auth.uid()) = id);
 
 -- Designs policies
 DROP POLICY IF EXISTS "Users can view their own designs" ON designs;
@@ -270,11 +286,30 @@ CREATE POLICY "Anyone can view catalog sections" ON catalog_sections
 -- Admin policies (for users with admin role)
 -- ============================================
 
--- Admin can view all users
+-- Admin can view all users (optimized with subselect)
 DROP POLICY IF EXISTS "Admins can view all users" ON users;
 CREATE POLICY "Admins can view all users" ON users
-    FOR SELECT USING (
-        EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin')
+    FOR SELECT 
+    TO authenticated
+    USING (
+        EXISTS (
+            SELECT 1 FROM users 
+            WHERE id = (SELECT auth.uid()) 
+            AND role = 'admin'
+        )
+    );
+
+-- Admin can update all users
+DROP POLICY IF EXISTS "Admins can update all users" ON users;
+CREATE POLICY "Admins can update all users" ON users
+    FOR UPDATE 
+    TO authenticated
+    USING (
+        EXISTS (
+            SELECT 1 FROM users 
+            WHERE id = (SELECT auth.uid()) 
+            AND role = 'admin'
+        )
     );
 
 -- Admin can view all designs
