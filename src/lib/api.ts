@@ -558,7 +558,7 @@ export const api = {
   },
   
   ai: {
-    async generateDesign(prompt: string, constraints: any, user: User | null): Promise<string> {
+    async generateDesign(prompt: string, constraints: any, user: User | null): Promise<{ imageUrl: string; isNSFW: boolean }> {
       // Image generation: always via backend (Gemini first, then DALL-E fallback).
       const hasOpenRouter = aiAgents.hasOpenRouter()
       let isNSFW = false
@@ -599,7 +599,8 @@ export const api = {
         }
       }
 
-      return await aiAgents.designGenerator.generate(prompt, constraints)
+      const imageUrl = await aiAgents.designGenerator.generate(prompt, constraints)
+      return { imageUrl, isNSFW }
     },
     
     async chat(
