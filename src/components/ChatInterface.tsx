@@ -47,7 +47,7 @@ export function ChatInterface({ messages, onSendMessage, isLoading }: ChatInterf
           </div>
           <div>
             <h3 className="font-semibold">AI Design Assistant</h3>
-            <p className="text-xs text-muted-foreground">Powered by GPT-4</p>
+            <p className="text-xs text-muted-foreground">Powered by AI</p>
           </div>
         </div>
       </div>
