@@ -22,7 +22,10 @@ import { toast } from 'sonner'
 import { format } from 'date-fns'
 
 interface OrderManagerProps {
+  orders: Order[]
+  onOrdersChange: () => Promise<void>
   products: Product[]
+  ordersLoading?: boolean
 }
 
 interface OrderWithUser extends Order {
@@ -33,13 +36,16 @@ interface OrderWithUser extends Order {
   }
 }
 
-export function OrderManager({ orders, onOrdersChange, products }: OrderManagerProps) {
+export function OrderManager({ orders, onOrdersChange, products, ordersLoading: ordersLoadingProp = false }: OrderManagerProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<OrderStatus | 'all'>('all')
   const [viewingOrder, setViewingOrder] = useState<Order | null>(null)
   const [isSyncing, setIsSyncing] = useState(false)
 
-  const filteredOrders = orders.filter(order => {
+  const loadOrders = onOrdersChange
+  const isLoading = ordersLoadingProp
+
+  const filteredOrders = (orders || []).filter(order => {
     const matchesSearch = 
       order.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
       order.shippingAddress.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -75,7 +81,7 @@ export function OrderManager({ orders, onOrdersChange, products }: OrderManagerP
 
       const data = await response.json()
       toast.success('Order synced with Printful')
-      await loadOrders() // Reload orders
+      await loadOrders()
     } catch (error: any) {
       toast.error(error.message || 'Failed to sync with Printful')
       console.error(error)

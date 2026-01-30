@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useAppKV } from '@/hooks/useAppKV'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -29,6 +29,8 @@ import {
   Activity
 } from '@phosphor-icons/react'
 import { Product, Order, Design } from '@/lib/types'
+import { orderRowToOrder } from '@/lib/api'
+import { supabaseService } from '@/lib/supabase'
 
 interface AdminDashboardProps {
   onClose: () => void
@@ -36,9 +38,41 @@ interface AdminDashboardProps {
 
 export function AdminDashboard({ onClose }: AdminDashboardProps) {
   const [products, setProducts] = useAppKV<Product[]>('admin-products', [])
-  const [orders, setOrders] = useAppKV<Order[]>('admin-orders', [])
+  const [orders, setOrders] = useState<Order[]>([])
+  const [ordersLoading, setOrdersLoading] = useState(false)
   const [pendingDesigns, setPendingDesigns] = useAppKV<Design[]>('pending-designs', [])
   const [activeTab, setActiveTab] = useState('stats')
+
+  const loadOrders = useCallback(async () => {
+    setOrdersLoading(true)
+    try {
+      const session = await supabaseService.getSession()
+      if (!session?.access_token) {
+        setOrders([])
+        return
+      }
+      const res = await fetch('/api/admin/orders/list?limit=100', {
+        headers: { Authorization: `Bearer ${session.access_token}` }
+      })
+      if (!res.ok) {
+        setOrders([])
+        return
+      }
+      const data = await res.json()
+      const rows = (data.orders || []) as Record<string, unknown>[]
+      setOrders(rows.map(orderRowToOrder))
+    } catch {
+      setOrders([])
+    } finally {
+      setOrdersLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (activeTab === 'orders') {
+      loadOrders()
+    }
+  }, [activeTab, loadOrders])
 
   const pendingOrdersCount = (orders || []).filter(o => o.status === 'pending').length
   const pendingDesignsCount = (pendingDesigns || []).filter(d => d.isPublic && !d.catalogSection).length
@@ -115,8 +149,11 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
           </TabsContent>
 
           <TabsContent value="orders">
-            <OrderManager 
+            <OrderManager
+              orders={orders}
+              onOrdersChange={loadOrders}
               products={products || []}
+              ordersLoading={ordersLoading}
             />
           </TabsContent>
 
