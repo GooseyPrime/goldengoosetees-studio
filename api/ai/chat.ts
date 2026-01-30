@@ -41,7 +41,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
         'Content-Type': 'application/json',
         'HTTP-Referer': process.env.VITE_APP_URL || 'https://goldengoosetees.com',
-        'X-Title': 'Golden Goose Tees Kiosk'
+        'X-Title': 'Golden Goose Tees'
       },
       body: JSON.stringify({
         model,
