@@ -79,9 +79,18 @@ function App() {
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   const handleSignOut = async () => {
-    await api.auth.signOut()
-    setCurrentUser(null)
-    toast.success('Signed out successfully.')
+    try {
+      console.log('handleSignOut: Starting sign out process')
+      await api.auth.signOut()
+      console.log('handleSignOut: Sign out completed, clearing user state')
+      setCurrentUser(null)
+      toast.success('Signed out successfully.')
+    } catch (error) {
+      console.error('handleSignOut: Sign out error:', error)
+      // Clear user state locally even if remote sign-out fails
+      setCurrentUser(null)
+      toast.success('Signed out successfully.')
+    }
   }
 
   useEffect(() => {
@@ -127,24 +136,31 @@ function App() {
       try {
         if (event === 'SIGNED_IN' && session?.user) {
           // User signed in - get or create user profile
+          console.log('Processing SIGNED_IN event')
           const user = await api.auth.getCurrentUser()
           if (user) {
+            console.log('Setting current user from auth state change:', user.email)
             setCurrentUser(user)
             // Show welcome toast only on new sign-in (not on page refresh)
             if (!isOAuthRedirect()) {
               toast.success(`Welcome, ${user.name || user.email}!`)
             }
+          } else {
+            console.warn('SIGNED_IN event but no user returned from getCurrentUser')
           }
         } else if (event === 'SIGNED_OUT') {
+          console.log('Processing SIGNED_OUT event')
           setCurrentUser(null)
         } else if (event === 'TOKEN_REFRESHED') {
           // Session was refreshed - silently update user data if needed
+          console.log('Processing TOKEN_REFRESHED event')
           const user = await api.auth.getCurrentUser()
           if (user) {
             setCurrentUser(user)
           }
         } else if (event === 'USER_UPDATED') {
           // User data was updated - refresh the user object
+          console.log('Processing USER_UPDATED event')
           const user = await api.auth.getCurrentUser()
           if (user) {
             setCurrentUser(user)
@@ -662,6 +678,7 @@ function App() {
   }
 
   const handleAuthenticated = (user: User) => {
+    console.log('handleAuthenticated: User authenticated:', user.email)
     setCurrentUser(user)
     
     if (pendingAction === 'checkout') {
