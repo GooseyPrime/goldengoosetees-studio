@@ -1,5 +1,7 @@
 # Quick Reference: Applying RLS Optimizations
 
+> **📚 Related Documentation**: [Documentation Library](./docs/README.md) | [Supabase Setup](./SUPABASE_SETUP.md) | [Security Guide](./SECURITY.md)
+
 ## For Existing Databases
 
 ### Option 1: Using Supabase Dashboard

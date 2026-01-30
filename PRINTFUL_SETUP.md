@@ -1,5 +1,7 @@
 # Printful Integration Setup Guide
 
+> **📚 Related Documentation**: [Documentation Library](./docs/README.md) | [README](./README.md) | [.env.example](./.env.example)
+
 This guide will help you configure the Printful API integration for automated order fulfillment in GoldenGooseTees.
 
 ## Overview

@@ -1,5 +1,7 @@
 # RLS Optimization Summary
 
+> **📋 Technical Reference**: This document describes Row Level Security optimizations. For current security documentation, see [SECURITY.md](./SECURITY.md) and [Documentation Library](./docs/README.md).
+
 ## Issue Resolved
 ✅ **Supabase Lint Warning**: "RLS Disabled in Public - Entity: public.users"
 

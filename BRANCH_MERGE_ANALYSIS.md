@@ -1,5 +1,7 @@
 # Branch Merge Analysis Report
 
+> **📋 Historical Record**: This analysis document is from 2025-12-19. For current development practices, see the [Documentation Library](./docs/README.md).
+
 **Date:** 2025-12-19  
 **Repository:** InTellMe/goldengoosetees-kiosk  
 **Analysis:** Review of active branches to determine merge status

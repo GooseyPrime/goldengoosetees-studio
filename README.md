@@ -1,13 +1,15 @@
 # GoldenGooseTees - AI T-Shirt Design
 
-A production-ready AI-powered web app for custom T-shirt design. Users create designs through conversational AI (GPT-4o via OpenRouter), generate high-quality artwork (DALL-E 3), and checkout with Stripe payments and Printful fulfillment. Built for normal browser use with many concurrent users and server-backed orders.
+> 📚 **[Complete Documentation Library](./docs/README.md)** - Setup guides, API references, and troubleshooting
+
+A production-ready AI-powered web app for custom T-shirt design. Users create designs through conversational AI (Gemini), generate high-quality artwork (Gemini/DALL-E 3), and checkout with Stripe payments and Printful fulfillment. Built for normal browser use with many concurrent users and server-backed orders.
 
 ## Features
 
 ### Core Functionality
 
-- **AI Design Assistant** - GPT-4o powered conversational AI guides users through design creation
-- **DALL-E 3 Image Generation** - High-quality 1024x1024 HD design generation
+- **AI Design Assistant** - Gemini-powered conversational AI guides users through design creation
+- **AI Image Generation** - Gemini & DALL-E 3 for high-quality 1024x1024 HD design generation
 - **Stripe Checkout** - Secure hosted payment page with multiple payment options
 - **Printful Integration** - Automated order fulfillment with mockup generation
 - **Supabase Backend** - PostgreSQL database, Google OAuth, and file storage
@@ -33,8 +35,8 @@ A production-ready AI-powered web app for custom T-shirt design. Users create de
 | **Auth** | Supabase Auth + Google OAuth |
 | **Payments** | Stripe Checkout |
 | **Fulfillment** | Printful API |
-| **AI Chat** | OpenRouter (GPT-4o) |
-| **AI Images** | OpenAI DALL-E 3 |
+| **AI Chat** | Google Gemini (primary), OpenAI fallback |
+| **AI Images** | Google Gemini (primary), DALL-E 3 fallback |
 | **Hosting** | Vercel |
 
 ---
@@ -49,8 +51,8 @@ Before deploying, you'll need accounts with:
 2. **Supabase** - [supabase.com](https://supabase.com)
 3. **Stripe** - [stripe.com](https://stripe.com)
 4. **Printful** - [printful.com](https://printful.com)
-5. **OpenRouter** - [openrouter.ai](https://openrouter.ai)
-6. **OpenAI** - [platform.openai.com](https://platform.openai.com)
+5. **Google AI (Gemini)** - [aistudio.google.com](https://aistudio.google.com/apikey)
+6. **OpenAI** (optional) - [platform.openai.com](https://platform.openai.com)
 
 ### Step 1: Deploy to Vercel
 
@@ -98,12 +100,16 @@ In your Vercel project settings (Settings → Environment Variables), add:
 
 | Variable | Example | Description |
 |----------|---------|-------------|
-| `VITE_OPENROUTER_API_KEY` | `sk-or-v1-...` | OpenRouter API key for chat |
-| `VITE_OPENAI_API_KEY` | `sk-...` | OpenAI API key for DALL-E 3 |
+| `GEMINI_API_KEY` | `AIza...` | Google Gemini API key (primary for chat & images, server-only) |
+| `OPENAI_API_KEY` | `sk-...` | OpenAI API key (optional fallback, server-only) |
+| `OPENROUTER_API_KEY` | `sk-or-v1-...` | OpenRouter API key (optional alternative, server-only) |
 
 **Where to find:**
-- OpenRouter: [openrouter.ai/keys](https://openrouter.ai/keys)
+- Google AI Studio: [aistudio.google.com/apikey](https://aistudio.google.com/apikey)
 - OpenAI: [platform.openai.com/api-keys](https://platform.openai.com/api-keys)
+- OpenRouter: [openrouter.ai/keys](https://openrouter.ai/keys)
+
+**Important**: AI keys are server-side only (no `VITE_` prefix). The app uses Gemini as the primary provider for both chat and image generation, with automatic fallback to OpenAI when configured.
 
 #### App Configuration
 
@@ -341,11 +347,21 @@ UPDATE users SET role = 'admin' WHERE email = 'admin@goldengoosetees.com';
 
 ## Documentation
 
-- [SUPABASE_SETUP.md](./SUPABASE_SETUP.md) - Detailed Supabase and Google OAuth setup
-- [STRIPE_SETUP.md](./STRIPE_SETUP.md) - Stripe configuration guide
-- [PRINTFUL_SETUP.md](./PRINTFUL_SETUP.md) - Printful API and product mapping
-- [AI_SYSTEM_GUIDE.md](./AI_SYSTEM_GUIDE.md) - AI agent architecture
-- [SECURITY.md](./SECURITY.md) - Security considerations
+**📚 [Documentation Library](./docs/README.md)** - Complete indexed documentation with setup guides and API references
+
+### Core Setup Guides
+
+- **[Supabase Setup](./SUPABASE_SETUP.md)** - Database, Google OAuth authentication, and file storage
+- **[Stripe Setup](./STRIPE_SETUP.md)** - Payment processing and webhook configuration
+- **[Printful Setup](./PRINTFUL_SETUP.md)** - Order fulfillment and product mapping
+- **[AI System Guide](./AI_SYSTEM_GUIDE.md)** - AI providers, configuration, and fallback behavior
+- **[Security Guide](./SECURITY.md)** - Security best practices and considerations
+
+### Additional Resources
+
+- **[Migration Guide](./MIGRATION_GUIDE.md)** - Database schema migrations
+- **[RLS Optimization](./RLS_OPTIMIZATION.md)** - Row Level Security performance tuning
+- **[Image Combiner Guide](./IMAGE_COMBINER_GUIDE.md)** - Multi-layer design composition
 
 ---
 

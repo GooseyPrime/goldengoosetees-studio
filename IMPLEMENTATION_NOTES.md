@@ -1,5 +1,7 @@
 # Implementation Notes - Iteration 6
 
+> **📋 Historical Record**: This document describes implementation details from a specific development iteration. For current architecture and API documentation, see the [Documentation Library](./docs/README.md) and [AI System Guide](./AI_SYSTEM_GUIDE.md).
+
 ## Major Changes Implemented
 
 ### 1. AI Agent System with Content Moderation

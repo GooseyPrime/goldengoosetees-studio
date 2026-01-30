@@ -1,5 +1,7 @@
 # Supabase Setup Guide for GoldenGooseTees
 
+> **📚 Related Documentation**: [Documentation Library](./docs/README.md) | [README](./README.md) | [.env.example](./.env.example)
+
 This guide will help you integrate Supabase for database storage and Google OAuth authentication.
 
 ## Quick Reference: OAuth URLs

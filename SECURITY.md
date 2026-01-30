@@ -1,3 +1,13 @@
+# Security Guide - GoldenGooseTees
+
+> **📚 Related Documentation**: [Documentation Library](./docs/README.md) | [.env.example](./.env.example) | [Supabase Setup](./SUPABASE_SETUP.md)
+
+This document outlines security best practices and considerations for the GoldenGooseTees application.
+
+---
+
+# GitHub Security Notice
+
 Thanks for helping make GitHub safe for everyone.
 
 # Security

@@ -1,8 +1,72 @@
 # AI System Guide - GoldenGooseTees
 
+> **📚 Related Documentation**: See [Documentation Library](./docs/README.md) for complete setup guides and [.env.example](./.env.example) for environment variables.
+
 ## Overview
 
-The GoldenGooseTees app uses a multi-agent AI system to provide safe, helpful, and legally compliant design assistance. All agents use GPT-4 for dynamic, context-aware responses.
+The GoldenGooseTees app uses a multi-agent AI system to provide safe, helpful, and legally compliant design assistance. The system integrates with multiple AI providers for both conversational chat and image generation.
+
+## AI Provider Implementation
+
+### Chat/Conversation System
+
+**Implementation**: `api/ai/chat.ts`
+
+The chat system supports three providers with configurable priority (set in admin dashboard):
+
+1. **Gemini (Default Primary)**
+   - Model: `gemini-2.0-flash` (configurable)
+   - Fallback: If Gemini fails and `OPENAI_API_KEY` is set → OpenAI `gpt-4o`
+   - Requires: `GEMINI_API_KEY` (server-side only)
+
+2. **OpenAI (Admin-Selectable)**
+   - Model: `gpt-4o` (configurable)
+   - Direct OpenAI API usage
+   - Requires: `OPENAI_API_KEY` (server-side only)
+
+3. **OpenRouter (Admin-Selectable)**
+   - Model: `openai/gpt-4o` default (configurable)
+   - Useful for accessing multiple models through one API
+   - Requires: `OPENROUTER_API_KEY` (server-side only)
+
+**Default Behavior**: Uses Gemini with automatic OpenAI fallback for reliability.
+
+### Image Generation System
+
+**Implementation**: `api/ai/generate-design.ts`
+
+Image generation always tries providers in this order (no admin configuration):
+
+1. **Gemini Primary**: `gemini-2.0-flash-exp-image-generation` ("Nano-Banana style")
+2. **Gemini Fallback**: `gemini-2.0-flash-exp`
+3. **DALL-E 3**: OpenAI (if `OPENAI_API_KEY` is configured)
+
+**Requires**: At minimum `GEMINI_API_KEY`. Recommended: both `GEMINI_API_KEY` and `OPENAI_API_KEY` for full fallback coverage.
+
+### Environment Variables
+
+```bash
+# Required (at least one)
+GEMINI_API_KEY=your-gemini-key          # Primary for chat and images
+
+# Optional (recommended for fallback)
+OPENAI_API_KEY=your-openai-key          # Fallback for chat, DALL-E 3 for images
+OPENROUTER_API_KEY=your-openrouter-key  # Alternative chat provider
+```
+
+All AI API keys are **server-side only** (no `VITE_` prefix). They are never exposed to the browser.
+
+### Admin Configuration
+
+Administrators can configure the conversational AI provider via the Admin Dashboard:
+- Navigate to Admin → Settings → AI Configuration
+- Select provider: Gemini (default), OpenAI, or OpenRouter
+- Configure model IDs (optional)
+- Test connections
+
+Image generation provider order is fixed in code and not configurable via UI.
+
+---
 
 ## Agent Architecture
 
