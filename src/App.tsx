@@ -80,16 +80,20 @@ function App() {
 
   const handleSignOut = async () => {
     try {
-      console.log('handleSignOut: Starting sign out process')
+      if (import.meta.env.DEV) {
+        console.log('handleSignOut: Starting sign out process')
+      }
       await api.auth.signOut()
-      console.log('handleSignOut: Sign out completed, clearing user state')
+      if (import.meta.env.DEV) {
+        console.log('handleSignOut: Sign out completed, clearing user state')
+      }
       setCurrentUser(null)
       toast.success('Signed out successfully.')
     } catch (error) {
       console.error('handleSignOut: Sign out error:', error)
       // Clear user state locally even if remote sign-out fails
       setCurrentUser(null)
-      toast.success('Signed out locally.')
+      toast.info('Signed out locally. Remote session may still be active.')
     }
   }
 
@@ -131,16 +135,24 @@ function App() {
   useEffect(() => {
     // Set up the listener with proper event handling
     const subscription = api.auth.onAuthStateChange(async (event, session) => {
-      console.log('Auth state change:', event, session?.user?.email)
+      if (import.meta.env.DEV) {
+        console.log('Auth state change:', event, session?.user?.email)
+      }
 
       try {
         if (event === 'SIGNED_IN') {
           // User signed in - get or create user profile
-          // Don't check session?.user as it might not be populated immediately
-          console.log('Processing SIGNED_IN event, fetching user...')
+          // Note: We don't check session?.user because after OAuth redirect,
+          // the session object may exist but the user property might not be
+          // populated immediately. We fetch the current user directly instead.
+          if (import.meta.env.DEV) {
+            console.log('Processing SIGNED_IN event, fetching user...')
+          }
           const user = await api.auth.getCurrentUser()
           if (user) {
-            console.log('Setting current user from auth state change:', user.email)
+            if (import.meta.env.DEV) {
+              console.log('Setting current user from auth state change:', user.email)
+            }
             setCurrentUser(user)
             // Show welcome toast only on new sign-in (not on page refresh)
             if (!isOAuthRedirect()) {
@@ -150,18 +162,24 @@ function App() {
             console.warn('SIGNED_IN event but no user returned from getCurrentUser')
           }
         } else if (event === 'SIGNED_OUT') {
-          console.log('Processing SIGNED_OUT event')
+          if (import.meta.env.DEV) {
+            console.log('Processing SIGNED_OUT event')
+          }
           setCurrentUser(null)
         } else if (event === 'TOKEN_REFRESHED') {
           // Session was refreshed - silently update user data if needed
-          console.log('Processing TOKEN_REFRESHED event')
+          if (import.meta.env.DEV) {
+            console.log('Processing TOKEN_REFRESHED event')
+          }
           const user = await api.auth.getCurrentUser()
           if (user) {
             setCurrentUser(user)
           }
         } else if (event === 'USER_UPDATED') {
           // User data was updated - refresh the user object
-          console.log('Processing USER_UPDATED event')
+          if (import.meta.env.DEV) {
+            console.log('Processing USER_UPDATED event')
+          }
           const user = await api.auth.getCurrentUser()
           if (user) {
             setCurrentUser(user)
@@ -679,7 +697,9 @@ function App() {
   }
 
   const handleAuthenticated = (user: User) => {
-    console.log('handleAuthenticated: User authenticated:', user.email)
+    if (import.meta.env.DEV) {
+      console.log('handleAuthenticated: User authenticated:', user.email)
+    }
     setCurrentUser(user)
     
     if (pendingAction === 'checkout') {
