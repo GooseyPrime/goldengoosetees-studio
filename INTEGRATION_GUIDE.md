@@ -1,6 +1,6 @@
-# GoldenGooseTees Kiosk - Integration Guide
+# GoldenGooseTees - Integration Guide
 
-This document outlines how to integrate the kiosk with external services.
+This document outlines how to integrate the app with external services.
 
 ## 🔌 Integration Points
 
@@ -188,7 +188,7 @@ The Stripe integration is now production-ready and includes:
    - Copy your Publishable Key (pk_test_* or pk_live_*)
    - Reveal and copy your Secret Key (sk_test_* or sk_live_*)
 
-2. **Configure in the Kiosk**:
+2. **Configure in the Admin Console**:
    - Log in as an admin user
    - Click **Admin** in the header
    - Go to the **Settings** tab
@@ -270,7 +270,7 @@ The Printful integration is now production-ready and includes:
    - (Optional) Add `PRINTFUL_STORE_ID` if you have multiple stores
    - **Redeploy** your application
 
-3. **Verify in the Kiosk**:
+3. **Verify in the Admin Console**:
    - Log in as an admin user
    - Click **Admin** in the header
    - Go to the **Settings** tab

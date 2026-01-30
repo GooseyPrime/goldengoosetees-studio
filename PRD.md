@@ -1,4 +1,4 @@
-# GoldenGooseTees Kiosk - Product Requirements Document
+# GoldenGooseTees - Product Requirements Document
 
 > **Iteration 9 Updates (Latest):**
 > - ✅ Advanced Image Editor - comprehensive canvas-based editor with professional tools
@@ -22,7 +22,7 @@
 >
 > See `IMPLEMENTATION_NOTES.md` and `AI_SYSTEM_GUIDE.md` for technical details.
 
-A sophisticated AI-powered T-shirt design kiosk that enables guest users to create custom designs with conversational guidance, then seamlessly transitions to authenticated checkout with Printful fulfillment and catalog publication.
+A sophisticated AI-powered T-shirt design web app that enables users to create custom designs with conversational guidance, then seamlessly transitions to authenticated checkout with Printful fulfillment and catalog publication.
 
 **Experience Qualities**:
 1. **Effortless** - Users start designing immediately without barriers, with AI guidance removing complexity from the creative process
@@ -140,7 +140,7 @@ This is a multi-phase application with guest sessions, authentication gating, pa
 
 ## Design Direction
 
-The design should evoke a sense of creative empowerment mixed with professional reliability. It's a high-tech vending machine experience—playful and approachable in the AI conversation, but serious and trustworthy when handling payments and fulfillment. The interface should feel like a boutique design studio condensed into a kiosk, with bold product imagery and a clean, focused workflow that keeps users moving forward.
+The design should evoke a sense of creative empowerment mixed with professional reliability. It's a high-tech design experience—playful and approachable in the AI conversation, but serious and trustworthy when handling payments and fulfillment. The interface should feel like a boutique design studio accessible from anywhere, with bold product imagery and a clean, focused workflow that keeps users moving forward.
 
 ## Color Selection
 
@@ -166,7 +166,7 @@ Typefaces should convey modern tech sophistication while remaining approachable 
 - **Accent/Numbers**: JetBrains Mono - For order numbers, SKUs, pricing; adds technical credibility
 
 - **Typographic Hierarchy**:
-  - H1 (Kiosk Title): Space Grotesk Bold/48px/tight letter-spacing/-0.02em
+  - H1 (Page Title): Space Grotesk Bold/48px/tight letter-spacing/-0.02em
   - H2 (Product Names): Space Grotesk SemiBold/32px/tight letter-spacing/-0.01em
   - H3 (Section Headers): Space Grotesk Medium/24px/normal letter-spacing
   - Body (AI Conversation): Inter Regular/16px/line-height 1.6
