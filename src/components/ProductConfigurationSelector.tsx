@@ -55,14 +55,14 @@ export function ProductConfigurationSelector({
       <Button
         variant="outline"
         onClick={onBack}
-        className="mb-6"
+        className="mb-6 rounded-full border-white/20 bg-white/5 hover:bg-white/10"
       >
         ← Back to Products
       </Button>
 
       <div className="grid md:grid-cols-5 gap-8">
         <div className="md:col-span-2">
-          <Card className="overflow-hidden border-2 sticky top-24">
+          <Card className="overflow-hidden glass-panel sticky top-24 border border-white/10">
             <div className="aspect-square overflow-hidden bg-muted">
               <img
                 src={product.imageUrl}
@@ -101,10 +101,10 @@ export function ProductConfigurationSelector({
                   whileTap={{ scale: 0.95 }}
                   onClick={() => setSelectedSize(size)}
                   className={cn(
-                    "px-5 py-3 rounded-lg border-2 font-medium transition-all min-w-[70px]",
+                    "px-5 py-2.5 rounded-full border text-sm font-medium transition-all min-w-[70px] backdrop-blur",
                     selectedSize === size
-                      ? "border-primary bg-primary text-primary-foreground"
-                      : "border-border hover:border-primary/50"
+                      ? "border-primary/60 bg-primary/20 text-foreground shadow-[0_0_20px_rgba(212,175,55,0.2)]"
+                      : "border-white/10 bg-white/5 text-foreground/80 hover:border-primary/40 hover:text-foreground"
                   )}
                 >
                   {size}
@@ -128,15 +128,15 @@ export function ProductConfigurationSelector({
                   onClick={() => setSelectedColor(color)}
                   disabled={!color.available}
                   className={cn(
-                    "flex items-center gap-3 p-3 rounded-lg border-2 transition-all",
+                    "flex items-center gap-3 p-3 rounded-full border transition-all backdrop-blur",
                     selectedColor.name === color.name
-                      ? "border-primary bg-primary/5"
-                      : "border-border hover:border-primary/50",
+                      ? "border-primary/60 bg-primary/15"
+                      : "border-white/10 bg-white/5 hover:border-primary/40",
                     !color.available && "opacity-50 cursor-not-allowed"
                   )}
                 >
                   <div
-                    className="w-8 h-8 rounded-full border-2 border-border shrink-0"
+                    className="w-8 h-8 rounded-full border border-white/20 shrink-0"
                     style={{ backgroundColor: color.hexCode }}
                   />
                   <span className="font-medium text-sm">{color.name}</span>
@@ -169,10 +169,10 @@ export function ProductConfigurationSelector({
                       <Label
                         htmlFor={config.id}
                         className={cn(
-                          "flex items-center justify-between p-4 rounded-lg border-2 cursor-pointer transition-all",
+                          "flex items-center justify-between p-4 rounded-2xl border cursor-pointer transition-all glass-surface",
                           isSelected 
-                            ? "border-primary bg-primary/5" 
-                            : "border-border hover:border-primary/50"
+                            ? "border-primary/60 bg-primary/10" 
+                            : "border-white/10 hover:border-primary/40"
                         )}
                       >
                         <div className="flex items-start gap-4 flex-1">
@@ -193,9 +193,9 @@ export function ProductConfigurationSelector({
                         </div>
                         
                         <div className="flex items-center gap-3">
-                          <Badge 
-                            variant={isSelected ? "default" : "secondary"} 
-                            className="font-mono px-3 py-1"
+                          <Badge
+                            variant={isSelected ? "default" : "secondary"}
+                            className="font-mono px-3 py-1 rounded-full"
                           >
                             ${price.toFixed(2)}
                           </Badge>
@@ -217,11 +217,11 @@ export function ProductConfigurationSelector({
             </RadioGroup>
           </div>
 
-          <div className="p-4 rounded-lg bg-accent/10 border border-accent/20">
+          <div className="p-4 rounded-2xl glass-surface border border-white/10">
             <div className="flex gap-3">
-              <Sparkle size={24} weight="duotone" className="text-accent shrink-0" />
+              <Sparkle size={24} weight="duotone" className="text-primary shrink-0" />
               <div className="text-sm">
-                <p className="font-medium text-accent-foreground mb-1">
+                <p className="font-medium text-foreground mb-1">
                   AI Design Assistant Ready
                 </p>
                 <p className="text-muted-foreground">
@@ -233,7 +233,7 @@ export function ProductConfigurationSelector({
 
           <Button
             size="lg"
-            className="w-full text-lg h-14"
+            className="w-full text-lg h-14 rounded-full"
             onClick={handleContinue}
             disabled={!selectedConfig || !selectedSize || !selectedColor}
           >

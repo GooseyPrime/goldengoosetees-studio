@@ -6,7 +6,7 @@ import { Slider } from '@/components/ui/slider'
 import { DesignFile, Product } from '@/lib/types'
 import { printfulService } from '@/lib/printful'
 import { TShirt, CheckCircle, ImageSquare, Spinner, MagnifyingGlassMinus, MagnifyingGlassPlus } from '@phosphor-icons/react'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 
 // T-Shirt SVG Mockup Template Component
 interface TShirtMockupProps {
@@ -259,7 +259,7 @@ function TShirtMockup({ color, designUrl, position = 'front' }: TShirtMockupProp
         x="250"
         y="580"
         textAnchor="middle"
-        fill="#666"
+        fill="#b5b5b5"
         fontSize="14"
         fontFamily="system-ui, sans-serif"
         fontWeight="500"
@@ -431,8 +431,8 @@ export function DesignPreview({
     : product.availableColors[0] || { name: 'White', hexCode: '#FFFFFF', available: true }
 
   return (
-    <Card className="flex-1 flex flex-col overflow-hidden">
-      <div className="p-4 border-b bg-muted/30">
+    <Card className="flex-1 flex flex-col overflow-hidden glass-panel">
+      <div className="p-4 border-b border-white/10 bg-white/5">
         <div className="flex items-center justify-between">
           <div>
             <h3 className="font-semibold">{product.name}</h3>
@@ -458,41 +458,52 @@ export function DesignPreview({
         </div>
       </div>
 
-      <div className="flex-1 relative bg-gradient-to-br from-muted/30 to-muted/60 overflow-hidden">
+      <div className="flex-1 relative bg-gradient-to-br from-white/5 via-white/5 to-black/40 overflow-hidden">
         <div className="absolute inset-0 flex items-center justify-center p-8 overflow-auto">
-          {/* Mockup view */}
-          {useMockup && mockupUrl ? (
-            <div style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'center' }}>
+          <AnimatePresence mode="wait">
+            {/* Mockup view */}
+            {useMockup && mockupUrl ? (
               <motion.div
+                key={`mockup-${currentArea}-${mockupUrl}`}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -12 }}
+                transition={{ duration: 0.25 }}
+                style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'center' }}
+              >
+                <div className="relative w-full max-w-md">
+                  <img
+                    src={mockupUrl}
+                    alt="Product mockup"
+                    className="w-full h-auto rounded-2xl shadow-2xl"
+                  />
+                  <Badge className="absolute top-3 right-3" variant="secondary">
+                    Printful Mockup
+                  </Badge>
+                </div>
+              </motion.div>
+            ) : useMockup && isLoadingMockup ? (
+              <motion.div
+                key={`mockup-loading-${currentArea}`}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="relative w-full max-w-md"
+                exit={{ opacity: 0 }}
+                className="text-center space-y-4"
               >
-                <img
-                  src={mockupUrl}
-                  alt="Product mockup"
-                  className="w-full h-auto rounded-lg shadow-2xl"
-                />
-                <Badge className="absolute top-2 right-2" variant="secondary">
-                  Printful Mockup
-                </Badge>
+                <Spinner size={48} className="animate-spin text-primary mx-auto" />
+                <p className="text-sm text-muted-foreground">Generating mockup...</p>
               </motion.div>
-            </div>
-          ) : useMockup && isLoadingMockup ? (
-            <div className="text-center space-y-4">
-              <Spinner size={48} className="animate-spin text-primary mx-auto" />
-              <p className="text-sm text-muted-foreground">Generating mockup...</p>
-            </div>
-          ) : (
-            /* T-Shirt Mockup Template View */
-            <div style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'center' }}>
+            ) : (
               <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
+                key={`simple-${currentArea}`}
+                initial={{ opacity: 0, y: 12, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -12, scale: 0.98 }}
                 transition={{ duration: 0.3 }}
+                style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'center' }}
                 className="relative w-full max-w-md flex items-center justify-center p-4"
               >
-                <div className="w-full bg-gradient-to-b from-white/50 to-gray-100/50 rounded-xl p-4 shadow-lg">
+                <div className="w-full bg-gradient-to-b from-white/20 via-white/10 to-black/20 rounded-2xl p-4 shadow-lg border border-white/10">
                   <TShirtMockup
                     color={selectedColorObj?.hexCode || '#FFFFFF'}
                     designUrl={currentDesign ? (currentDesign.storageUrl || currentDesign.dataUrl) : undefined}
@@ -502,15 +513,15 @@ export function DesignPreview({
                   />
                   {mockupError && (
                     <div className="mt-3 flex items-center justify-center">
-                      <Badge variant="outline" className="text-xs">
+                      <Badge variant="outline" className="text-xs border-white/20 text-muted-foreground">
                         {mockupError}
                       </Badge>
                     </div>
                   )}
                 </div>
               </motion.div>
-            </div>
-          )}
+            )}
+          </AnimatePresence>
         </div>
 
         {/* Mockup toggle button */}
@@ -524,6 +535,7 @@ export function DesignPreview({
                 setMockupPreferenceSet(true)
               }}
               disabled={isLoadingMockup}
+              className="rounded-full border-white/20 bg-white/5 hover:bg-white/10"
             >
               <ImageSquare size={16} className="mr-2" />
               {useMockup ? 'Use Simple Preview' : 'Show Printful Mockup'}
@@ -531,7 +543,7 @@ export function DesignPreview({
           </div>
         )}
 
-        <div className="absolute bottom-4 right-4 bg-background/90 border border-border rounded-lg p-3 shadow-lg min-w-[200px]">
+        <div className="absolute bottom-4 right-4 glass-surface rounded-2xl p-3 min-w-[200px]">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-medium text-muted-foreground">Zoom</span>
             <span className="text-xs font-mono">{zoom}%</span>
@@ -540,7 +552,7 @@ export function DesignPreview({
             <Button
               variant="outline"
               size="icon"
-              className="h-8 w-8"
+              className="h-8 w-8 rounded-full border-white/20 bg-white/5 hover:bg-white/10"
               onClick={() => setZoom((prev) => Math.max(50, prev - 10))}
             >
               <MagnifyingGlassMinus size={14} />
@@ -555,7 +567,7 @@ export function DesignPreview({
             <Button
               variant="outline"
               size="icon"
-              className="h-8 w-8"
+              className="h-8 w-8 rounded-full border-white/20 bg-white/5 hover:bg-white/10"
               onClick={() => setZoom((prev) => Math.min(200, prev + 10))}
             >
               <MagnifyingGlassPlus size={14} />
@@ -564,7 +576,7 @@ export function DesignPreview({
         </div>
       </div>
 
-      <div className="p-4 border-t bg-muted/10">
+      <div className="p-4 border-t border-white/10 bg-white/5">
         <div className="space-y-2">
           <h4 className="text-sm font-semibold">Print Areas</h4>
           <div className="flex flex-wrap gap-2">
@@ -573,14 +585,19 @@ export function DesignPreview({
               const isActive = area.id === currentArea
               
               return (
-                <Badge
+                <span
                   key={area.id}
-                  variant={isActive ? 'default' : hasDesign ? 'secondary' : 'outline'}
-                  className="flex items-center gap-1"
+                  className={`inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-medium border transition-colors ${
+                    isActive
+                      ? 'border-primary/60 bg-primary/20 text-foreground'
+                      : hasDesign
+                      ? 'border-white/20 bg-white/10 text-foreground/80'
+                      : 'border-white/10 bg-transparent text-muted-foreground'
+                  }`}
                 >
-                  {hasDesign && <CheckCircle size={14} weight="fill" />}
+                  {hasDesign && <CheckCircle size={14} weight="fill" className="text-primary" />}
                   {area.name}
-                </Badge>
+                </span>
               )
             })}
           </div>
