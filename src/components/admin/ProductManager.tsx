@@ -15,7 +15,7 @@ import {
   Check,
   X
 } from '@phosphor-icons/react'
-import { Product, PrintArea, ProductConstraints } from '@/lib/types'
+import { Product, PrintArea, ProductCategory } from '@/lib/types'
 import { toast } from 'sonner'
 
 interface ProductManagerProps {
@@ -35,12 +35,28 @@ export function ProductManager({ products, onProductsChange }: ProductManagerPro
       printfulSKU: '',
       basePrice: 0,
       imageUrl: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=800&q=80',
-      category: 'T-Shirts',
+      category: 'apparel',
+      mockupTemplate: 'tshirt',
       available: true,
-      availableSizes: ['S', 'M', 'L', 'XL'],
-      availableColors: [
-        { name: 'White', hexCode: '#FFFFFF', available: true },
-        { name: 'Black', hexCode: '#000000', available: true }
+      variants: [
+        {
+          id: 'size',
+          name: 'Size',
+          options: [
+            { value: 'S', available: true },
+            { value: 'M', available: true },
+            { value: 'L', available: true },
+            { value: 'XL', available: true },
+          ]
+        },
+        {
+          id: 'color',
+          name: 'Color',
+          options: [
+            { value: 'White', hexCode: '#FFFFFF', available: true },
+            { value: 'Black', hexCode: '#000000', available: true }
+          ]
+        }
       ],
       printAreas: [],
       configurations: []
@@ -91,6 +107,7 @@ export function ProductManager({ products, onProductsChange }: ProductManagerPro
       position: 'front',
       widthInches: 12,
       heightInches: 16,
+      dpi: 300,
       constraints: {
         minDPI: 150,
         maxDPI: 300,
@@ -243,7 +260,10 @@ export function ProductManager({ products, onProductsChange }: ProductManagerPro
                   <Input
                     id="category"
                     value={editingProduct.category}
-                    onChange={(e) => setEditingProduct({ ...editingProduct, category: e.target.value })}
+                    onChange={(e) => setEditingProduct({
+                      ...editingProduct,
+                      category: e.target.value as ProductCategory
+                    })}
                   />
                 </div>
               </div>

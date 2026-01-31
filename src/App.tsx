@@ -21,6 +21,7 @@ import { kvService } from '@/lib/kv'
 import {
   Product,
   ProductConfiguration,
+  ProductVariantType,
   PrintArea,
   User,
   ChatMessage,
@@ -47,10 +48,13 @@ const isOAuthRedirect = () => {
          window.location.search?.includes('code=')
 }
 
+type StudioStage = 'SELECT_PRODUCT' | 'CONFIGURE_VARIANTS' | 'EDIT_DESIGN' | 'PREVIEW' | 'CHECKOUT'
+type ViewState = 'landing' | 'manager' | StudioStage
+
 function App() {
   const [currentUser, setCurrentUser] = useAppKV<User | null>('current-user', null)
   const [, setSavedDesigns] = useAppKV<Design[]>('saved-designs', [])
-  const [activeView, setActiveView] = useState<'landing' | 'products' | 'configuration' | 'brief' | 'design' | 'manager' | 'catalog'>('landing')
+  const [activeView, setActiveView] = useState<ViewState>('landing')
   const [showAdminDashboard, setShowAdminDashboard] = useState(false)
   const [showAccountDialog, setShowAccountDialog] = useState(false)
 
@@ -60,6 +64,7 @@ function App() {
   const [isAILoading, setIsAILoading] = useState(false)
   const [designFiles, setDesignFiles] = useState<DesignFile[]>([])
   const [currentPrintArea, setCurrentPrintArea] = useState<string>()
+  const [showDesignBrief, setShowDesignBrief] = useState(false)
 
   const [showAuthDialog, setShowAuthDialog] = useState(false)
   const [requiresAgeVerification, setRequiresAgeVerification] = useState(false)
@@ -77,6 +82,8 @@ function App() {
   const [designPreferences, setDesignPreferences] = useState<DesignPreferences | null>(null)
   const [uploadTargetArea, setUploadTargetArea] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+
+  const isDesignStage = activeView === 'EDIT_DESIGN' || activeView === 'PREVIEW' || activeView === 'CHECKOUT'
 
   const scrollToSection = useCallback((sectionId: string) => {
     const section = document.getElementById(sectionId)
@@ -235,7 +242,7 @@ function App() {
   // Only auto-load initial message if we skip the brief form and land directly in design view
   // This is a fallback for edge cases - normally handleSkipToChat or handleDesignPreferencesSubmit handle this
   useEffect(() => {
-    if (activeView === 'design' && selectedProduct && selectedConfiguration && messages.length === 0) {
+    if (isDesignStage && !showDesignBrief && selectedProduct && selectedConfiguration && messages.length === 0) {
       const loadInitialMessage = async () => {
         const configuredProduct = {
           ...selectedProduct,
@@ -255,33 +262,51 @@ function App() {
       }
       loadInitialMessage()
     }
-  }, [activeView, selectedProduct, selectedConfiguration, messages.length])
+  }, [isDesignStage, showDesignBrief, selectedProduct, selectedConfiguration, messages.length])
 
   const handleProductSelect = (product: Product) => {
     setSelectedProduct(product)
-    if (product.configurations.length === 1) {
-      setSelectedConfiguration(product.configurations[0])
-      setActiveView('brief')  // Go to design brief form first
-      setMessages([])
-      setDesignFiles([])
-      setDesignPreferences(null)
-    } else {
-      setActiveView('configuration')
-    }
+    setSelectedConfiguration(null)
+    setActiveView('CONFIGURE_VARIANTS')
+    setShowDesignBrief(false)
+    setMessages([])
+    setDesignFiles([])
+    setDesignPreferences(null)
+    setCurrentDesign(null)
   }
 
   const handleConfigurationSelect = (config: ProductConfiguration) => {
     setSelectedConfiguration(config)
-    setActiveView('brief')  // Go to design brief form first
+    setActiveView('EDIT_DESIGN')
+    setShowDesignBrief(true)
     setMessages([])
     setDesignFiles([])
     setDesignPreferences(null)
+    setCurrentDesign(null)
+  }
+
+  const handleProductSwitch = (productId: string) => {
+    const nextProduct = MOCK_PRODUCTS.find(product => product.id === productId)
+    if (!nextProduct) return
+    setSelectedProduct(nextProduct)
+    setSelectedConfiguration(null)
+    setActiveView('CONFIGURE_VARIANTS')
+    setShowDesignBrief(false)
+    setMessages([])
+    setDesignFiles([])
+    setDesignPreferences(null)
+    setCurrentDesign(null)
+    setCurrentPrintArea(undefined)
+    setShowDesignEditor(false)
+    setEditingDesign(null)
+    setShowCheckout(false)
   }
 
   // Handle design preferences form submission - generate immediately
   const handleDesignPreferencesSubmit = async (preferences: DesignPreferences) => {
     setDesignPreferences(preferences)
-    setActiveView('design')
+    setActiveView('EDIT_DESIGN')
+    setShowDesignBrief(false)
 
     // Set up the print area
     if (selectedProduct && selectedConfiguration) {
@@ -341,7 +366,8 @@ function App() {
 
   // Skip the form and go directly to chat
   const handleSkipToChat = async () => {
-    setActiveView('design')
+    setActiveView('EDIT_DESIGN')
+    setShowDesignBrief(false)
 
     // Set up the print area and load initial message
     if (selectedProduct && selectedConfiguration) {
@@ -366,11 +392,14 @@ function App() {
   }
 
   const handleBackToProducts = () => {
-    setActiveView('products')
+    setActiveView('SELECT_PRODUCT')
     setSelectedProduct(null)
     setSelectedConfiguration(null)
     setMessages([])
     setDesignFiles([])
+    setDesignPreferences(null)
+    setCurrentDesign(null)
+    setShowDesignBrief(false)
   }
 
   const handleSendMessage = async (content: string) => {
@@ -685,6 +714,7 @@ function App() {
 
     if (currentDesign) {
       setShowCheckout(true)
+      setActiveView('CHECKOUT')
     } else {
       saveDesignAndCheckout()
     }
@@ -703,13 +733,18 @@ function App() {
   const saveDesignAndCheckout = async () => {
     if (!selectedProduct || !selectedConfiguration) return
 
+    const variantSelections = selectedConfiguration.variantSelections || {}
+    const size = variantSelections.size
+    const color = variantSelections.color
+
     const design: Design = {
       id: `design-${Date.now()}`,
       userId: currentUser?.id,
       productId: selectedProduct.id,
       configurationId: selectedConfiguration.id,
-      size: selectedConfiguration.size,
-      color: selectedConfiguration.color,
+      variantSelections,
+      size,
+      color,
       files: designFiles,
       isPublic: false,
       isNSFW: false,
@@ -722,6 +757,7 @@ function App() {
       const saved = await api.designs.save(design)
       setCurrentDesign(saved)
       setShowCheckout(true)
+      setActiveView('CHECKOUT')
     } catch (error) {
       toast.error('Failed to save design')
     }
@@ -730,13 +766,18 @@ function App() {
   const saveDesignToCatalog = async () => {
     if (!selectedProduct || !selectedConfiguration) return
 
+    const variantSelections = selectedConfiguration.variantSelections || {}
+    const size = variantSelections.size
+    const color = variantSelections.color
+
     const design: Design = {
       id: `design-${Date.now()}`,
       userId: currentUser?.id,
       productId: selectedProduct.id,
       configurationId: selectedConfiguration.id,
-      size: selectedConfiguration.size,
-      color: selectedConfiguration.color,
+      variantSelections,
+      size,
+      color,
       files: designFiles,
       isPublic: true,
       isNSFW: false,
@@ -753,9 +794,11 @@ function App() {
       
       setSelectedProduct(null)
       setSelectedConfiguration(null)
-      setActiveView('products')
+      setActiveView('SELECT_PRODUCT')
       setMessages([])
       setDesignFiles([])
+      setDesignPreferences(null)
+      setShowDesignBrief(false)
     } catch (error) {
       toast.error('Failed to publish design')
     }
@@ -780,10 +823,11 @@ function App() {
     toast.success('Order complete! Check your email for tracking info.')
     setSelectedProduct(null)
     setSelectedConfiguration(null)
-    setActiveView('products')
+    setActiveView('SELECT_PRODUCT')
     setMessages([])
     setDesignFiles([])
     setCurrentDesign(null)
+    setShowDesignBrief(false)
   }
 
   const hasDesignsForAllRequiredAreas = () => {
@@ -796,9 +840,35 @@ function App() {
     )
   }
 
+  const designsComplete = hasDesignsForAllRequiredAreas()
+
+  useEffect(() => {
+    if (activeView === 'EDIT_DESIGN' && designsComplete) {
+      setActiveView('PREVIEW')
+    }
+    if (activeView === 'PREVIEW' && !designsComplete) {
+      setActiveView('EDIT_DESIGN')
+    }
+  }, [activeView, designsComplete])
+
   const getCurrentPrice = () => {
     if (!selectedProduct || !selectedConfiguration) return 0
     return selectedProduct.basePrice + selectedConfiguration.priceModifier
+  }
+
+  const formatVariantSummary = (
+    product: Product | null,
+    selections?: Partial<Record<ProductVariantType, string>>
+  ) => {
+    if (!product || !selections) return ''
+    const parts = product.variants
+      .map(variant => {
+        const value = selections[variant.id]
+        if (!value) return null
+        return `${variant.name}: ${value}`
+      })
+      .filter(Boolean)
+    return parts.join(' / ')
   }
 
   const handleUpdateDesign = (updatedDesign: DesignFile) => {
@@ -817,7 +887,8 @@ function App() {
 
   const handleAddNewDesignFromManager = (printAreaId: string) => {
     setCurrentPrintArea(printAreaId)
-    setActiveView('design')
+    setActiveView('EDIT_DESIGN')
+    setShowDesignBrief(false)
   }
 
   // Design editing from DesignBin
@@ -947,8 +1018,11 @@ function App() {
     return getAcceptString(printArea.constraints.formats)
   })()
 
-  const cartDisabled = !hasDesignsForAllRequiredAreas()
+  const cartDisabled = !designsComplete
   const heroProduct = MOCK_PRODUCTS[0]
+  const selectedVariantSummary = selectedProduct && selectedConfiguration
+    ? formatVariantSummary(selectedProduct, selectedConfiguration.variantSelections)
+    : ''
 
   return (
     <div className="min-h-screen bg-background text-foreground relative overflow-hidden">
@@ -999,7 +1073,7 @@ function App() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => setActiveView('products')}
+                    onClick={() => setActiveView('SELECT_PRODUCT')}
                     className="rounded-full px-4 text-sm font-medium text-foreground/80 hover:text-foreground"
                   >
                     Studio
@@ -1033,7 +1107,7 @@ function App() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => setActiveView('products')}
+                    onClick={() => setActiveView('SELECT_PRODUCT')}
                     className="rounded-full text-foreground/70 hover:text-foreground"
                   >
                     <TShirt size={18} weight="fill" />
@@ -1130,7 +1204,7 @@ function App() {
                         <Button
                           size="lg"
                           className="rounded-full px-8 h-12 text-base font-semibold shadow-lg shadow-black/30"
-                          onClick={() => setActiveView('products')}
+                          onClick={() => setActiveView('SELECT_PRODUCT')}
                         >
                           Start Designing
                         </Button>
@@ -1228,7 +1302,7 @@ function App() {
                       <Button
                         variant="outline"
                         className="rounded-full border-white/20 bg-white/5 hover:bg-white/10"
-                        onClick={() => setActiveView('products')}
+                        onClick={() => setActiveView('SELECT_PRODUCT')}
                       >
                         View All Products
                       </Button>
@@ -1245,7 +1319,7 @@ function App() {
                   </section>
                 </motion.div>
               )}
-              {activeView === 'products' && (
+              {activeView === 'SELECT_PRODUCT' && (
                 <motion.div
                   key="products"
                   initial={{ opacity: 0, y: 20 }}
@@ -1276,7 +1350,7 @@ function App() {
                 </motion.div>
               )}
 
-              {activeView === 'configuration' && selectedProduct && (
+              {activeView === 'CONFIGURE_VARIANTS' && selectedProduct && (
                 <ProductConfigurationSelector
                   key="configuration"
                   product={selectedProduct}
@@ -1285,7 +1359,7 @@ function App() {
                 />
               )}
 
-              {activeView === 'brief' && selectedProduct && selectedConfiguration && (
+              {activeView === 'EDIT_DESIGN' && showDesignBrief && selectedProduct && selectedConfiguration && (
                 <motion.div
                   key="brief"
                   initial={{ opacity: 0, y: 20 }}
@@ -1299,7 +1373,8 @@ function App() {
                         Let's Design Your {selectedProduct.name}
                       </h2>
                       <p className="text-muted-foreground">
-                        {selectedConfiguration.name} • {selectedConfiguration.color} • Size {selectedConfiguration.size}
+                        {selectedConfiguration.name}
+                        {selectedVariantSummary ? ` / ${selectedVariantSummary}` : ''}
                       </p>
                     </div>
 
@@ -1318,7 +1393,8 @@ function App() {
                           const firstPrintArea = configuredProduct.printAreas[0]?.id
                           if (firstPrintArea) {
                             setCurrentPrintArea(firstPrintArea)
-                            setActiveView('design')
+                            setActiveView('EDIT_DESIGN')
+                            setShowDesignBrief(false)
                             // Add a small delay to ensure view transition completes
                             setTimeout(() => {
                               handleUploadDesign(firstPrintArea)
@@ -1342,7 +1418,7 @@ function App() {
                 </motion.div>
               )}
 
-              {activeView === 'design' && selectedProduct && selectedConfiguration && (
+              {isDesignStage && !showDesignBrief && selectedProduct && selectedConfiguration && (
                 <motion.div
                   key="design"
                   initial={{ opacity: 0 }}
@@ -1381,7 +1457,7 @@ function App() {
                       )}
                       <Button
                         onClick={handleProceedToCheckout}
-                        disabled={!hasDesignsForAllRequiredAreas()}
+                        disabled={!designsComplete}
                         className="gap-2 rounded-full"
                       >
                         <ShoppingCart size={20} weight="fill" />
@@ -1405,8 +1481,7 @@ function App() {
                       designFiles={designFiles}
                       currentArea={currentPrintArea}
                       showMockupOption={true}
-                      selectedColor={selectedConfiguration.color}
-                      selectedSize={selectedConfiguration.size}
+                      selectedVariants={selectedConfiguration.variantSelections}
                     />
 
                     {/* Middle Column: Chat Interface with Generate Button */}
@@ -1463,7 +1538,7 @@ function App() {
                     />
                   </div>
 
-                  {!hasDesignsForAllRequiredAreas() && designFiles.length > 0 && selectedProduct && selectedConfiguration && (
+                  {!designsComplete && designFiles.length > 0 && selectedProduct && selectedConfiguration && (
                     <div className="p-4 bg-primary/10 border border-primary/30 rounded-2xl text-center">
                       <p className="text-sm text-foreground">
                         Complete designs for all print areas before checkout: {
@@ -1477,7 +1552,7 @@ function App() {
                     </div>
                   )}
 
-                  {hasDesignsForAllRequiredAreas() && (
+                  {designsComplete && (
                     <motion.div
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
@@ -1512,11 +1587,11 @@ function App() {
                   onUpdateDesign={handleUpdateDesign}
                   onDeleteDesign={handleDeleteDesignFromManager}
                   onAddNewDesign={handleAddNewDesignFromManager}
-                  onBack={() => setActiveView('design')}
+                  onBack={() => setActiveView(designsComplete ? 'PREVIEW' : 'EDIT_DESIGN')}
                 />
               )}
 
-              {activeView === 'manager' && hasDesignsForAllRequiredAreas() && (
+              {activeView === 'manager' && designsComplete && (
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -1574,7 +1649,12 @@ function App() {
           {showCheckout && currentUser && selectedProduct && currentDesign && (
             <CheckoutFlow
               open={showCheckout}
-              onOpenChange={setShowCheckout}
+              onOpenChange={(open) => {
+                setShowCheckout(open)
+                if (!open && activeView === 'CHECKOUT') {
+                  setActiveView(designsComplete ? 'PREVIEW' : 'EDIT_DESIGN')
+                }
+              }}
               design={currentDesign}
               product={selectedProduct}
               user={currentUser}
@@ -1589,6 +1669,8 @@ function App() {
               onOpenChange={setShowDesignEditor}
               design={editingDesign}
               product={selectedProduct}
+              products={MOCK_PRODUCTS}
+              onSwitchProduct={handleProductSwitch}
               onSave={handleSaveEditedDesign}
             />
           )}

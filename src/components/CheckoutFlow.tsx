@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -77,6 +77,17 @@ export function CheckoutFlow({
     expiry: '',
     cvc: ''
   })
+
+  const designSize = design.variantSelections?.size ?? design.size
+  const designColor = design.variantSelections?.color ?? design.color
+  const variantSummary = product.variants
+    .map((variant) => {
+      const value = design.variantSelections?.[variant.id]
+      if (!value) return null
+      return `${variant.name}: ${value}`
+    })
+    .filter(Boolean)
+    .join(' / ')
 
   const formatCardNumber = (value: string) => {
     const cleaned = value.replace(/\s/g, '')
@@ -161,8 +172,8 @@ export function CheckoutFlow({
         userId: user.id,
         designId: design.id,
         productId: product.id,
-        size: design.size,
-        color: design.color,
+        size: designSize,
+        color: designColor,
         totalAmount: totalWithShipping,
         shippingAddress: shippingData
       })
@@ -171,7 +182,9 @@ export function CheckoutFlow({
       const session = await stripeService.createCheckoutSession({
         orderId: order.id,
         productName: `${product.name} - ${design.title}`,
-        productDescription: `Size: ${design.size}, Color: ${design.color}`,
+        productDescription: variantSummary
+          ? `Variants: ${variantSummary}`
+          : `Size: ${designSize || 'Standard'}, Color: ${designColor || 'Standard'}`,
         productImage: product.imageUrl,
         amount: totalWithShipping,
         customerEmail: user.email,
@@ -223,8 +236,8 @@ export function CheckoutFlow({
         userId: user.id,
         designId: design.id,
         productId: product.id,
-        size: design.size,
-        color: design.color,
+        size: designSize,
+        color: designColor,
         totalAmount: totalWithShipping,
         shippingAddress: shippingData
       })
@@ -325,9 +338,9 @@ export function CheckoutFlow({
                   <div className="flex-1">
                     <h4 className="font-semibold">{product.name}</h4>
                     <p className="text-sm text-muted-foreground">{design.title}</p>
-                    {design.size && design.color && (
+                    {(variantSummary || designSize || designColor) && (
                       <p className="text-xs text-muted-foreground mt-1">
-                        Size: <span className="font-medium">{design.size}</span> • Color: <span className="font-medium">{design.color}</span>
+                        {variantSummary || `Size: ${designSize || 'Standard'} / Color: ${designColor || 'Standard'}`}
                       </p>
                     )}
                   </div>

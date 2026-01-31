@@ -1,5 +1,11 @@
 export type UserRole = 'guest' | 'user' | 'admin'
 
+export type ProductCategory = 'apparel' | 'drinkware' | 'accessory' | 'poster'
+
+export type ProductVariantType = 'size' | 'volume' | 'color' | 'material'
+
+export type ProductMockupTemplate = 'tshirt' | 'mug' | 'hat' | 'poster'
+
 export interface User {
   id: string
   email: string
@@ -25,7 +31,21 @@ export interface PrintArea {
   position: 'front' | 'back' | 'left_sleeve' | 'right_sleeve'
   widthInches: number
   heightInches: number
+  dpi: number
   constraints: ProductConstraints
+}
+
+export interface ProductVariantOption {
+  value: string
+  label?: string
+  hexCode?: string
+  available: boolean
+}
+
+export interface ProductVariant {
+  id: ProductVariantType
+  name: string
+  options: ProductVariantOption[]
 }
 
 export interface ProductConfiguration {
@@ -33,14 +53,9 @@ export interface ProductConfiguration {
   name: string
   printAreas: string[]
   priceModifier: number
+  variantSelections?: Partial<Record<ProductVariantType, string>>
   size?: string
   color?: string
-}
-
-export interface ProductColor {
-  name: string
-  hexCode: string
-  available: boolean
 }
 
 export interface Product {
@@ -52,9 +67,9 @@ export interface Product {
   imageUrl: string
   printAreas: PrintArea[]
   configurations: ProductConfiguration[]
-  availableSizes: string[]
-  availableColors: ProductColor[]
-  category: string
+  variants: ProductVariant[]
+  category: ProductCategory
+  mockupTemplate: ProductMockupTemplate
   available: boolean
 }
 
@@ -75,6 +90,7 @@ export interface Design {
   userId?: string
   productId: string
   configurationId?: string
+  variantSelections?: Partial<Record<ProductVariantType, string>>
   size?: string
   color?: string
   files: DesignFile[]
@@ -94,8 +110,9 @@ export interface Order {
   userId: string
   designId: string
   productId: string
-  size: string
-  color: string
+  variantSelections?: Partial<Record<ProductVariantType, string>>
+  size?: string
+  color?: string
   stripePaymentId?: string
   stripeSessionId?: string // Stripe Checkout Session ID
   printfulOrderId?: string

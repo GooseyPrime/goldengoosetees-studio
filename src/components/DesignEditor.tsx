@@ -5,6 +5,7 @@ import { Slider } from '@/components/ui/slider'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { DesignFile, Product } from '@/lib/types'
 import { 
   X, 
@@ -27,6 +28,8 @@ interface DesignEditorProps {
   onOpenChange: (open: boolean) => void
   design: DesignFile
   product: Product
+  products: Product[]
+  onSwitchProduct: (productId: string) => void
   onSave: (updatedDesign: DesignFile) => void
 }
 
@@ -42,7 +45,15 @@ interface ImageFilters {
   blur: number
 }
 
-export function DesignEditor({ open, onOpenChange, design, product, onSave }: DesignEditorProps) {
+export function DesignEditor({
+  open,
+  onOpenChange,
+  design,
+  product,
+  products,
+  onSwitchProduct,
+  onSave
+}: DesignEditorProps) {
   const [currentDesign, setCurrentDesign] = useState<DesignFile>(design)
   const [history, setHistory] = useState<EditHistory[]>([])
   const [historyIndex, setHistoryIndex] = useState(-1)
@@ -62,6 +73,7 @@ export function DesignEditor({ open, onOpenChange, design, product, onSave }: De
   
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const printArea = product.printAreas.find(pa => pa.id === design.printAreaId)
+  const canvasAspectRatio = printArea ? printArea.widthInches / printArea.heightInches : 1
 
   useEffect(() => {
     if (open && design) {
@@ -278,23 +290,37 @@ export function DesignEditor({ open, onOpenChange, design, product, onSave }: De
               <div>
                 <DialogTitle className="text-lg font-semibold">Edit Design</DialogTitle>
                 <DialogDescription>
-                  {printArea?.name} - {printArea?.widthInches}" × {printArea?.heightInches}"
+                  {printArea?.name} - {printArea?.widthInches}" x {printArea?.heightInches}"
                 </DialogDescription>
               </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => onOpenChange(false)}
-                className="rounded-full text-foreground/70 hover:text-foreground"
-              >
-                <X size={18} />
-              </Button>
+              <div className="flex items-center gap-2">
+                <Select value={product.id} onValueChange={onSwitchProduct}>
+                  <SelectTrigger className="h-8 rounded-full border-white/20 bg-white/5 px-3 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {products.map((item) => (
+                      <SelectItem key={item.id} value={item.id}>
+                        {item.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => onOpenChange(false)}
+                  className="rounded-full text-foreground/70 hover:text-foreground"
+                >
+                  <X size={18} />
+                </Button>
+              </div>
             </div>
           </DialogHeader>
 
           <div className="flex-1 flex overflow-hidden">
             <div className="flex-1 p-6 bg-white/5 flex items-center justify-center overflow-auto">
-              <div className="relative">
+              <div className="relative" style={{ aspectRatio: `${canvasAspectRatio}` }}>
                 <canvas
                   ref={canvasRef}
                   className="max-w-full max-h-full border border-white/10 rounded-2xl shadow-2xl bg-white"
