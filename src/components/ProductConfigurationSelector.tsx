@@ -1,7 +1,7 @@
-import { useState } from 'react'
-import { Product, ProductConfiguration, ProductColor } from '@/lib/types'
+import { useEffect, useState } from 'react'
+import { Product, ProductConfiguration, ProductVariantType } from '@/lib/types'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Label } from '@/components/ui/label'
@@ -20,17 +20,32 @@ export function ProductConfigurationSelector({
   onSelect, 
   onBack 
 }: ProductConfigurationSelectorProps) {
+  const getDefaultVariantSelections = () => {
+    return product.variants.reduce((acc, variant) => {
+      const defaultOption = variant.options.find(option => option.available) || variant.options[0]
+      if (defaultOption) {
+        acc[variant.id] = defaultOption.value
+      }
+      return acc
+    }, {} as Partial<Record<ProductVariantType, string>>)
+  }
+
   const [selectedConfig, setSelectedConfig] = useState<string>(product.configurations[0]?.id || '')
-  const [selectedSize, setSelectedSize] = useState<string>(product.availableSizes[0] || '')
-  const [selectedColor, setSelectedColor] = useState<ProductColor>(product.availableColors[0])
+  const [variantSelections, setVariantSelections] = useState<Partial<Record<ProductVariantType, string>>>(getDefaultVariantSelections)
+
+  useEffect(() => {
+    setSelectedConfig(product.configurations[0]?.id || '')
+    setVariantSelections(getDefaultVariantSelections())
+  }, [product.id])
 
   const handleContinue = () => {
     const config = product.configurations.find(c => c.id === selectedConfig)
     if (config) {
       const configWithSelections: ProductConfiguration = {
         ...config,
-        size: selectedSize,
-        color: selectedColor.name
+        variantSelections,
+        size: variantSelections.size,
+        color: variantSelections.color
       }
       onSelect(configWithSelections)
     }
@@ -45,6 +60,15 @@ export function ProductConfigurationSelector({
     return areas.map(a => a.name).join(' + ')
   }
 
+  const handleVariantSelect = (variantId: ProductVariantType, value: string) => {
+    setVariantSelections(prev => ({
+      ...prev,
+      [variantId]: value
+    }))
+  }
+
+  const areVariantsComplete = product.variants.every(variant => !!variantSelections[variant.id])
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -55,14 +79,14 @@ export function ProductConfigurationSelector({
       <Button
         variant="outline"
         onClick={onBack}
-        className="mb-6"
+        className="mb-6 rounded-full border-white/20 bg-white/5 hover:bg-white/10"
       >
         ← Back to Products
       </Button>
 
       <div className="grid md:grid-cols-5 gap-8">
         <div className="md:col-span-2">
-          <Card className="overflow-hidden border-2 sticky top-24">
+          <Card className="overflow-hidden glass-panel sticky top-24 border border-white/10">
             <div className="aspect-square overflow-hidden bg-muted">
               <img
                 src={product.imageUrl}
@@ -87,66 +111,80 @@ export function ProductConfigurationSelector({
         </div>
 
         <div className="md:col-span-3 space-y-8">
-          <div>
-            <h2 className="text-2xl font-bold mb-2">Select Size</h2>
-            <p className="text-sm text-muted-foreground mb-4">
-              Choose your preferred size
-            </p>
-            
-            <div className="flex flex-wrap gap-2">
-              {product.availableSizes.map((size) => (
-                <motion.button
-                  key={size}
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => setSelectedSize(size)}
-                  className={cn(
-                    "px-5 py-3 rounded-lg border-2 font-medium transition-all min-w-[70px]",
-                    selectedSize === size
-                      ? "border-primary bg-primary text-primary-foreground"
-                      : "border-border hover:border-primary/50"
-                  )}
-                >
-                  {size}
-                </motion.button>
-              ))}
-            </div>
-          </div>
+          {product.variants.map((variant) => {
+            const selectedValue = variantSelections[variant.id]
+            const title = `Select ${variant.name}`
+            const description = `Choose your preferred ${variant.name.toLowerCase()}`
 
-          <div>
-            <h2 className="text-2xl font-bold mb-2">Select Color</h2>
-            <p className="text-sm text-muted-foreground mb-4">
-              Choose your preferred color
-            </p>
-            
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {product.availableColors.map((color) => (
-                <motion.button
-                  key={color.name}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => setSelectedColor(color)}
-                  disabled={!color.available}
-                  className={cn(
-                    "flex items-center gap-3 p-3 rounded-lg border-2 transition-all",
-                    selectedColor.name === color.name
-                      ? "border-primary bg-primary/5"
-                      : "border-border hover:border-primary/50",
-                    !color.available && "opacity-50 cursor-not-allowed"
-                  )}
-                >
-                  <div
-                    className="w-8 h-8 rounded-full border-2 border-border shrink-0"
-                    style={{ backgroundColor: color.hexCode }}
-                  />
-                  <span className="font-medium text-sm">{color.name}</span>
-                  {selectedColor.name === color.name && (
-                    <Check size={16} weight="bold" className="ml-auto text-primary" />
-                  )}
-                </motion.button>
-              ))}
-            </div>
-          </div>
+            if (variant.id === 'color') {
+              return (
+                <div key={variant.id}>
+                  <h2 className="text-2xl font-bold mb-2">{title}</h2>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    {description}
+                  </p>
+                  
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {variant.options.map((option) => (
+                      <motion.button
+                        key={option.value}
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => handleVariantSelect(variant.id, option.value)}
+                        disabled={!option.available}
+                        className={cn(
+                          "flex items-center gap-3 p-3 rounded-full border transition-all backdrop-blur",
+                          selectedValue === option.value
+                            ? "border-primary/60 bg-primary/15"
+                            : "border-white/10 bg-white/5 hover:border-primary/40",
+                          !option.available && "opacity-50 cursor-not-allowed"
+                        )}
+                      >
+                        <div
+                          className="w-8 h-8 rounded-full border border-white/20 shrink-0"
+                          style={{ backgroundColor: option.hexCode || '#FFFFFF' }}
+                        />
+                        <span className="font-medium text-sm">{option.label || option.value}</span>
+                        {selectedValue === option.value && (
+                          <Check size={16} weight="bold" className="ml-auto text-primary" />
+                        )}
+                      </motion.button>
+                    ))}
+                  </div>
+                </div>
+              )
+            }
+
+            return (
+              <div key={variant.id}>
+                <h2 className="text-2xl font-bold mb-2">{title}</h2>
+                <p className="text-sm text-muted-foreground mb-4">
+                  {description}
+                </p>
+                
+                <div className="flex flex-wrap gap-2">
+                  {variant.options.map((option) => (
+                    <motion.button
+                      key={option.value}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => handleVariantSelect(variant.id, option.value)}
+                      disabled={!option.available}
+                      className={cn(
+                        "px-5 py-2.5 rounded-full border text-sm font-medium transition-all min-w-[70px] backdrop-blur",
+                        selectedValue === option.value
+                          ? "border-primary/60 bg-primary/20 text-foreground shadow-[0_0_20px_rgba(212,175,55,0.2)]"
+                          : "border-white/10 bg-white/5 text-foreground/80 hover:border-primary/40 hover:text-foreground",
+                        !option.available && "opacity-50 cursor-not-allowed"
+                      )}
+                    >
+                      {option.label || option.value}
+                    </motion.button>
+                  ))}
+                </div>
+              </div>
+            )
+          })}
 
           <div>
             <h2 className="text-2xl font-bold mb-2">Choose Print Location</h2>
@@ -169,10 +207,10 @@ export function ProductConfigurationSelector({
                       <Label
                         htmlFor={config.id}
                         className={cn(
-                          "flex items-center justify-between p-4 rounded-lg border-2 cursor-pointer transition-all",
+                          "flex items-center justify-between p-4 rounded-2xl border cursor-pointer transition-all glass-surface",
                           isSelected 
-                            ? "border-primary bg-primary/5" 
-                            : "border-border hover:border-primary/50"
+                            ? "border-primary/60 bg-primary/10" 
+                            : "border-white/10 hover:border-primary/40"
                         )}
                       >
                         <div className="flex items-start gap-4 flex-1">
@@ -193,9 +231,9 @@ export function ProductConfigurationSelector({
                         </div>
                         
                         <div className="flex items-center gap-3">
-                          <Badge 
-                            variant={isSelected ? "default" : "secondary"} 
-                            className="font-mono px-3 py-1"
+                          <Badge
+                            variant={isSelected ? "default" : "secondary"}
+                            className="font-mono px-3 py-1 rounded-full"
                           >
                             ${price.toFixed(2)}
                           </Badge>
@@ -217,11 +255,11 @@ export function ProductConfigurationSelector({
             </RadioGroup>
           </div>
 
-          <div className="p-4 rounded-lg bg-accent/10 border border-accent/20">
+          <div className="p-4 rounded-2xl glass-surface border border-white/10">
             <div className="flex gap-3">
-              <Sparkle size={24} weight="duotone" className="text-accent shrink-0" />
+              <Sparkle size={24} weight="duotone" className="text-primary shrink-0" />
               <div className="text-sm">
-                <p className="font-medium text-accent-foreground mb-1">
+                <p className="font-medium text-foreground mb-1">
                   AI Design Assistant Ready
                 </p>
                 <p className="text-muted-foreground">
@@ -233,9 +271,9 @@ export function ProductConfigurationSelector({
 
           <Button
             size="lg"
-            className="w-full text-lg h-14"
+            className="w-full text-lg h-14 rounded-full"
             onClick={handleContinue}
-            disabled={!selectedConfig || !selectedSize || !selectedColor}
+            disabled={!selectedConfig || !areVariantsComplete}
           >
             Start Designing
             <ArrowRight size={20} weight="bold" className="ml-2" />

@@ -21,6 +21,7 @@ import { kvService } from '@/lib/kv'
 import {
   Product,
   ProductConfiguration,
+  ProductVariantType,
   PrintArea,
   User,
   ChatMessage,
@@ -47,10 +48,13 @@ const isOAuthRedirect = () => {
          window.location.search?.includes('code=')
 }
 
+type StudioStage = 'SELECT_PRODUCT' | 'CONFIGURE_VARIANTS' | 'EDIT_DESIGN' | 'PREVIEW' | 'CHECKOUT'
+type ViewState = 'landing' | 'manager' | StudioStage
+
 function App() {
   const [currentUser, setCurrentUser] = useAppKV<User | null>('current-user', null)
   const [, setSavedDesigns] = useAppKV<Design[]>('saved-designs', [])
-  const [activeView, setActiveView] = useState<'products' | 'configuration' | 'brief' | 'design' | 'manager' | 'catalog'>('products')
+  const [activeView, setActiveView] = useState<ViewState>('landing')
   const [showAdminDashboard, setShowAdminDashboard] = useState(false)
   const [showAccountDialog, setShowAccountDialog] = useState(false)
 
@@ -60,6 +64,7 @@ function App() {
   const [isAILoading, setIsAILoading] = useState(false)
   const [designFiles, setDesignFiles] = useState<DesignFile[]>([])
   const [currentPrintArea, setCurrentPrintArea] = useState<string>()
+  const [showDesignBrief, setShowDesignBrief] = useState(false)
 
   const [showAuthDialog, setShowAuthDialog] = useState(false)
   const [requiresAgeVerification, setRequiresAgeVerification] = useState(false)
@@ -72,11 +77,34 @@ function App() {
   const [showDesignEditor, setShowDesignEditor] = useState(false)
   const [editingDesign, setEditingDesign] = useState<DesignFile | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
+  const [generatingAreaId, setGeneratingAreaId] = useState<string | null>(null)
 
   // Design preferences from form (used to provide context to AI)
   const [designPreferences, setDesignPreferences] = useState<DesignPreferences | null>(null)
   const [uploadTargetArea, setUploadTargetArea] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+
+  const isDesignStage = activeView === 'EDIT_DESIGN' || activeView === 'PREVIEW' || activeView === 'CHECKOUT'
+
+  const scrollToSection = useCallback((sectionId: string) => {
+    const section = document.getElementById(sectionId)
+    if (section) {
+      section.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }, [])
+
+  const handleNavigateToLanding = (sectionId?: string) => {
+    if (activeView !== 'landing') {
+      setActiveView('landing')
+      if (sectionId) {
+        window.setTimeout(() => scrollToSection(sectionId), 80)
+      }
+      return
+    }
+    if (sectionId) {
+      scrollToSection(sectionId)
+    }
+  }
 
   const handleSignOut = async () => {
     try {
@@ -215,7 +243,7 @@ function App() {
   // Only auto-load initial message if we skip the brief form and land directly in design view
   // This is a fallback for edge cases - normally handleSkipToChat or handleDesignPreferencesSubmit handle this
   useEffect(() => {
-    if (activeView === 'design' && selectedProduct && selectedConfiguration && messages.length === 0) {
+    if (isDesignStage && !showDesignBrief && selectedProduct && selectedConfiguration && messages.length === 0) {
       const loadInitialMessage = async () => {
         const configuredProduct = {
           ...selectedProduct,
@@ -235,33 +263,51 @@ function App() {
       }
       loadInitialMessage()
     }
-  }, [activeView, selectedProduct, selectedConfiguration, messages.length])
+  }, [isDesignStage, showDesignBrief, selectedProduct, selectedConfiguration, messages.length])
 
   const handleProductSelect = (product: Product) => {
     setSelectedProduct(product)
-    if (product.configurations.length === 1) {
-      setSelectedConfiguration(product.configurations[0])
-      setActiveView('brief')  // Go to design brief form first
-      setMessages([])
-      setDesignFiles([])
-      setDesignPreferences(null)
-    } else {
-      setActiveView('configuration')
-    }
+    setSelectedConfiguration(null)
+    setActiveView('CONFIGURE_VARIANTS')
+    setShowDesignBrief(false)
+    setMessages([])
+    setDesignFiles([])
+    setDesignPreferences(null)
+    setCurrentDesign(null)
   }
 
   const handleConfigurationSelect = (config: ProductConfiguration) => {
     setSelectedConfiguration(config)
-    setActiveView('brief')  // Go to design brief form first
+    setActiveView('EDIT_DESIGN')
+    setShowDesignBrief(true)
     setMessages([])
     setDesignFiles([])
     setDesignPreferences(null)
+    setCurrentDesign(null)
+  }
+
+  const handleProductSwitch = (productId: string) => {
+    const nextProduct = MOCK_PRODUCTS.find(product => product.id === productId)
+    if (!nextProduct) return
+    setSelectedProduct(nextProduct)
+    setSelectedConfiguration(null)
+    setActiveView('CONFIGURE_VARIANTS')
+    setShowDesignBrief(false)
+    setMessages([])
+    setDesignFiles([])
+    setDesignPreferences(null)
+    setCurrentDesign(null)
+    setCurrentPrintArea(undefined)
+    setShowDesignEditor(false)
+    setEditingDesign(null)
+    setShowCheckout(false)
   }
 
   // Handle design preferences form submission - generate immediately
   const handleDesignPreferencesSubmit = async (preferences: DesignPreferences) => {
     setDesignPreferences(preferences)
-    setActiveView('design')
+    setActiveView('EDIT_DESIGN')
+    setShowDesignBrief(false)
 
     // Set up the print area
     if (selectedProduct && selectedConfiguration) {
@@ -321,7 +367,8 @@ function App() {
 
   // Skip the form and go directly to chat
   const handleSkipToChat = async () => {
-    setActiveView('design')
+    setActiveView('EDIT_DESIGN')
+    setShowDesignBrief(false)
 
     // Set up the print area and load initial message
     if (selectedProduct && selectedConfiguration) {
@@ -346,11 +393,14 @@ function App() {
   }
 
   const handleBackToProducts = () => {
-    setActiveView('products')
+    setActiveView('SELECT_PRODUCT')
     setSelectedProduct(null)
     setSelectedConfiguration(null)
     setMessages([])
     setDesignFiles([])
+    setDesignPreferences(null)
+    setCurrentDesign(null)
+    setShowDesignBrief(false)
   }
 
   const handleSendMessage = async (content: string) => {
@@ -491,6 +541,8 @@ function App() {
     const targetPrintArea = printAreaId || currentPrintArea
     if (!targetPrintArea) return
 
+    setIsGenerating(true)
+    setGeneratingAreaId(targetPrintArea)
     toast.info('Generating your design...', { duration: 2000 })
 
     try {
@@ -543,6 +595,9 @@ function App() {
       } else {
         toast.error(error.message || 'Failed to generate design')
       }
+    } finally {
+      setIsGenerating(false)
+      setGeneratingAreaId(null)
     }
   }
 
@@ -665,6 +720,7 @@ function App() {
 
     if (currentDesign) {
       setShowCheckout(true)
+      setActiveView('CHECKOUT')
     } else {
       saveDesignAndCheckout()
     }
@@ -683,13 +739,18 @@ function App() {
   const saveDesignAndCheckout = async () => {
     if (!selectedProduct || !selectedConfiguration) return
 
+    const variantSelections = selectedConfiguration.variantSelections || {}
+    const size = variantSelections.size
+    const color = variantSelections.color
+
     const design: Design = {
       id: `design-${Date.now()}`,
       userId: currentUser?.id,
       productId: selectedProduct.id,
       configurationId: selectedConfiguration.id,
-      size: selectedConfiguration.size,
-      color: selectedConfiguration.color,
+      variantSelections,
+      size,
+      color,
       files: designFiles,
       isPublic: false,
       isNSFW: false,
@@ -702,6 +763,7 @@ function App() {
       const saved = await api.designs.save(design)
       setCurrentDesign(saved)
       setShowCheckout(true)
+      setActiveView('CHECKOUT')
     } catch (error) {
       toast.error('Failed to save design')
     }
@@ -710,13 +772,18 @@ function App() {
   const saveDesignToCatalog = async () => {
     if (!selectedProduct || !selectedConfiguration) return
 
+    const variantSelections = selectedConfiguration.variantSelections || {}
+    const size = variantSelections.size
+    const color = variantSelections.color
+
     const design: Design = {
       id: `design-${Date.now()}`,
       userId: currentUser?.id,
       productId: selectedProduct.id,
       configurationId: selectedConfiguration.id,
-      size: selectedConfiguration.size,
-      color: selectedConfiguration.color,
+      variantSelections,
+      size,
+      color,
       files: designFiles,
       isPublic: true,
       isNSFW: false,
@@ -733,9 +800,11 @@ function App() {
       
       setSelectedProduct(null)
       setSelectedConfiguration(null)
-      setActiveView('products')
+      setActiveView('SELECT_PRODUCT')
       setMessages([])
       setDesignFiles([])
+      setDesignPreferences(null)
+      setShowDesignBrief(false)
     } catch (error) {
       toast.error('Failed to publish design')
     }
@@ -760,10 +829,11 @@ function App() {
     toast.success('Order complete! Check your email for tracking info.')
     setSelectedProduct(null)
     setSelectedConfiguration(null)
-    setActiveView('products')
+    setActiveView('SELECT_PRODUCT')
     setMessages([])
     setDesignFiles([])
     setCurrentDesign(null)
+    setShowDesignBrief(false)
   }
 
   const hasDesignsForAllRequiredAreas = () => {
@@ -776,9 +846,37 @@ function App() {
     )
   }
 
+  const designsComplete = hasDesignsForAllRequiredAreas()
+  const isGeneratingCurrentArea =
+    isGenerating && (!generatingAreaId || generatingAreaId === currentPrintArea)
+
+  useEffect(() => {
+    if (activeView === 'EDIT_DESIGN' && designsComplete) {
+      setActiveView('PREVIEW')
+    }
+    if (activeView === 'PREVIEW' && !designsComplete) {
+      setActiveView('EDIT_DESIGN')
+    }
+  }, [activeView, designsComplete])
+
   const getCurrentPrice = () => {
     if (!selectedProduct || !selectedConfiguration) return 0
     return selectedProduct.basePrice + selectedConfiguration.priceModifier
+  }
+
+  const formatVariantSummary = (
+    product: Product | null,
+    selections?: Partial<Record<ProductVariantType, string>>
+  ) => {
+    if (!product || !selections) return ''
+    const parts = product.variants
+      .map(variant => {
+        const value = selections[variant.id]
+        if (!value) return null
+        return `${variant.name}: ${value}`
+      })
+      .filter(Boolean)
+    return parts.join(' / ')
   }
 
   const handleUpdateDesign = (updatedDesign: DesignFile) => {
@@ -797,7 +895,8 @@ function App() {
 
   const handleAddNewDesignFromManager = (printAreaId: string) => {
     setCurrentPrintArea(printAreaId)
-    setActiveView('design')
+    setActiveView('EDIT_DESIGN')
+    setShowDesignBrief(false)
   }
 
   // Design editing from DesignBin
@@ -849,6 +948,7 @@ function App() {
       return
     }
 
+    setGeneratingAreaId(currentPrintArea)
     setIsGenerating(true)
     toast.info('Generating your design...', { duration: 3000 })
 
@@ -916,6 +1016,7 @@ function App() {
       setMessages((prev) => [...prev, errorMessage])
     } finally {
       setIsGenerating(false)
+      setGeneratingAreaId(null)
     }
   }
 
@@ -927,8 +1028,18 @@ function App() {
     return getAcceptString(printArea.constraints.formats)
   })()
 
+  const cartDisabled = !designsComplete
+  const heroProduct = MOCK_PRODUCTS[0]
+  const selectedVariantSummary = selectedProduct && selectedConfiguration
+    ? formatVariantSummary(selectedProduct, selectedConfiguration.variantSelections)
+    : ''
+
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background text-foreground relative overflow-hidden">
+      <div className="pointer-events-none fixed inset-0 -z-10">
+        <div className="absolute -top-40 right-0 h-72 w-72 rounded-full bg-[#D4AF37]/15 blur-[140px]" />
+        <div className="absolute top-1/3 left-[-10%] h-80 w-80 rounded-full bg-white/10 blur-[160px]" />
+      </div>
       <Toaster position="top-center" />
       <input
         ref={fileInputRef}
@@ -942,85 +1053,298 @@ function App() {
         <AdminDashboard onClose={() => setShowAdminDashboard(false)} />
       ) : (
         <>
-          <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-            <div className="container mx-auto px-6 h-16 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <img 
-                  src={logoImage} 
-                  alt="GoldenGooseTees Logo" 
-                  className="h-12 w-12 rounded-full object-cover border-2 border-primary"
-                />
-                <div>
-                  <h1 className="text-xl font-bold tracking-tight">GoldenGooseTees</h1>
-                  <p className="text-xs text-muted-foreground">GoldenGooseTees</p>
-                </div>
-              </div>
+          <header className="sticky top-0 z-50">
+            <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-4">
+              <div className="flex items-center justify-between rounded-full px-4 sm:px-6 h-16 glass-panel">
+                <button
+                  onClick={() => handleNavigateToLanding()}
+                  className="flex items-center gap-3 group"
+                >
+                  <img
+                    src={logoImage}
+                    alt="GoldenGooseTees Logo"
+                    className="h-10 w-10 rounded-full object-cover border border-white/20 shadow-lg"
+                  />
+                  <div className="hidden sm:block text-left">
+                    <p className="text-sm font-semibold tracking-tight">GoldenGooseTees</p>
+                    <p className="text-xs text-muted-foreground">Design Studio</p>
+                  </div>
+                </button>
 
-              <div className="flex items-center gap-3">
-                {currentUser?.role === 'admin' && (
+                <nav className="hidden md:flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleNavigateToLanding('gallery')}
+                    className="rounded-full px-4 text-sm font-medium text-foreground/80 hover:text-foreground"
+                  >
+                    Gallery
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setActiveView('SELECT_PRODUCT')}
+                    className="rounded-full px-4 text-sm font-medium text-foreground/80 hover:text-foreground"
+                  >
+                    Studio
+                  </Button>
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setShowAdminDashboard(true)}
+                    onClick={handleProceedToCheckout}
+                    disabled={cartDisabled}
+                    className="rounded-full border-white/20 bg-white/5 px-4 text-sm font-semibold hover:bg-white/10"
                   >
-                    <Gear size={16} className="mr-2" />
-                    Admin
+                    <ShoppingCart size={16} className="mr-2" />
+                    Cart
+                    {selectedProduct && (
+                      <Badge variant="secondary" className="ml-2 font-mono rounded-full">
+                        ${getCurrentPrice().toFixed(2)}
+                      </Badge>
+                    )}
                   </Button>
-                )}
-                {currentUser ? (
-                  <>
+                </nav>
+
+                <div className="flex md:hidden items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleNavigateToLanding('gallery')}
+                    className="rounded-full text-foreground/70 hover:text-foreground"
+                  >
+                    <Sparkle size={18} weight="fill" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setActiveView('SELECT_PRODUCT')}
+                    className="rounded-full text-foreground/70 hover:text-foreground"
+                  >
+                    <TShirt size={18} weight="fill" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={handleProceedToCheckout}
+                    disabled={cartDisabled}
+                    className="rounded-full border-white/20 bg-white/5 hover:bg-white/10"
+                  >
+                    <ShoppingCart size={18} weight="fill" />
+                  </Button>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {currentUser?.role === 'admin' && (
                     <Button
-                      variant="outline"
+                      variant="ghost"
                       size="sm"
-                      onClick={() => setShowAccountDialog(true)}
+                      onClick={() => setShowAdminDashboard(true)}
+                      className="rounded-full text-foreground/70 hover:text-foreground"
                     >
-                      <UserIcon size={16} className="mr-2" />
-                      Account
+                      <Gear size={16} className="mr-2" />
+                      Admin
                     </Button>
-                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted">
-                      <UserIcon size={16} weight="fill" />
-                      <span className="text-sm font-medium">{currentUser.name}</span>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowAccountDialog(true)}
-                    >
-                      <UserIcon size={16} className="mr-2" />
-                      Orders
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => setShowAuthDialog(true)}
-                    >
-                      <UserIcon size={16} className="mr-2" />
-                      Sign In / Sign Up
-                    </Button>
-                  </>
-                )}
+                  )}
+                  {currentUser ? (
+                    <>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setShowAccountDialog(true)}
+                        className="rounded-full text-foreground/70 hover:text-foreground"
+                      >
+                        <UserIcon size={16} className="mr-2" />
+                        Account
+                      </Button>
+                      <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10">
+                        <UserIcon size={14} weight="fill" />
+                        <span className="text-xs font-medium">{currentUser.name}</span>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setShowAccountDialog(true)}
+                        className="rounded-full text-foreground/70 hover:text-foreground"
+                      >
+                        <UserIcon size={16} className="mr-2" />
+                        Orders
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowAuthDialog(true)}
+                        className="rounded-full border-white/20 bg-white/5 hover:bg-white/10"
+                      >
+                        <UserIcon size={16} className="mr-2" />
+                        Sign In
+                      </Button>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
           </header>
 
-          <main className="container mx-auto px-6 py-8">
+          <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-4 sm:pt-6 pb-16">
             <AnimatePresence mode="wait">
-              {activeView === 'products' && (
+              {activeView === 'landing' && (
+                <motion.div
+                  key="landing"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  className="space-y-20 pt-6"
+                >
+                  <section className="grid lg:grid-cols-2 gap-12 items-center">
+                    <div className="space-y-6">
+                      <Badge variant="secondary" className="rounded-full px-4 py-2 text-xs uppercase tracking-[0.2em]">
+                        Golden Studio
+                      </Badge>
+                      <h2 className="text-4xl sm:text-5xl lg:text-6xl font-semibold leading-tight gold-text-glow">
+                        Craft premium tees with an AI‑powered design concierge.
+                      </h2>
+                      <p className="text-lg text-muted-foreground max-w-xl">
+                        Build your next drop in minutes. Precision mockups, premium typography, and
+                        a studio workflow tailored for high‑conversion merchandise.
+                      </p>
+                      <div className="flex flex-wrap gap-3">
+                        <Button
+                          size="lg"
+                          className="rounded-full px-8 h-12 text-base font-semibold shadow-lg shadow-black/30"
+                          onClick={() => setActiveView('SELECT_PRODUCT')}
+                        >
+                          Start Designing
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="lg"
+                          className="rounded-full px-8 h-12 border-white/20 bg-white/5 hover:bg-white/10"
+                          onClick={() => handleNavigateToLanding('gallery')}
+                        >
+                          Explore Gallery
+                        </Button>
+                      </div>
+                      <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+                        <span className="glass-surface rounded-full px-4 py-2">Printful‑ready mockups</span>
+                        <span className="glass-surface rounded-full px-4 py-2">Instant AI iterations</span>
+                        <span className="glass-surface rounded-full px-4 py-2">Premium dark UI</span>
+                      </div>
+                    </div>
+                    <div className="relative">
+                      <div className="glass-panel rounded-3xl p-6 shadow-2xl">
+                        <div className="relative overflow-hidden rounded-2xl border border-white/10">
+                          <img
+                            src={heroProduct?.imageUrl}
+                            alt={heroProduct?.name || 'Featured tee'}
+                            className="w-full h-full object-cover"
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
+                          <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between">
+                            <div>
+                              <p className="text-sm font-semibold">{heroProduct?.name}</p>
+                              <p className="text-xs text-muted-foreground">Studio‑ready mockup</p>
+                            </div>
+                            <Badge variant="secondary" className="font-mono">
+                              ${heroProduct?.basePrice}
+                            </Badge>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="absolute -bottom-6 -left-6 glass-surface rounded-2xl px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          <Sparkle size={18} weight="fill" className="text-primary" />
+                          <div>
+                            <p className="text-xs font-semibold">AI powered</p>
+                            <p className="text-[11px] text-muted-foreground">Live creative guidance</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </section>
+
+                  <section className="grid md:grid-cols-3 gap-6">
+                    <div className="glass-panel rounded-2xl p-6 space-y-4">
+                      <div className="w-12 h-12 rounded-full bg-primary/15 flex items-center justify-center">
+                        <MagicWand size={22} weight="fill" className="text-primary" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-semibold">Concierge AI</h3>
+                        <p className="text-sm text-muted-foreground">
+                          Guided prompts, instant concepts, and premium artwork generation.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="glass-panel rounded-2xl p-6 space-y-4">
+                      <div className="w-12 h-12 rounded-full bg-primary/15 flex items-center justify-center">
+                        <TShirt size={22} weight="fill" className="text-primary" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-semibold">Precision Mockups</h3>
+                        <p className="text-sm text-muted-foreground">
+                          See every print area with buttery‑smooth front/back transitions.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="glass-panel rounded-2xl p-6 space-y-4">
+                      <div className="w-12 h-12 rounded-full bg-primary/15 flex items-center justify-center">
+                        <Sparkle size={22} weight="fill" className="text-primary" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-semibold">Conversion‑ready</h3>
+                        <p className="text-sm text-muted-foreground">
+                          Premium checkout flows and gallery‑grade presentation.
+                        </p>
+                      </div>
+                    </div>
+                  </section>
+
+                  <section id="gallery" className="space-y-8 scroll-mt-24">
+                    <div className="flex flex-wrap items-center justify-between gap-4">
+                      <div>
+                        <h3 className="text-2xl font-semibold">Studio Gallery</h3>
+                        <p className="text-sm text-muted-foreground">
+                          Pick a base tee to begin your design journey.
+                        </p>
+                      </div>
+                      <Button
+                        variant="outline"
+                        className="rounded-full border-white/20 bg-white/5 hover:bg-white/10"
+                        onClick={() => setActiveView('SELECT_PRODUCT')}
+                      >
+                        View All Products
+                      </Button>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                      {MOCK_PRODUCTS.map((product) => (
+                        <ProductCard
+                          key={product.id}
+                          product={product}
+                          onSelect={handleProductSelect}
+                        />
+                      ))}
+                    </div>
+                  </section>
+                </motion.div>
+              )}
+              {activeView === 'SELECT_PRODUCT' && (
                 <motion.div
                   key="products"
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -20 }}
                 >
-                  <div className="mb-8 text-center max-w-2xl mx-auto">
-                    <h2 className="text-4xl font-bold mb-3 tracking-tight">
+                  <div className="mb-10 text-center max-w-2xl mx-auto glass-panel rounded-3xl p-8">
+                    <Badge variant="secondary" className="rounded-full px-4 py-2 text-xs uppercase tracking-[0.2em]">
+                      Studio View
+                    </Badge>
+                    <h2 className="text-3xl sm:text-4xl font-semibold mt-4 mb-3 tracking-tight">
                       Design Your Perfect Tee
                     </h2>
-                    <p className="text-lg text-muted-foreground">
-                      Choose a product and let our AI assistant help you create a custom design
+                    <p className="text-base sm:text-lg text-muted-foreground">
+                      Choose a product and let our AI assistant help you create a custom design.
                     </p>
                   </div>
 
@@ -1036,7 +1360,7 @@ function App() {
                 </motion.div>
               )}
 
-              {activeView === 'configuration' && selectedProduct && (
+              {activeView === 'CONFIGURE_VARIANTS' && selectedProduct && (
                 <ProductConfigurationSelector
                   key="configuration"
                   product={selectedProduct}
@@ -1045,7 +1369,7 @@ function App() {
                 />
               )}
 
-              {activeView === 'brief' && selectedProduct && selectedConfiguration && (
+              {activeView === 'EDIT_DESIGN' && showDesignBrief && selectedProduct && selectedConfiguration && (
                 <motion.div
                   key="brief"
                   initial={{ opacity: 0, y: 20 }}
@@ -1053,42 +1377,46 @@ function App() {
                   exit={{ opacity: 0, y: -20 }}
                   className="py-8"
                 >
-                  <div className="mb-6 text-center">
-                    <h2 className="text-2xl font-bold mb-2">
-                      Let's Design Your {selectedProduct.name}
-                    </h2>
-                    <p className="text-muted-foreground">
-                      {selectedConfiguration.name} • {selectedConfiguration.color} • Size {selectedConfiguration.size}
-                    </p>
+                  <div className="glass-panel rounded-3xl p-8 space-y-6">
+                    <div className="text-center">
+                      <h2 className="text-2xl font-semibold mb-2">
+                        Let's Design Your {selectedProduct.name}
+                      </h2>
+                      <p className="text-muted-foreground">
+                        {selectedConfiguration.name}
+                        {selectedVariantSummary ? ` / ${selectedVariantSummary}` : ''}
+                      </p>
+                    </div>
+
+                    <DesignPreferencesForm
+                      onSubmit={handleDesignPreferencesSubmit}
+                      onSkip={handleSkipToChat}
+                      onUpload={() => {
+                        // Set up print area and navigate to design view, then trigger upload
+                        if (selectedProduct && selectedConfiguration) {
+                          const configuredProduct = {
+                            ...selectedProduct,
+                            printAreas: selectedProduct.printAreas.filter(pa =>
+                              selectedConfiguration.printAreas.includes(pa.id)
+                            )
+                          }
+                          const firstPrintArea = configuredProduct.printAreas[0]?.id
+                          if (firstPrintArea) {
+                            setCurrentPrintArea(firstPrintArea)
+                            setActiveView('EDIT_DESIGN')
+                            setShowDesignBrief(false)
+                            // Add a small delay to ensure view transition completes
+                            setTimeout(() => {
+                              handleUploadDesign(firstPrintArea)
+                            }, 100)
+                          }
+                        }
+                      }}
+                      isLoading={isGenerating}
+                    />
                   </div>
 
-                  <DesignPreferencesForm
-                    onSubmit={handleDesignPreferencesSubmit}
-                    onSkip={handleSkipToChat}
-                    onUpload={() => {
-                      // Set up print area and navigate to design view, then trigger upload
-                      if (selectedProduct && selectedConfiguration) {
-                        const configuredProduct = {
-                          ...selectedProduct,
-                          printAreas: selectedProduct.printAreas.filter(pa =>
-                            selectedConfiguration.printAreas.includes(pa.id)
-                          )
-                        }
-                        const firstPrintArea = configuredProduct.printAreas[0]?.id
-                        if (firstPrintArea) {
-                          setCurrentPrintArea(firstPrintArea)
-                          setActiveView('design')
-                          // Add a small delay to ensure view transition completes
-                          setTimeout(() => {
-                            handleUploadDesign(firstPrintArea)
-                          }, 100)
-                        }
-                      }
-                    }}
-                    isLoading={isGenerating}
-                  />
-
-                  <div className="mt-4 text-center">
+                  <div className="mt-6 text-center">
                     <Button
                       variant="ghost"
                       onClick={handleBackToProducts}
@@ -1100,27 +1428,29 @@ function App() {
                 </motion.div>
               )}
 
-              {activeView === 'design' && selectedProduct && selectedConfiguration && (
+              {isDesignStage && !showDesignBrief && selectedProduct && selectedConfiguration && (
                 <motion.div
                   key="design"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className="space-y-4"
+                  className="space-y-6"
                 >
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-wrap items-center justify-between gap-4 glass-panel rounded-2xl p-4">
                     <Button
                       variant="outline"
                       onClick={handleBackToProducts}
+                      className="rounded-full border-white/20 bg-white/5 hover:bg-white/10"
                     >
                       ← Back to Products
                     </Button>
 
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
                       <Button
                         variant="outline"
                         onClick={handlePublishToCatalog}
                         disabled={designFiles.length === 0}
+                        className="rounded-full border-white/20 bg-white/5 hover:bg-white/10"
                       >
                         <UploadSimple size={20} className="mr-2" />
                         Publish to Catalog
@@ -1129,7 +1459,7 @@ function App() {
                         <Button
                           variant="outline"
                           onClick={() => setActiveView('manager')}
-                          className="gap-2"
+                          className="gap-2 rounded-full border-white/20 bg-white/5 hover:bg-white/10"
                         >
                           <FolderOpen size={20} />
                           Manage Designs
@@ -1137,19 +1467,19 @@ function App() {
                       )}
                       <Button
                         onClick={handleProceedToCheckout}
-                        disabled={!hasDesignsForAllRequiredAreas()}
-                        className="gap-2"
+                        disabled={!designsComplete}
+                        className="gap-2 rounded-full"
                       >
                         <ShoppingCart size={20} weight="fill" />
                         Proceed to Checkout
-                        <Badge variant="secondary" className="font-mono">
+                        <Badge variant="secondary" className="font-mono rounded-full">
                           ${getCurrentPrice().toFixed(2)}
                         </Badge>
                       </Button>
                     </div>
                   </div>
 
-                  <div className="grid lg:grid-cols-3 gap-6 min-h-[600px]">
+                  <div className="grid lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,0.9fr)] gap-6 min-h-[640px]">
                     {/* Left Column: Design Preview */}
                     <DesignPreview
                       product={{
@@ -1161,8 +1491,8 @@ function App() {
                       designFiles={designFiles}
                       currentArea={currentPrintArea}
                       showMockupOption={true}
-                      selectedColor={selectedConfiguration.color}
-                      selectedSize={selectedConfiguration.size}
+                      selectedVariants={selectedConfiguration.variantSelections}
+                      isGenerating={isGeneratingCurrentArea}
                     />
 
                     {/* Middle Column: Chat Interface with Generate Button */}
@@ -1180,7 +1510,7 @@ function App() {
                         size="lg"
                         onClick={handleGenerateDesignClick}
                         disabled={isGenerating || isAILoading || messages.length < 2}
-                        className="w-full gap-2 bg-primary hover:bg-primary/90"
+                        className="w-full gap-2 rounded-full bg-primary hover:bg-primary/90"
                       >
                         {isGenerating ? (
                           <>
@@ -1219,9 +1549,9 @@ function App() {
                     />
                   </div>
 
-                  {!hasDesignsForAllRequiredAreas() && designFiles.length > 0 && selectedProduct && selectedConfiguration && (
-                    <div className="p-4 bg-accent/10 border border-accent rounded-lg text-center">
-                      <p className="text-sm text-accent-foreground">
+                  {!designsComplete && designFiles.length > 0 && selectedProduct && selectedConfiguration && (
+                    <div className="p-4 bg-primary/10 border border-primary/30 rounded-2xl text-center">
+                      <p className="text-sm text-foreground">
                         Complete designs for all print areas before checkout: {
                           selectedProduct.printAreas
                             .filter(pa => selectedConfiguration.printAreas.includes(pa.id))
@@ -1233,20 +1563,20 @@ function App() {
                     </div>
                   )}
 
-                  {hasDesignsForAllRequiredAreas() && (
+                  {designsComplete && (
                     <motion.div
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
-                      className="fixed bottom-8 right-8 z-50"
+                      className="fixed bottom-6 right-4 sm:right-8 z-50"
                     >
                       <Button
                         size="lg"
                         onClick={handleProceedToCheckout}
-                        className="gap-3 shadow-lg hover:shadow-xl transition-shadow bg-accent hover:bg-accent/90 text-accent-foreground"
+                        className="gap-3 rounded-full shadow-lg hover:shadow-xl transition-shadow bg-accent hover:bg-accent/90 text-accent-foreground"
                       >
                         <ShoppingCart size={24} weight="fill" />
                         <span className="font-semibold">Finalize & Checkout</span>
-                        <Badge variant="secondary" className="font-mono text-base px-3 py-1">
+                        <Badge variant="secondary" className="font-mono text-base px-3 py-1 rounded-full">
                           ${getCurrentPrice().toFixed(2)}
                         </Badge>
                       </Button>
@@ -1268,24 +1598,24 @@ function App() {
                   onUpdateDesign={handleUpdateDesign}
                   onDeleteDesign={handleDeleteDesignFromManager}
                   onAddNewDesign={handleAddNewDesignFromManager}
-                  onBack={() => setActiveView('design')}
+                  onBack={() => setActiveView(designsComplete ? 'PREVIEW' : 'EDIT_DESIGN')}
                 />
               )}
 
-              {activeView === 'manager' && hasDesignsForAllRequiredAreas() && (
+              {activeView === 'manager' && designsComplete && (
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="fixed bottom-8 right-8 z-50"
+                  className="fixed bottom-6 right-4 sm:right-8 z-50"
                 >
                   <Button
                     size="lg"
                     onClick={handleProceedToCheckout}
-                    className="gap-3 shadow-lg hover:shadow-xl transition-shadow bg-accent hover:bg-accent/90 text-accent-foreground"
+                    className="gap-3 rounded-full shadow-lg hover:shadow-xl transition-shadow bg-accent hover:bg-accent/90 text-accent-foreground"
                   >
                     <ShoppingCart size={24} weight="fill" />
                     <span className="font-semibold">Finalize & Checkout</span>
-                    <Badge variant="secondary" className="font-mono text-base px-3 py-1">
+                    <Badge variant="secondary" className="font-mono text-base px-3 py-1 rounded-full">
                       ${getCurrentPrice().toFixed(2)}
                     </Badge>
                   </Button>
@@ -1294,7 +1624,7 @@ function App() {
             </AnimatePresence>
           </main>
 
-          <footer className="border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 py-6 mt-12">
+          <footer className="border-t border-white/10 bg-white/5 backdrop-blur py-6 mt-12">
             <div className="container mx-auto px-6 text-center text-sm text-muted-foreground">
               <p className="mb-2">© 2026 GoldenGooseTees. All rights reserved.</p>
               <div className="flex items-center justify-center gap-4">
@@ -1330,7 +1660,12 @@ function App() {
           {showCheckout && currentUser && selectedProduct && currentDesign && (
             <CheckoutFlow
               open={showCheckout}
-              onOpenChange={setShowCheckout}
+              onOpenChange={(open) => {
+                setShowCheckout(open)
+                if (!open && activeView === 'CHECKOUT') {
+                  setActiveView(designsComplete ? 'PREVIEW' : 'EDIT_DESIGN')
+                }
+              }}
               design={currentDesign}
               product={selectedProduct}
               user={currentUser}
@@ -1345,6 +1680,8 @@ function App() {
               onOpenChange={setShowDesignEditor}
               design={editingDesign}
               product={selectedProduct}
+              products={MOCK_PRODUCTS}
+              onSwitchProduct={handleProductSwitch}
               onSave={handleSaveEditedDesign}
             />
           )}

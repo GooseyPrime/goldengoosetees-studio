@@ -1,13 +1,11 @@
 import { useState, useRef, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Slider } from '@/components/ui/slider'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { DesignFile, Product } from '@/lib/types'
 import { 
   X, 
@@ -19,11 +17,7 @@ import {
   SunDim,
   Drop,
   Circle,
-  Rectangle,
-  Pencil,
-  TextAa,
-  ArrowsOutSimple,
-  ArrowsInSimple
+  ArrowsOutSimple
 } from '@phosphor-icons/react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
@@ -34,10 +28,10 @@ interface DesignEditorProps {
   onOpenChange: (open: boolean) => void
   design: DesignFile
   product: Product
+  products: Product[]
+  onSwitchProduct: (productId: string) => void
   onSave: (updatedDesign: DesignFile) => void
 }
-
-type EditTool = 'move' | 'brightness' | 'contrast' | 'saturation' | 'erase' | 'draw' | 'text' | 'shape'
 
 interface EditHistory {
   dataUrl: string
@@ -51,9 +45,16 @@ interface ImageFilters {
   blur: number
 }
 
-export function DesignEditor({ open, onOpenChange, design, product, onSave }: DesignEditorProps) {
+export function DesignEditor({
+  open,
+  onOpenChange,
+  design,
+  product,
+  products,
+  onSwitchProduct,
+  onSave
+}: DesignEditorProps) {
   const [currentDesign, setCurrentDesign] = useState<DesignFile>(design)
-  const [selectedTool, setSelectedTool] = useState<EditTool>('move')
   const [history, setHistory] = useState<EditHistory[]>([])
   const [historyIndex, setHistoryIndex] = useState(-1)
   const [aiPrompt, setAiPrompt] = useState('')
@@ -72,6 +73,7 @@ export function DesignEditor({ open, onOpenChange, design, product, onSave }: De
   
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const printArea = product.printAreas.find(pa => pa.id === design.printAreaId)
+  const canvasAspectRatio = printArea ? printArea.widthInches / printArea.heightInches : 1
 
   useEffect(() => {
     if (open && design) {
@@ -282,64 +284,46 @@ export function DesignEditor({ open, onOpenChange, design, product, onSave }: De
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-6xl h-[90vh] p-0 flex flex-col">
-          <DialogHeader className="px-6 py-4 border-b">
+        <DialogContent className="relative max-w-6xl h-[90vh] p-0 pb-20 flex flex-col overflow-hidden glass-panel border border-white/10">
+          <DialogHeader className="px-6 py-4 border-b border-white/10 bg-white/5">
             <div className="flex items-center justify-between">
               <div>
-                <DialogTitle>Edit Design</DialogTitle>
+                <DialogTitle className="text-lg font-semibold">Edit Design</DialogTitle>
                 <DialogDescription>
-                  {printArea?.name} - {printArea?.widthInches}" × {printArea?.heightInches}"
+                  {printArea?.name} - {printArea?.widthInches}" x {printArea?.heightInches}"
                 </DialogDescription>
               </div>
               <div className="flex items-center gap-2">
+                <Select value={product.id} onValueChange={onSwitchProduct}>
+                  <SelectTrigger className="h-8 rounded-full border-white/20 bg-white/5 px-3 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {products.map((item) => (
+                      <SelectItem key={item.id} value={item.id}>
+                        {item.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleUndo}
-                  disabled={historyIndex <= 0}
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => onOpenChange(false)}
+                  className="rounded-full text-foreground/70 hover:text-foreground"
                 >
-                  <ArrowCounterClockwise size={16} className="mr-2" />
-                  Undo
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleRedo}
-                  disabled={historyIndex >= history.length - 1}
-                >
-                  Redo
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleReset}
-                >
-                  Reset
-                </Button>
-                <Button
-                  onClick={() => setShowAIDialog(true)}
-                  className="gap-2"
-                >
-                  <MagicWand size={16} weight="fill" />
-                  AI Edit
-                </Button>
-                <Button
-                  onClick={handleSave}
-                  className="gap-2"
-                >
-                  <FloppyDisk size={16} weight="fill" />
-                  Save
+                  <X size={18} />
                 </Button>
               </div>
             </div>
           </DialogHeader>
 
           <div className="flex-1 flex overflow-hidden">
-            <div className="flex-1 p-6 bg-muted/30 flex items-center justify-center overflow-auto">
-              <div className="relative">
+            <div className="flex-1 p-6 bg-white/5 flex items-center justify-center overflow-auto">
+              <div className="relative" style={{ aspectRatio: `${canvasAspectRatio}` }}>
                 <canvas
                   ref={canvasRef}
-                  className="max-w-full max-h-full border-2 border-border rounded-lg shadow-lg bg-white"
+                  className="max-w-full max-h-full border border-white/10 rounded-2xl shadow-2xl bg-white"
                   style={{
                     transform: `scale(${scale / 100}) rotate(${rotation}deg)`,
                     transition: 'transform 0.2s ease'
@@ -348,18 +332,24 @@ export function DesignEditor({ open, onOpenChange, design, product, onSave }: De
               </div>
             </div>
 
-            <div className="w-80 border-l bg-background overflow-y-auto">
+            <div className="w-80 border-l border-white/10 bg-white/5 overflow-y-auto">
               <Tabs defaultValue="adjustments" className="w-full">
-                <TabsList className="w-full justify-start rounded-none border-b">
-                  <TabsTrigger value="adjustments" className="flex-1">
+                <TabsList className="w-full justify-start rounded-full border border-white/10 bg-white/5 p-1 mx-4 mt-4">
+                  <TabsTrigger
+                    value="adjustments"
+                    className="flex-1 rounded-full data-[state=active]:bg-primary/20 data-[state=active]:text-foreground"
+                  >
                     Adjust
                   </TabsTrigger>
-                  <TabsTrigger value="transform" className="flex-1">
+                  <TabsTrigger
+                    value="transform"
+                    className="flex-1 rounded-full data-[state=active]:bg-primary/20 data-[state=active]:text-foreground"
+                  >
                     Transform
                   </TabsTrigger>
                 </TabsList>
 
-                <TabsContent value="adjustments" className="p-4 space-y-6">
+                <TabsContent value="adjustments" className="p-6 space-y-6">
                   <div className="space-y-3">
                     <div className="flex items-center gap-2 text-sm font-medium">
                       <SunDim size={18} />
@@ -434,14 +424,14 @@ export function DesignEditor({ open, onOpenChange, design, product, onSave }: De
 
                   <Button
                     variant="outline"
-                    className="w-full"
+                    className="w-full rounded-full border-white/20 bg-white/5 hover:bg-white/10"
                     onClick={saveToHistory}
                   >
                     Apply Changes
                   </Button>
                 </TabsContent>
 
-                <TabsContent value="transform" className="p-4 space-y-6">
+                <TabsContent value="transform" className="p-6 space-y-6">
                   <div className="space-y-3">
                     <div className="flex items-center gap-2 text-sm font-medium">
                       <ArrowsOutSimple size={18} />
@@ -487,11 +477,63 @@ export function DesignEditor({ open, onOpenChange, design, product, onSave }: De
               </Tabs>
             </div>
           </div>
+
+          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20">
+            <div className="flex items-center gap-2 rounded-full border border-white/10 bg-black/40 px-3 py-2 backdrop-blur-xl shadow-[0_20px_50px_-20px_rgba(0,0,0,0.8)]">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleUndo}
+                disabled={historyIndex <= 0}
+                className="rounded-full text-foreground/70 hover:text-foreground"
+                title="Undo"
+              >
+                <ArrowCounterClockwise size={18} />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleRedo}
+                disabled={historyIndex >= history.length - 1}
+                className="rounded-full text-foreground/70 hover:text-foreground"
+                title="Redo"
+              >
+                <ArrowCounterClockwise size={18} className="rotate-180" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleReset}
+                className="rounded-full text-foreground/70 hover:text-foreground"
+                title="Reset"
+              >
+                <Eraser size={18} />
+              </Button>
+              <div className="h-6 w-px bg-white/10 mx-1" />
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowAIDialog(true)}
+                className="rounded-full px-4 text-foreground/80 hover:text-foreground"
+              >
+                <MagicWand size={16} weight="fill" className="mr-2 text-primary" />
+                AI Edit
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleSave}
+                className="rounded-full px-4 font-semibold"
+              >
+                <FloppyDisk size={16} weight="fill" className="mr-2" />
+                Save
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 
       <Dialog open={showAIDialog} onOpenChange={setShowAIDialog}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg glass-panel border border-white/10">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <MagicWand size={24} weight="fill" className="text-primary" />
@@ -511,7 +553,7 @@ export function DesignEditor({ open, onOpenChange, design, product, onSave }: De
                 value={aiPrompt}
                 onChange={(e) => setAiPrompt(e.target.value)}
                 rows={4}
-                className="resize-none"
+                className="resize-none bg-white/5 border-white/10 focus:border-primary/50"
               />
             </div>
 
@@ -519,14 +561,14 @@ export function DesignEditor({ open, onOpenChange, design, product, onSave }: De
               <Button
                 variant="outline"
                 onClick={() => setShowAIDialog(false)}
-                className="flex-1"
+                className="flex-1 rounded-full border-white/20 bg-white/5 hover:bg-white/10"
               >
                 Cancel
               </Button>
               <Button
                 onClick={handleAIEdit}
                 disabled={isAILoading || !aiPrompt.trim()}
-                className="flex-1"
+                className="flex-1 rounded-full"
               >
                 {isAILoading ? 'Editing...' : 'Apply AI Edit'}
               </Button>

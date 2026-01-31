@@ -1,0 +1,55 @@
+Project Identity: Golden Goose Tees Studio (v2.0)
+
+This project is a high-end, world-class design studio for custom apparel and merchandise.
+It is a transformation of a previous "Kiosk" app.
+
+Core Directives
+
+Aesthetic: "World Class," Apple-like, Premium.
+
+Backgrounds: Deep Charcoal/Black (#0a0a0a) or rich dark gradients.
+
+Accents: Gold (#D4AF37) and crisp White.
+
+Typography: Clean, editorial, large headings (Sans-serif).
+
+Interaction: Smooth Framer Motion transitions, glassmorphism, no "standard" HTML inputs (use styled custom UI).
+
+Architecture:
+
+Frontend: React + Vite + Tailwind CSS + Framer Motion.
+
+Backend: Supabase (Auth, DB) + Printful API (Print-on-Demand).
+
+Substrate Engine: The app must support MULTIPLE product categories (Apparel, Drinkware, Accessories) via a generic Product interface.
+
+Single File Principle: Keep related logic self-contained. Use src/lib/utils.ts for shared helpers.
+
+State Management (The Studio Flow):
+
+Strict Modes: The UI must adhere to a specific state machine:
+SELECT_PRODUCT -> CONFIGURE_VARIANTS -> EDIT_DESIGN -> PREVIEW -> CHECKOUT.
+
+No Mode Mixing: Never show T-shirt tools when a Mug is selected.
+
+Behavior:
+
+T-Shirt First: While we support all items, T-Shirts are the "Golden Goose." The UI should prioritize them visually.
+
+Substrate Awareness: The Design Editor must adapt its canvas shape (cylinder vs. flat) based on the selected product.
+
+Tech Stack Rules
+
+Use lucide-react for icons.
+
+Use shadcn/ui patterns for components.
+
+STRICT TypeScript usage. No any.
+
+Folder Structure:
+
+src/components/studio/: All design tool components (Canvas, ToolDock, etc.).
+
+src/lib/printful/: All API integrations.
+
+Always verify src/lib/types.ts matches the current product logic.

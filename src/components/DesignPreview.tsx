@@ -3,19 +3,21 @@ import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Slider } from '@/components/ui/slider'
-import { DesignFile, Product } from '@/lib/types'
+import { Skeleton } from '@/components/ui/skeleton'
+import { DesignFile, Product, ProductVariantType } from '@/lib/types'
 import { printfulService } from '@/lib/printful'
 import { TShirt, CheckCircle, ImageSquare, Spinner, MagnifyingGlassMinus, MagnifyingGlassPlus } from '@phosphor-icons/react'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 
 // T-Shirt SVG Mockup Template Component
 interface TShirtMockupProps {
   color: string
   designUrl?: string
   position?: 'front' | 'back' | 'left_sleeve' | 'right_sleeve'
+  printAreaLabel?: string
 }
 
-function TShirtMockup({ color, designUrl, position = 'front' }: TShirtMockupProps) {
+function TShirtMockup({ color, designUrl, position = 'front', printAreaLabel }: TShirtMockupProps) {
   // Calculate design position based on print area
   const getDesignArea = () => {
     switch (position) {
@@ -235,7 +237,7 @@ function TShirtMockup({ color, designUrl, position = 'front' }: TShirtMockupProp
             fontSize="11"
             opacity="0.5"
           >
-            12" × 16"
+            {printAreaLabel || '12" x 16"'}
           </text>
         </g>
       )}
@@ -259,7 +261,7 @@ function TShirtMockup({ color, designUrl, position = 'front' }: TShirtMockupProp
         x="250"
         y="580"
         textAnchor="middle"
-        fill="#666"
+        fill="#b5b5b5"
         fontSize="14"
         fontFamily="system-ui, sans-serif"
         fontWeight="500"
@@ -270,13 +272,217 @@ function TShirtMockup({ color, designUrl, position = 'front' }: TShirtMockupProp
   )
 }
 
+interface SimpleMockupProps {
+  color: string
+  designUrl?: string
+  printAreaLabel?: string
+}
+
+function MugMockup({ color, designUrl, printAreaLabel }: SimpleMockupProps) {
+  const designArea = { x: 125, y: 90, width: 150, height: 100 }
+  return (
+    <svg viewBox="0 0 400 300" className="w-full h-full" style={{ maxWidth: '420px' }}>
+      <defs>
+        <clipPath id="mugDesignClip">
+          <rect x={designArea.x} y={designArea.y} width={designArea.width} height={designArea.height} rx="6" />
+        </clipPath>
+      </defs>
+      <rect x="70" y="60" width="220" height="180" rx="18" fill={color} stroke="#2d2d2d" strokeWidth="2" />
+      <path
+        d="M 290 85 C 330 90 340 120 340 150 C 340 180 330 210 290 215"
+        fill="none"
+        stroke="#2d2d2d"
+        strokeWidth="14"
+      />
+      {!designUrl && (
+        <g>
+          <rect
+            x={designArea.x}
+            y={designArea.y}
+            width={designArea.width}
+            height={designArea.height}
+            fill="none"
+            stroke="#666666"
+            strokeWidth="1"
+            strokeDasharray="8,4"
+            rx="6"
+            opacity="0.6"
+          />
+          <text
+            x={designArea.x + designArea.width / 2}
+            y={designArea.y + designArea.height / 2}
+            textAnchor="middle"
+            fill="#666666"
+            fontSize="12"
+            opacity="0.7"
+          >
+            Design Area
+          </text>
+          <text
+            x={designArea.x + designArea.width / 2}
+            y={designArea.y + designArea.height / 2 + 18}
+            textAnchor="middle"
+            fill="#666666"
+            fontSize="10"
+            opacity="0.6"
+          >
+            {printAreaLabel || '9" x 4"'}
+          </text>
+        </g>
+      )}
+      {designUrl && (
+        <g clipPath="url(#mugDesignClip)">
+          <image
+            href={designUrl}
+            x={designArea.x}
+            y={designArea.y}
+            width={designArea.width}
+            height={designArea.height}
+            preserveAspectRatio="xMidYMid meet"
+          />
+        </g>
+      )}
+    </svg>
+  )
+}
+
+function HatMockup({ color, designUrl, printAreaLabel }: SimpleMockupProps) {
+  const designArea = { x: 130, y: 95, width: 140, height: 70 }
+  return (
+    <svg viewBox="0 0 400 280" className="w-full h-full" style={{ maxWidth: '420px' }}>
+      <defs>
+        <clipPath id="hatDesignClip">
+          <rect x={designArea.x} y={designArea.y} width={designArea.width} height={designArea.height} rx="10" />
+        </clipPath>
+      </defs>
+      <path
+        d="M 80 160 C 110 80 290 80 320 160 L 320 190 L 80 190 Z"
+        fill={color}
+        stroke="#2d2d2d"
+        strokeWidth="2"
+      />
+      <rect x="40" y="190" width="320" height="40" rx="20" fill="#1d1d1d" opacity="0.6" />
+      {!designUrl && (
+        <g>
+          <rect
+            x={designArea.x}
+            y={designArea.y}
+            width={designArea.width}
+            height={designArea.height}
+            fill="none"
+            stroke="#666666"
+            strokeWidth="1"
+            strokeDasharray="8,4"
+            rx="10"
+            opacity="0.6"
+          />
+          <text
+            x={designArea.x + designArea.width / 2}
+            y={designArea.y + designArea.height / 2}
+            textAnchor="middle"
+            fill="#666666"
+            fontSize="12"
+            opacity="0.7"
+          >
+            Design Area
+          </text>
+          <text
+            x={designArea.x + designArea.width / 2}
+            y={designArea.y + designArea.height / 2 + 18}
+            textAnchor="middle"
+            fill="#666666"
+            fontSize="10"
+            opacity="0.6"
+          >
+            {printAreaLabel || '5" x 3"'}
+          </text>
+        </g>
+      )}
+      {designUrl && (
+        <g clipPath="url(#hatDesignClip)">
+          <image
+            href={designUrl}
+            x={designArea.x}
+            y={designArea.y}
+            width={designArea.width}
+            height={designArea.height}
+            preserveAspectRatio="xMidYMid meet"
+          />
+        </g>
+      )}
+    </svg>
+  )
+}
+
+function PosterMockup({ color, designUrl, printAreaLabel }: SimpleMockupProps) {
+  const designArea = { x: 80, y: 60, width: 240, height: 320 }
+  return (
+    <svg viewBox="0 0 400 480" className="w-full h-full" style={{ maxWidth: '420px' }}>
+      <defs>
+        <clipPath id="posterDesignClip">
+          <rect x={designArea.x} y={designArea.y} width={designArea.width} height={designArea.height} rx="8" />
+        </clipPath>
+      </defs>
+      <rect x="60" y="40" width="280" height="360" rx="12" fill={color} stroke="#2d2d2d" strokeWidth="2" />
+      {!designUrl && (
+        <g>
+          <rect
+            x={designArea.x}
+            y={designArea.y}
+            width={designArea.width}
+            height={designArea.height}
+            fill="none"
+            stroke="#666666"
+            strokeWidth="1"
+            strokeDasharray="8,4"
+            rx="8"
+            opacity="0.6"
+          />
+          <text
+            x={designArea.x + designArea.width / 2}
+            y={designArea.y + designArea.height / 2}
+            textAnchor="middle"
+            fill="#666666"
+            fontSize="12"
+            opacity="0.7"
+          >
+            Design Area
+          </text>
+          <text
+            x={designArea.x + designArea.width / 2}
+            y={designArea.y + designArea.height / 2 + 18}
+            textAnchor="middle"
+            fill="#666666"
+            fontSize="10"
+            opacity="0.6"
+          >
+            {printAreaLabel || '18" x 24"'}
+          </text>
+        </g>
+      )}
+      {designUrl && (
+        <g clipPath="url(#posterDesignClip)">
+          <image
+            href={designUrl}
+            x={designArea.x}
+            y={designArea.y}
+            width={designArea.width}
+            height={designArea.height}
+            preserveAspectRatio="xMidYMid meet"
+          />
+        </g>
+      )}
+    </svg>
+  )
+}
+
 interface DesignPreviewProps {
   product?: Product
   designFiles: DesignFile[]
   currentArea?: string
   showMockupOption?: boolean
-  selectedColor?: string
-  selectedSize?: string
+  selectedVariants?: Partial<Record<ProductVariantType, string>>
+  isGenerating?: boolean
 }
 
 export function DesignPreview({
@@ -284,8 +490,8 @@ export function DesignPreview({
   designFiles,
   currentArea,
   showMockupOption = false,
-  selectedColor,
-  selectedSize
+  selectedVariants,
+  isGenerating = false
 }: DesignPreviewProps) {
   const [useMockup, setUseMockup] = useState(false)
   const [mockupPreferenceSet, setMockupPreferenceSet] = useState(false)
@@ -424,30 +630,48 @@ export function DesignPreview({
 
   const currentDesign = designFiles.find(df => df.printAreaId === currentArea)
   const currentPrintArea = product.printAreas.find(pa => pa.id === currentArea)
+  const showLoadingSkeleton = isGenerating && !currentDesign
+  const simplePreviewKey = `simple-${currentArea}-${currentDesign?.id || 'empty'}`
   
   // Get the selected color object for display
-  const selectedColorObj = selectedColor 
-    ? product.availableColors.find(c => c.name === selectedColor)
-    : product.availableColors[0] || { name: 'White', hexCode: '#FFFFFF', available: true }
+  const colorVariant = product.variants.find(variant => variant.id === 'color')
+  const selectedColorValue = selectedVariants?.color
+  const selectedColorOption = selectedColorValue
+    ? colorVariant?.options.find(option => option.value === selectedColorValue)
+    : colorVariant?.options.find(option => option.available) || colorVariant?.options[0]
+  const selectedColorHex = selectedColorOption?.hexCode || '#FFFFFF'
+  const variantSummary = product.variants
+    .map(variant => {
+      const value = selectedVariants?.[variant.id]
+      if (!value) return null
+      return `${variant.name}: ${value}`
+    })
+    .filter(Boolean)
+    .join(' / ')
+  const printAreaLabel = currentPrintArea
+    ? `${currentPrintArea.widthInches}" x ${currentPrintArea.heightInches}"`
+    : undefined
 
   return (
-    <Card className="flex-1 flex flex-col overflow-hidden">
-      <div className="p-4 border-b bg-muted/30">
+    <Card className="flex-1 flex flex-col overflow-hidden glass-panel">
+      <div className="p-4 border-b border-white/10 bg-white/5">
         <div className="flex items-center justify-between">
           <div>
             <h3 className="font-semibold">{product.name}</h3>
             <p className="text-sm text-muted-foreground">
               {currentPrintArea ? currentPrintArea.name : 'Design Preview'}
             </p>
-            {selectedColor && selectedSize && (
+            {variantSummary && (
               <div className="flex items-center gap-2 mt-1">
-                <div
-                  className="w-4 h-4 rounded-full border border-border"
-                  style={{ backgroundColor: selectedColorObj?.hexCode }}
-                  title={selectedColor}
-                />
+                {selectedColorOption?.hexCode && (
+                  <div
+                    className="w-4 h-4 rounded-full border border-border"
+                    style={{ backgroundColor: selectedColorHex }}
+                    title={selectedColorOption?.value}
+                  />
+                )}
                 <span className="text-xs text-muted-foreground">
-                  {selectedColor} • {selectedSize}
+                  {variantSummary}
                 </span>
               </div>
             )}
@@ -458,60 +682,113 @@ export function DesignPreview({
         </div>
       </div>
 
-      <div className="flex-1 relative bg-gradient-to-br from-muted/30 to-muted/60 overflow-hidden">
+      <div className="flex-1 relative bg-gradient-to-br from-white/5 via-white/5 to-black/40 overflow-hidden">
         <div className="absolute inset-0 flex items-center justify-center p-8 overflow-auto">
-          {/* Mockup view */}
-          {useMockup && mockupUrl ? (
-            <div style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'center' }}>
+          <AnimatePresence mode="wait">
+            {/* Mockup view */}
+            {useMockup && mockupUrl ? (
               <motion.div
+                key={`mockup-${currentArea}-${mockupUrl}`}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -12 }}
+                transition={{ duration: 0.25 }}
+                style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'center' }}
+              >
+                <div className="relative w-full max-w-md">
+                  <img
+                    src={mockupUrl}
+                    alt="Product mockup"
+                    className="w-full h-auto rounded-2xl shadow-2xl"
+                  />
+                  <Badge className="absolute top-3 right-3" variant="secondary">
+                    Printful Mockup
+                  </Badge>
+                </div>
+              </motion.div>
+            ) : useMockup && isLoadingMockup ? (
+              <motion.div
+                key={`mockup-loading-${currentArea}`}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="relative w-full max-w-md"
+                exit={{ opacity: 0 }}
+                className="text-center space-y-4"
               >
-                <img
-                  src={mockupUrl}
-                  alt="Product mockup"
-                  className="w-full h-auto rounded-lg shadow-2xl"
-                />
-                <Badge className="absolute top-2 right-2" variant="secondary">
-                  Printful Mockup
-                </Badge>
+                <Spinner size={48} className="animate-spin text-primary mx-auto" />
+                <p className="text-sm text-muted-foreground">Generating mockup...</p>
               </motion.div>
-            </div>
-          ) : useMockup && isLoadingMockup ? (
-            <div className="text-center space-y-4">
-              <Spinner size={48} className="animate-spin text-primary mx-auto" />
-              <p className="text-sm text-muted-foreground">Generating mockup...</p>
-            </div>
-          ) : (
-            /* T-Shirt Mockup Template View */
-            <div style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'center' }}>
+            ) : (
               <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
+                key={simplePreviewKey}
+                initial={{ opacity: 0, y: 12, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -12, scale: 0.98 }}
                 transition={{ duration: 0.3 }}
+                style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'center' }}
                 className="relative w-full max-w-md flex items-center justify-center p-4"
               >
-                <div className="w-full bg-gradient-to-b from-white/50 to-gray-100/50 rounded-xl p-4 shadow-lg">
-                  <TShirtMockup
-                    color={selectedColorObj?.hexCode || '#FFFFFF'}
-                    designUrl={currentDesign ? (currentDesign.storageUrl || currentDesign.dataUrl) : undefined}
-                    position={currentArea?.includes('back') ? 'back' :
-                             currentArea?.includes('left') ? 'left_sleeve' :
-                             currentArea?.includes('right') ? 'right_sleeve' : 'front'}
-                  />
+                <div className="w-full bg-gradient-to-b from-white/20 via-white/10 to-black/20 rounded-2xl p-4 shadow-lg border border-white/10">
+                  {product.mockupTemplate === 'tshirt' && (
+                    <TShirtMockup
+                      color={selectedColorHex}
+                      designUrl={currentDesign ? (currentDesign.storageUrl || currentDesign.dataUrl) : undefined}
+                      position={currentArea?.includes('back') ? 'back' :
+                               currentArea?.includes('left') ? 'left_sleeve' :
+                               currentArea?.includes('right') ? 'right_sleeve' : 'front'}
+                      printAreaLabel={printAreaLabel}
+                    />
+                  )}
+                  {product.mockupTemplate === 'mug' && (
+                    <MugMockup
+                      color={selectedColorHex}
+                      designUrl={currentDesign ? (currentDesign.storageUrl || currentDesign.dataUrl) : undefined}
+                      printAreaLabel={printAreaLabel}
+                    />
+                  )}
+                  {product.mockupTemplate === 'hat' && (
+                    <HatMockup
+                      color={selectedColorHex}
+                      designUrl={currentDesign ? (currentDesign.storageUrl || currentDesign.dataUrl) : undefined}
+                      printAreaLabel={printAreaLabel}
+                    />
+                  )}
+                  {product.mockupTemplate === 'poster' && (
+                    <PosterMockup
+                      color={selectedColorHex}
+                      designUrl={currentDesign ? (currentDesign.storageUrl || currentDesign.dataUrl) : undefined}
+                      printAreaLabel={printAreaLabel}
+                    />
+                  )}
                   {mockupError && (
                     <div className="mt-3 flex items-center justify-center">
-                      <Badge variant="outline" className="text-xs">
+                      <Badge variant="outline" className="text-xs border-white/20 text-muted-foreground">
                         {mockupError}
                       </Badge>
                     </div>
                   )}
                 </div>
               </motion.div>
-            </div>
-          )}
+            )}
+          </AnimatePresence>
         </div>
+
+        <AnimatePresence>
+          {showLoadingSkeleton && (
+            <motion.div
+              key="preview-loading"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 z-10 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+            >
+              <div className="flex flex-col items-center gap-4 text-center">
+                <Skeleton className="h-[420px] w-72 sm:w-80 rounded-3xl bg-white/10" />
+                <Skeleton className="h-3 w-32 rounded-full bg-white/10" />
+                <p className="text-xs text-muted-foreground">Generating preview...</p>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Mockup toggle button */}
         {showMockupOption && isPrintfulConfigured && designFiles.length > 0 && (
@@ -524,6 +801,7 @@ export function DesignPreview({
                 setMockupPreferenceSet(true)
               }}
               disabled={isLoadingMockup}
+              className="rounded-full border-white/20 bg-white/5 hover:bg-white/10"
             >
               <ImageSquare size={16} className="mr-2" />
               {useMockup ? 'Use Simple Preview' : 'Show Printful Mockup'}
@@ -531,7 +809,7 @@ export function DesignPreview({
           </div>
         )}
 
-        <div className="absolute bottom-4 right-4 bg-background/90 border border-border rounded-lg p-3 shadow-lg min-w-[200px]">
+        <div className="absolute bottom-4 right-4 glass-surface rounded-2xl p-3 min-w-[200px]">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-medium text-muted-foreground">Zoom</span>
             <span className="text-xs font-mono">{zoom}%</span>
@@ -540,7 +818,7 @@ export function DesignPreview({
             <Button
               variant="outline"
               size="icon"
-              className="h-8 w-8"
+              className="h-8 w-8 rounded-full border-white/20 bg-white/5 hover:bg-white/10"
               onClick={() => setZoom((prev) => Math.max(50, prev - 10))}
             >
               <MagnifyingGlassMinus size={14} />
@@ -555,7 +833,7 @@ export function DesignPreview({
             <Button
               variant="outline"
               size="icon"
-              className="h-8 w-8"
+              className="h-8 w-8 rounded-full border-white/20 bg-white/5 hover:bg-white/10"
               onClick={() => setZoom((prev) => Math.min(200, prev + 10))}
             >
               <MagnifyingGlassPlus size={14} />
@@ -564,7 +842,7 @@ export function DesignPreview({
         </div>
       </div>
 
-      <div className="p-4 border-t bg-muted/10">
+      <div className="p-4 border-t border-white/10 bg-white/5">
         <div className="space-y-2">
           <h4 className="text-sm font-semibold">Print Areas</h4>
           <div className="flex flex-wrap gap-2">
@@ -573,14 +851,19 @@ export function DesignPreview({
               const isActive = area.id === currentArea
               
               return (
-                <Badge
+                <span
                   key={area.id}
-                  variant={isActive ? 'default' : hasDesign ? 'secondary' : 'outline'}
-                  className="flex items-center gap-1"
+                  className={`inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-medium border transition-colors ${
+                    isActive
+                      ? 'border-primary/60 bg-primary/20 text-foreground'
+                      : hasDesign
+                      ? 'border-white/20 bg-white/10 text-foreground/80'
+                      : 'border-white/10 bg-transparent text-muted-foreground'
+                  }`}
                 >
-                  {hasDesign && <CheckCircle size={14} weight="fill" />}
+                  {hasDesign && <CheckCircle size={14} weight="fill" className="text-primary" />}
                   {area.name}
-                </Badge>
+                </span>
               )
             })}
           </div>
