@@ -77,6 +77,7 @@ function App() {
   const [showDesignEditor, setShowDesignEditor] = useState(false)
   const [editingDesign, setEditingDesign] = useState<DesignFile | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
+  const [generatingAreaId, setGeneratingAreaId] = useState<string | null>(null)
 
   // Design preferences from form (used to provide context to AI)
   const [designPreferences, setDesignPreferences] = useState<DesignPreferences | null>(null)
@@ -540,6 +541,8 @@ function App() {
     const targetPrintArea = printAreaId || currentPrintArea
     if (!targetPrintArea) return
 
+    setIsGenerating(true)
+    setGeneratingAreaId(targetPrintArea)
     toast.info('Generating your design...', { duration: 2000 })
 
     try {
@@ -592,6 +595,9 @@ function App() {
       } else {
         toast.error(error.message || 'Failed to generate design')
       }
+    } finally {
+      setIsGenerating(false)
+      setGeneratingAreaId(null)
     }
   }
 
@@ -841,6 +847,8 @@ function App() {
   }
 
   const designsComplete = hasDesignsForAllRequiredAreas()
+  const isGeneratingCurrentArea =
+    isGenerating && (!generatingAreaId || generatingAreaId === currentPrintArea)
 
   useEffect(() => {
     if (activeView === 'EDIT_DESIGN' && designsComplete) {
@@ -940,6 +948,7 @@ function App() {
       return
     }
 
+    setGeneratingAreaId(currentPrintArea)
     setIsGenerating(true)
     toast.info('Generating your design...', { duration: 3000 })
 
@@ -1007,6 +1016,7 @@ function App() {
       setMessages((prev) => [...prev, errorMessage])
     } finally {
       setIsGenerating(false)
+      setGeneratingAreaId(null)
     }
   }
 
@@ -1482,6 +1492,7 @@ function App() {
                       currentArea={currentPrintArea}
                       showMockupOption={true}
                       selectedVariants={selectedConfiguration.variantSelections}
+                      isGenerating={isGeneratingCurrentArea}
                     />
 
                     {/* Middle Column: Chat Interface with Generate Button */}
