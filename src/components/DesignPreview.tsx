@@ -3,6 +3,7 @@ import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Slider } from '@/components/ui/slider'
+import { Skeleton } from '@/components/ui/skeleton'
 import { DesignFile, Product, ProductVariantType } from '@/lib/types'
 import { printfulService } from '@/lib/printful'
 import { TShirt, CheckCircle, ImageSquare, Spinner, MagnifyingGlassMinus, MagnifyingGlassPlus } from '@phosphor-icons/react'
@@ -481,6 +482,7 @@ interface DesignPreviewProps {
   currentArea?: string
   showMockupOption?: boolean
   selectedVariants?: Partial<Record<ProductVariantType, string>>
+  isGenerating?: boolean
 }
 
 export function DesignPreview({
@@ -488,7 +490,8 @@ export function DesignPreview({
   designFiles,
   currentArea,
   showMockupOption = false,
-  selectedVariants
+  selectedVariants,
+  isGenerating = false
 }: DesignPreviewProps) {
   const [useMockup, setUseMockup] = useState(false)
   const [mockupPreferenceSet, setMockupPreferenceSet] = useState(false)
@@ -627,6 +630,8 @@ export function DesignPreview({
 
   const currentDesign = designFiles.find(df => df.printAreaId === currentArea)
   const currentPrintArea = product.printAreas.find(pa => pa.id === currentArea)
+  const showLoadingSkeleton = isGenerating && !currentDesign
+  const simplePreviewKey = `simple-${currentArea}-${currentDesign?.id || 'empty'}`
   
   // Get the selected color object for display
   const colorVariant = product.variants.find(variant => variant.id === 'color')
@@ -714,7 +719,7 @@ export function DesignPreview({
               </motion.div>
             ) : (
               <motion.div
-                key={`simple-${currentArea}`}
+                key={simplePreviewKey}
                 initial={{ opacity: 0, y: 12, scale: 0.98 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: -12, scale: 0.98 }}
@@ -766,6 +771,24 @@ export function DesignPreview({
             )}
           </AnimatePresence>
         </div>
+
+        <AnimatePresence>
+          {showLoadingSkeleton && (
+            <motion.div
+              key="preview-loading"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 z-10 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+            >
+              <div className="flex flex-col items-center gap-4 text-center">
+                <Skeleton className="h-[420px] w-72 sm:w-80 rounded-3xl bg-white/10" />
+                <Skeleton className="h-3 w-32 rounded-full bg-white/10" />
+                <p className="text-xs text-muted-foreground">Generating preview...</p>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Mockup toggle button */}
         {showMockupOption && isPrintfulConfigured && designFiles.length > 0 && (
