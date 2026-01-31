@@ -15,7 +15,7 @@ export function ProductCard({ product, onSelect }: ProductCardProps) {
       transition={{ duration: 0.2 }}
     >
       <Card 
-        className="overflow-hidden cursor-pointer hover:shadow-lg transition-shadow duration-200 border-2 hover:border-primary"
+        className="overflow-hidden cursor-pointer glass-panel transition-shadow duration-200 border border-white/10 hover:border-primary/40 hover:shadow-2xl"
         onClick={() => onSelect(product)}
       >
         <div className="aspect-square overflow-hidden bg-muted">

@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ImageEditor } from './ImageEditor'
 import { ImageCombiner } from './ImageCombiner'
 import { DesignFile, Product } from '@/lib/types'
@@ -17,7 +16,7 @@ import {
   Image as ImageIcon,
   Images
 } from '@phosphor-icons/react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion } from 'framer-motion'
 import { toast } from 'sonner'
 
 interface DesignManagerPageProps {
@@ -95,7 +94,7 @@ export function DesignManagerPage({
           <Button
             variant="outline"
             onClick={onBack}
-            className="gap-2"
+            className="gap-2 rounded-full border-white/20 bg-white/5 hover:bg-white/10"
           >
             <ArrowLeft size={18} />
             Back
@@ -108,7 +107,7 @@ export function DesignManagerPage({
           </div>
         </div>
         
-        <Card className="px-4 py-2">
+        <Card className="px-4 py-2 glass-panel border border-white/10">
           <div className="flex items-center gap-3">
             <div className="text-right">
               <div className="text-sm font-medium">Progress</div>
@@ -148,7 +147,7 @@ export function DesignManagerPage({
       </div>
 
       <div className="grid lg:grid-cols-2 gap-6">
-        <Card>
+        <Card className="glass-panel border border-white/10">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Package size={24} weight="duotone" />
@@ -160,7 +159,7 @@ export function DesignManagerPage({
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center gap-4">
-              <div className="w-24 h-24 rounded-lg overflow-hidden border-2 border-border">
+              <div className="w-24 h-24 rounded-2xl overflow-hidden border border-white/10">
                 <img 
                   src={product.imageUrl} 
                   alt={product.name}
@@ -182,7 +181,7 @@ export function DesignManagerPage({
                 {product.printAreas.map((area) => (
                   <div 
                     key={area.id}
-                    className="p-3 border rounded-lg bg-muted/30"
+                    className="p-3 border rounded-2xl glass-surface"
                   >
                     <div className="font-medium text-sm">{area.name}</div>
                     <div className="text-xs text-muted-foreground">
@@ -198,7 +197,7 @@ export function DesignManagerPage({
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="glass-panel border border-white/10">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <ImageIcon size={24} weight="duotone" />
@@ -212,7 +211,7 @@ export function DesignManagerPage({
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="aspect-[3/4] bg-gradient-to-br from-muted/30 to-muted/60 rounded-lg flex items-center justify-center overflow-hidden">
+            <div className="aspect-[3/4] bg-gradient-to-br from-white/5 to-black/40 rounded-2xl border border-white/10 flex items-center justify-center overflow-hidden">
               {previewDesign ? (
                 <motion.div
                   initial={{ opacity: 0, scale: 0.9 }}
@@ -240,7 +239,7 @@ export function DesignManagerPage({
         </Card>
       </div>
 
-      <Card>
+      <Card className="glass-panel border border-white/10">
         <CardHeader>
           <CardTitle>Design Components</CardTitle>
           <CardDescription>
@@ -254,18 +253,18 @@ export function DesignManagerPage({
                 key={area.id}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className={`group relative border rounded-lg p-4 transition-all hover:shadow-md ${
+                className={`group relative border rounded-2xl p-4 transition-all hover:shadow-md glass-surface ${
                   isComplete
-                    ? 'border-border bg-background'
-                    : 'border-dashed border-muted-foreground/40 bg-muted/20'
+                    ? 'border-white/15'
+                    : 'border-dashed border-white/10'
                 }`}
               >
                 <div className="flex items-center gap-4">
                   <div
-                    className={`relative w-24 h-24 rounded-lg border-2 flex items-center justify-center overflow-hidden cursor-pointer transition-all ${
+                    className={`relative w-24 h-24 rounded-2xl border-2 flex items-center justify-center overflow-hidden cursor-pointer transition-all ${
                       isComplete 
-                        ? 'border-green-500 hover:border-green-600' 
-                        : 'border-muted-foreground/30 hover:border-muted-foreground/50'
+                        ? 'border-green-500/70 hover:border-green-500' 
+                        : 'border-white/10 hover:border-white/30'
                     }`}
                     onClick={() => design && setPreviewDesign(design)}
                   >
@@ -297,7 +296,7 @@ export function DesignManagerPage({
                       {isComplete && (
                         <CheckCircle size={20} weight="fill" className="text-green-500" />
                       )}
-                      <Badge variant="outline" className="ml-auto text-xs">
+                      <Badge variant="outline" className="ml-auto text-xs border-white/20">
                         {area.position}
                       </Badge>
                     </div>
@@ -326,7 +325,7 @@ export function DesignManagerPage({
                           variant="outline"
                           size="sm"
                           onClick={() => design && handleEditDesign(design)}
-                          className="gap-2"
+                          className="gap-2 rounded-full border-white/20 bg-white/5 hover:bg-white/10"
                         >
                           <Pencil size={16} />
                           Edit
@@ -335,7 +334,7 @@ export function DesignManagerPage({
                           variant="outline"
                           size="sm"
                           onClick={() => design && handleOpenCombiner(area.id, design)}
-                          className="gap-2"
+                          className="gap-2 rounded-full border-white/20 bg-white/5 hover:bg-white/10"
                           title="Combine with other images"
                         >
                           <Images size={16} />
@@ -345,7 +344,7 @@ export function DesignManagerPage({
                           variant="outline"
                           size="sm"
                           onClick={() => handleDeleteDesign(area.id)}
-                          className="gap-2 text-destructive hover:text-destructive"
+                          className="gap-2 rounded-full border-white/20 bg-white/5 text-destructive hover:text-destructive hover:bg-white/10"
                         >
                           <Trash size={16} />
                           Delete
@@ -356,7 +355,7 @@ export function DesignManagerPage({
                         <Button
                           size="sm"
                           onClick={() => onAddNewDesign(area.id)}
-                          className="gap-2"
+                          className="gap-2 rounded-full"
                         >
                           <Plus size={16} weight="bold" />
                           Create Design
@@ -365,7 +364,7 @@ export function DesignManagerPage({
                           variant="outline"
                           size="sm"
                           onClick={() => handleOpenCombiner(area.id)}
-                          className="gap-2"
+                          className="gap-2 rounded-full border-white/20 bg-white/5 hover:bg-white/10"
                           title="Upload and combine multiple images"
                         >
                           <Images size={16} />
@@ -383,9 +382,9 @@ export function DesignManagerPage({
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="mt-6 p-4 rounded-lg bg-green-500/10 border border-green-500/20"
+              className="mt-6 p-4 rounded-2xl bg-green-500/10 border border-green-500/20"
             >
-              <div className="flex items-center gap-3 text-green-700 dark:text-green-400">
+              <div className="flex items-center gap-3 text-green-400">
                 <CheckCircle size={24} weight="fill" />
                 <div>
                   <div className="font-semibold">All Designs Complete!</div>

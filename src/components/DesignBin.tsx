@@ -40,7 +40,7 @@ export function DesignBin({
   const totalCount = printAreasWithDesigns.length
 
   return (
-    <Card className="p-4">
+    <Card className="p-4 glass-panel border border-white/10">
       <div className="flex items-center justify-between mb-4">
         <div>
           <h3 className="font-semibold text-lg">Design Progress</h3>
@@ -59,18 +59,18 @@ export function DesignBin({
             key={area.id}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className={`relative border rounded-lg p-3 transition-all ${
+            className={`relative border rounded-2xl p-3 transition-all ${
               isCurrent
-                ? 'border-primary bg-primary/5'
+                ? 'border-primary/60 bg-primary/15'
                 : isComplete
-                ? 'border-border bg-background'
-                : 'border-dashed border-muted-foreground/30 bg-muted/30'
+                ? 'border-white/15 bg-white/5'
+                : 'border-dashed border-white/10 bg-white/5'
             }`}
           >
             <div className="flex items-center gap-3">
               <div
-                className={`w-16 h-16 rounded border-2 flex items-center justify-center overflow-hidden ${
-                  isComplete ? 'border-green-500' : 'border-muted-foreground/30'
+                className={`w-16 h-16 rounded-xl border-2 flex items-center justify-center overflow-hidden ${
+                  isComplete ? 'border-green-500/70' : 'border-white/10'
                 }`}
               >
                 {design ? (
@@ -172,7 +172,7 @@ export function DesignBin({
       {completedCount > 0 && onOpenManager && (
         <Button
           variant="outline"
-          className="w-full mt-4 gap-2"
+          className="w-full mt-4 gap-2 rounded-full border-white/20 bg-white/5 hover:bg-white/10"
           onClick={onOpenManager}
         >
           <FolderOpen size={18} />
@@ -186,7 +186,7 @@ export function DesignBin({
           animate={{ opacity: 1, scale: 1 }}
           className="mt-4 p-3 rounded-lg bg-green-500/10 border border-green-500/20"
         >
-          <div className="flex items-center gap-2 text-sm text-green-700 dark:text-green-400">
+          <div className="flex items-center gap-2 text-sm text-green-400">
             <CheckCircle size={20} weight="fill" />
             <span className="font-medium">All areas complete! Ready for checkout.</span>
           </div>

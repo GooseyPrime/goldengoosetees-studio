@@ -39,10 +39,10 @@ export function ChatInterface({ messages, onSendMessage, isLoading }: ChatInterf
   }
 
   return (
-    <Card className="flex flex-col h-full">
-      <div className="p-4 border-b bg-muted/30">
+    <Card className="flex flex-col h-full glass-panel border border-white/10">
+      <div className="p-4 border-b border-white/10 bg-white/5">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center">
+          <div className="w-10 h-10 rounded-full bg-primary/90 flex items-center justify-center shadow-lg shadow-black/40">
             <Robot size={24} weight="duotone" className="text-primary-foreground" />
           </div>
           <div>
@@ -71,8 +71,8 @@ export function ChatInterface({ messages, onSendMessage, isLoading }: ChatInterf
                 <div
                   className={`rounded-2xl px-4 py-3 max-w-[80%] ${
                     message.role === 'user'
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-muted'
+                      ? 'bg-primary/90 text-primary-foreground shadow-lg shadow-black/30'
+                      : 'bg-white/10 text-foreground'
                   }`}
                 >
                   <p className="text-sm leading-relaxed whitespace-pre-wrap">
@@ -94,7 +94,7 @@ export function ChatInterface({ messages, onSendMessage, isLoading }: ChatInterf
                   <Robot size={16} weight="duotone" />
                 </AvatarFallback>
               </Avatar>
-              <div className="bg-muted rounded-2xl px-4 py-3">
+              <div className="bg-white/10 rounded-2xl px-4 py-3">
                 <div className="flex gap-1">
                   <motion.div
                     animate={{ opacity: [0.4, 1, 0.4] }}
@@ -118,7 +118,7 @@ export function ChatInterface({ messages, onSendMessage, isLoading }: ChatInterf
         </div>
       </ScrollArea>
 
-      <div className="p-4 border-t bg-muted/10">
+      <div className="p-4 border-t border-white/10 bg-white/5">
         <div className="flex gap-2">
           <Input
             value={input}
@@ -126,13 +126,13 @@ export function ChatInterface({ messages, onSendMessage, isLoading }: ChatInterf
             onKeyPress={handleKeyPress}
             placeholder="Describe your design idea..."
             disabled={isLoading}
-            className="flex-1"
+            className="flex-1 bg-white/5 border-white/10 focus:border-primary/50"
           />
           <Button
             onClick={handleSend}
             disabled={!input.trim() || isLoading}
             size="icon"
-            className="shrink-0"
+            className="shrink-0 rounded-full"
           >
             <PaperPlaneRight size={20} weight="fill" />
           </Button>
