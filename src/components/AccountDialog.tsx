@@ -55,6 +55,21 @@ export function AccountDialog({
     onOpenChange(false)
   }
 
+  const getOrderVariantSummary = (order: Order) => {
+    if (order.variantSelections && Object.keys(order.variantSelections).length > 0) {
+      return Object.entries(order.variantSelections)
+        .map(([key, value]) => `${key}: ${value}`)
+        .join(' / ')
+    }
+    const fallbackParts = [
+      order.size ? `Size: ${order.size}` : null,
+      order.color ? `Color: ${order.color}` : null
+    ].filter(Boolean)
+    return fallbackParts.join(' / ')
+  }
+
+  const orderVariantSummary = orderResult ? getOrderVariantSummary(orderResult) : ''
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl">
@@ -142,7 +157,8 @@ export function AccountDialog({
                   <Badge variant="secondary">{orderResult.status.toUpperCase()}</Badge>
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  Product: {orderResult.productId} • Size {orderResult.size} • {orderResult.color}
+                  Product: {orderResult.productId}
+                  {orderVariantSummary ? ` / ${orderVariantSummary}` : ''}
                 </p>
                 <p className="text-sm text-muted-foreground">
                   Total: ${orderResult.totalAmount.toFixed(2)}

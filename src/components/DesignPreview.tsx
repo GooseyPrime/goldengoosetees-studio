@@ -3,7 +3,7 @@ import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Slider } from '@/components/ui/slider'
-import { DesignFile, Product } from '@/lib/types'
+import { DesignFile, Product, ProductVariantType } from '@/lib/types'
 import { printfulService } from '@/lib/printful'
 import { TShirt, CheckCircle, ImageSquare, Spinner, MagnifyingGlassMinus, MagnifyingGlassPlus } from '@phosphor-icons/react'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -13,9 +13,10 @@ interface TShirtMockupProps {
   color: string
   designUrl?: string
   position?: 'front' | 'back' | 'left_sleeve' | 'right_sleeve'
+  printAreaLabel?: string
 }
 
-function TShirtMockup({ color, designUrl, position = 'front' }: TShirtMockupProps) {
+function TShirtMockup({ color, designUrl, position = 'front', printAreaLabel }: TShirtMockupProps) {
   // Calculate design position based on print area
   const getDesignArea = () => {
     switch (position) {
@@ -235,7 +236,7 @@ function TShirtMockup({ color, designUrl, position = 'front' }: TShirtMockupProp
             fontSize="11"
             opacity="0.5"
           >
-            12" × 16"
+            {printAreaLabel || '12" x 16"'}
           </text>
         </g>
       )}
@@ -270,13 +271,216 @@ function TShirtMockup({ color, designUrl, position = 'front' }: TShirtMockupProp
   )
 }
 
+interface SimpleMockupProps {
+  color: string
+  designUrl?: string
+  printAreaLabel?: string
+}
+
+function MugMockup({ color, designUrl, printAreaLabel }: SimpleMockupProps) {
+  const designArea = { x: 125, y: 90, width: 150, height: 100 }
+  return (
+    <svg viewBox="0 0 400 300" className="w-full h-full" style={{ maxWidth: '420px' }}>
+      <defs>
+        <clipPath id="mugDesignClip">
+          <rect x={designArea.x} y={designArea.y} width={designArea.width} height={designArea.height} rx="6" />
+        </clipPath>
+      </defs>
+      <rect x="70" y="60" width="220" height="180" rx="18" fill={color} stroke="#2d2d2d" strokeWidth="2" />
+      <path
+        d="M 290 85 C 330 90 340 120 340 150 C 340 180 330 210 290 215"
+        fill="none"
+        stroke="#2d2d2d"
+        strokeWidth="14"
+      />
+      {!designUrl && (
+        <g>
+          <rect
+            x={designArea.x}
+            y={designArea.y}
+            width={designArea.width}
+            height={designArea.height}
+            fill="none"
+            stroke="#666666"
+            strokeWidth="1"
+            strokeDasharray="8,4"
+            rx="6"
+            opacity="0.6"
+          />
+          <text
+            x={designArea.x + designArea.width / 2}
+            y={designArea.y + designArea.height / 2}
+            textAnchor="middle"
+            fill="#666666"
+            fontSize="12"
+            opacity="0.7"
+          >
+            Design Area
+          </text>
+          <text
+            x={designArea.x + designArea.width / 2}
+            y={designArea.y + designArea.height / 2 + 18}
+            textAnchor="middle"
+            fill="#666666"
+            fontSize="10"
+            opacity="0.6"
+          >
+            {printAreaLabel || '9" x 4"'}
+          </text>
+        </g>
+      )}
+      {designUrl && (
+        <g clipPath="url(#mugDesignClip)">
+          <image
+            href={designUrl}
+            x={designArea.x}
+            y={designArea.y}
+            width={designArea.width}
+            height={designArea.height}
+            preserveAspectRatio="xMidYMid meet"
+          />
+        </g>
+      )}
+    </svg>
+  )
+}
+
+function HatMockup({ color, designUrl, printAreaLabel }: SimpleMockupProps) {
+  const designArea = { x: 130, y: 95, width: 140, height: 70 }
+  return (
+    <svg viewBox="0 0 400 280" className="w-full h-full" style={{ maxWidth: '420px' }}>
+      <defs>
+        <clipPath id="hatDesignClip">
+          <rect x={designArea.x} y={designArea.y} width={designArea.width} height={designArea.height} rx="10" />
+        </clipPath>
+      </defs>
+      <path
+        d="M 80 160 C 110 80 290 80 320 160 L 320 190 L 80 190 Z"
+        fill={color}
+        stroke="#2d2d2d"
+        strokeWidth="2"
+      />
+      <rect x="40" y="190" width="320" height="40" rx="20" fill="#1d1d1d" opacity="0.6" />
+      {!designUrl && (
+        <g>
+          <rect
+            x={designArea.x}
+            y={designArea.y}
+            width={designArea.width}
+            height={designArea.height}
+            fill="none"
+            stroke="#666666"
+            strokeWidth="1"
+            strokeDasharray="8,4"
+            rx="10"
+            opacity="0.6"
+          />
+          <text
+            x={designArea.x + designArea.width / 2}
+            y={designArea.y + designArea.height / 2}
+            textAnchor="middle"
+            fill="#666666"
+            fontSize="12"
+            opacity="0.7"
+          >
+            Design Area
+          </text>
+          <text
+            x={designArea.x + designArea.width / 2}
+            y={designArea.y + designArea.height / 2 + 18}
+            textAnchor="middle"
+            fill="#666666"
+            fontSize="10"
+            opacity="0.6"
+          >
+            {printAreaLabel || '5" x 3"'}
+          </text>
+        </g>
+      )}
+      {designUrl && (
+        <g clipPath="url(#hatDesignClip)">
+          <image
+            href={designUrl}
+            x={designArea.x}
+            y={designArea.y}
+            width={designArea.width}
+            height={designArea.height}
+            preserveAspectRatio="xMidYMid meet"
+          />
+        </g>
+      )}
+    </svg>
+  )
+}
+
+function PosterMockup({ color, designUrl, printAreaLabel }: SimpleMockupProps) {
+  const designArea = { x: 80, y: 60, width: 240, height: 320 }
+  return (
+    <svg viewBox="0 0 400 480" className="w-full h-full" style={{ maxWidth: '420px' }}>
+      <defs>
+        <clipPath id="posterDesignClip">
+          <rect x={designArea.x} y={designArea.y} width={designArea.width} height={designArea.height} rx="8" />
+        </clipPath>
+      </defs>
+      <rect x="60" y="40" width="280" height="360" rx="12" fill={color} stroke="#2d2d2d" strokeWidth="2" />
+      {!designUrl && (
+        <g>
+          <rect
+            x={designArea.x}
+            y={designArea.y}
+            width={designArea.width}
+            height={designArea.height}
+            fill="none"
+            stroke="#666666"
+            strokeWidth="1"
+            strokeDasharray="8,4"
+            rx="8"
+            opacity="0.6"
+          />
+          <text
+            x={designArea.x + designArea.width / 2}
+            y={designArea.y + designArea.height / 2}
+            textAnchor="middle"
+            fill="#666666"
+            fontSize="12"
+            opacity="0.7"
+          >
+            Design Area
+          </text>
+          <text
+            x={designArea.x + designArea.width / 2}
+            y={designArea.y + designArea.height / 2 + 18}
+            textAnchor="middle"
+            fill="#666666"
+            fontSize="10"
+            opacity="0.6"
+          >
+            {printAreaLabel || '18" x 24"'}
+          </text>
+        </g>
+      )}
+      {designUrl && (
+        <g clipPath="url(#posterDesignClip)">
+          <image
+            href={designUrl}
+            x={designArea.x}
+            y={designArea.y}
+            width={designArea.width}
+            height={designArea.height}
+            preserveAspectRatio="xMidYMid meet"
+          />
+        </g>
+      )}
+    </svg>
+  )
+}
+
 interface DesignPreviewProps {
   product?: Product
   designFiles: DesignFile[]
   currentArea?: string
   showMockupOption?: boolean
-  selectedColor?: string
-  selectedSize?: string
+  selectedVariants?: Partial<Record<ProductVariantType, string>>
 }
 
 export function DesignPreview({
@@ -284,8 +488,7 @@ export function DesignPreview({
   designFiles,
   currentArea,
   showMockupOption = false,
-  selectedColor,
-  selectedSize
+  selectedVariants
 }: DesignPreviewProps) {
   const [useMockup, setUseMockup] = useState(false)
   const [mockupPreferenceSet, setMockupPreferenceSet] = useState(false)
@@ -426,9 +629,23 @@ export function DesignPreview({
   const currentPrintArea = product.printAreas.find(pa => pa.id === currentArea)
   
   // Get the selected color object for display
-  const selectedColorObj = selectedColor 
-    ? product.availableColors.find(c => c.name === selectedColor)
-    : product.availableColors[0] || { name: 'White', hexCode: '#FFFFFF', available: true }
+  const colorVariant = product.variants.find(variant => variant.id === 'color')
+  const selectedColorValue = selectedVariants?.color
+  const selectedColorOption = selectedColorValue
+    ? colorVariant?.options.find(option => option.value === selectedColorValue)
+    : colorVariant?.options.find(option => option.available) || colorVariant?.options[0]
+  const selectedColorHex = selectedColorOption?.hexCode || '#FFFFFF'
+  const variantSummary = product.variants
+    .map(variant => {
+      const value = selectedVariants?.[variant.id]
+      if (!value) return null
+      return `${variant.name}: ${value}`
+    })
+    .filter(Boolean)
+    .join(' / ')
+  const printAreaLabel = currentPrintArea
+    ? `${currentPrintArea.widthInches}" x ${currentPrintArea.heightInches}"`
+    : undefined
 
   return (
     <Card className="flex-1 flex flex-col overflow-hidden glass-panel">
@@ -439,15 +656,17 @@ export function DesignPreview({
             <p className="text-sm text-muted-foreground">
               {currentPrintArea ? currentPrintArea.name : 'Design Preview'}
             </p>
-            {selectedColor && selectedSize && (
+            {variantSummary && (
               <div className="flex items-center gap-2 mt-1">
-                <div
-                  className="w-4 h-4 rounded-full border border-border"
-                  style={{ backgroundColor: selectedColorObj?.hexCode }}
-                  title={selectedColor}
-                />
+                {selectedColorOption?.hexCode && (
+                  <div
+                    className="w-4 h-4 rounded-full border border-border"
+                    style={{ backgroundColor: selectedColorHex }}
+                    title={selectedColorOption?.value}
+                  />
+                )}
                 <span className="text-xs text-muted-foreground">
-                  {selectedColor} • {selectedSize}
+                  {variantSummary}
                 </span>
               </div>
             )}
@@ -504,13 +723,37 @@ export function DesignPreview({
                 className="relative w-full max-w-md flex items-center justify-center p-4"
               >
                 <div className="w-full bg-gradient-to-b from-white/20 via-white/10 to-black/20 rounded-2xl p-4 shadow-lg border border-white/10">
-                  <TShirtMockup
-                    color={selectedColorObj?.hexCode || '#FFFFFF'}
-                    designUrl={currentDesign ? (currentDesign.storageUrl || currentDesign.dataUrl) : undefined}
-                    position={currentArea?.includes('back') ? 'back' :
-                             currentArea?.includes('left') ? 'left_sleeve' :
-                             currentArea?.includes('right') ? 'right_sleeve' : 'front'}
-                  />
+                  {product.mockupTemplate === 'tshirt' && (
+                    <TShirtMockup
+                      color={selectedColorHex}
+                      designUrl={currentDesign ? (currentDesign.storageUrl || currentDesign.dataUrl) : undefined}
+                      position={currentArea?.includes('back') ? 'back' :
+                               currentArea?.includes('left') ? 'left_sleeve' :
+                               currentArea?.includes('right') ? 'right_sleeve' : 'front'}
+                      printAreaLabel={printAreaLabel}
+                    />
+                  )}
+                  {product.mockupTemplate === 'mug' && (
+                    <MugMockup
+                      color={selectedColorHex}
+                      designUrl={currentDesign ? (currentDesign.storageUrl || currentDesign.dataUrl) : undefined}
+                      printAreaLabel={printAreaLabel}
+                    />
+                  )}
+                  {product.mockupTemplate === 'hat' && (
+                    <HatMockup
+                      color={selectedColorHex}
+                      designUrl={currentDesign ? (currentDesign.storageUrl || currentDesign.dataUrl) : undefined}
+                      printAreaLabel={printAreaLabel}
+                    />
+                  )}
+                  {product.mockupTemplate === 'poster' && (
+                    <PosterMockup
+                      color={selectedColorHex}
+                      designUrl={currentDesign ? (currentDesign.storageUrl || currentDesign.dataUrl) : undefined}
+                      printAreaLabel={printAreaLabel}
+                    />
+                  )}
                   {mockupError && (
                     <div className="mt-3 flex items-center justify-center">
                       <Badge variant="outline" className="text-xs border-white/20 text-muted-foreground">
