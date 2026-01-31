@@ -1,7 +1,19 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { createClient } from '@supabase/supabase-js'
 
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY
 const STRIPE_API_BASE = 'https://api.stripe.com/v1'
+const SUPABASE_URL = process.env.VITE_SUPABASE_URL
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+const supabaseAdmin = SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY
+  ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    })
+  : null
 
 type CreateCheckoutSessionBody = {
   orderId: string
@@ -33,7 +45,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     return
   }
 
-  const amountInCents = Math.round(body.amount * 100)
+  let resolvedAmount = body.amount
+  if (body.orderId && supabaseAdmin) {
+    const { data } = await supabaseAdmin
+      .from('orders')
+      .select('total_amount')
+      .eq('id', body.orderId)
+      .single()
+
+    const totalAmount = data ? Number((data as any).total_amount) : NaN
+    if (Number.isFinite(totalAmount) && totalAmount > 0) {
+      resolvedAmount = totalAmount
+    }
+  }
+
+  const amountInCents = Math.round(resolvedAmount * 100)
 
   const formData = new URLSearchParams()
   formData.append('mode', 'payment')

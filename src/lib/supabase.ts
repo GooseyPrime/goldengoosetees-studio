@@ -290,6 +290,21 @@ export const supabaseService = {
     return data
   },
 
+  async getDesignById(designId: string) {
+    if (!this.isConfigured()) {
+      return null
+    }
+
+    const { data, error } = await supabaseClient!
+      .from('designs')
+      .select('*')
+      .eq('id', designId)
+      .single()
+
+    if (error) throw error
+    return data
+  },
+
   async getDesignsByUser(userId: string) {
     if (!this.isConfigured()) {
       return []

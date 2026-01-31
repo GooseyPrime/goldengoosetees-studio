@@ -1,4 +1,5 @@
 import { Order } from './types'
+import { supabaseService } from './supabase'
 
 // Environment variables (Vite)
 const STRIPE_PUBLISHABLE_KEY = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY
@@ -369,11 +370,25 @@ class StripeService {
     metadata?: Record<string, string>
   }): Promise<CheckoutSession> {
     let data: any
+    let resolvedAmount = options.amount
+
+    if (options.orderId && supabaseService.isConfigured()) {
+      try {
+        const row = await supabaseService.getOrderById(options.orderId)
+        const totalAmount = row ? Number((row as any).total_amount) : NaN
+        if (Number.isFinite(totalAmount) && totalAmount > 0) {
+          resolvedAmount = totalAmount
+        }
+      } catch (error) {
+        console.warn('Failed to resolve order total from Supabase:', error)
+      }
+    }
+
     if (!this.secretKey) {
       const response = await fetch('/api/stripe/create-checkout-session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(options),
+        body: JSON.stringify({ ...options, amount: resolvedAmount }),
       })
       const json = await response.json().catch(() => ({}))
       if (!response.ok) {
@@ -381,7 +396,7 @@ class StripeService {
       }
       data = json
     } else {
-      const amountInCents = Math.round(options.amount * 100)
+      const amountInCents = Math.round(resolvedAmount * 100)
 
       const formData = new URLSearchParams()
       formData.append('mode', 'payment')

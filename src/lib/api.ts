@@ -4,6 +4,7 @@ import { stripeService } from './stripe'
 import { supabaseService } from './supabase'
 import { aiAgents } from './ai-agents'
 import { kvService } from './kv'
+import { MOCK_PRODUCTS } from './mock-data'
 import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
 
 // Custom error for age verification requirement
@@ -23,6 +24,7 @@ export function orderRowToOrder(row: Record<string, unknown>): Order {
     userId: row.user_id as string,
     designId: row.design_id as string,
     productId: row.product_id as string,
+    variantSelections: row.variant_selections as Order['variantSelections'],
     size: row.size as string,
     color: row.color as string,
     stripePaymentId: row.stripe_payment_id as string | undefined,
@@ -45,12 +47,30 @@ export function orderRowToOrder(row: Record<string, unknown>): Order {
   }
 }
 
+const DEFAULT_SHIPPING = 5.99
+
+const roundCurrency = (value: number): number => Math.round(value * 100) / 100
+
+const getCatalogProducts = async (): Promise<Product[]> => {
+  const stored = await kvService.get<Product[]>('admin-products')
+  if (stored && stored.length > 0) {
+    return stored
+  }
+  return MOCK_PRODUCTS
+}
+
+const resolveConfiguration = (
+  product: Product | undefined,
+  configurationId?: string
+) => product?.configurations.find((config) => config.id === configurationId)
+
 // Map client Order (partial) to Supabase row for insert/update
 function orderToRow(order: Partial<Order>): Record<string, unknown> {
   const row: Record<string, unknown> = {}
   if (order.userId != null) row.user_id = order.userId
   if (order.designId != null) row.design_id = order.designId
   if (order.productId != null) row.product_id = order.productId
+  if (order.variantSelections != null) row.variant_selections = order.variantSelections
   if (order.size != null) row.size = order.size
   if (order.color != null) row.color = order.color
   if (order.status != null) row.status = order.status
@@ -240,6 +260,10 @@ export const api = {
             id: design.id || `design-${Date.now()}`,
             user_id: design.userId,
             product_id: design.productId,
+            configuration_id: design.configurationId,
+            variant_selections: design.variantSelections,
+            size: design.size,
+            color: design.color,
             files: design.files,
             is_public: design.isPublic || false,
             is_nsfw: design.isNSFW || false,
@@ -256,6 +280,10 @@ export const api = {
             id: saved.id,
             userId: saved.user_id,
             productId: saved.product_id,
+            configurationId: saved.configuration_id,
+            variantSelections: saved.variant_selections,
+            size: saved.size,
+            color: saved.color,
             files: saved.files,
             isPublic: saved.is_public,
             isNSFW: saved.is_nsfw,
@@ -276,6 +304,10 @@ export const api = {
         id: `design-${Date.now()}`,
         userId: design.userId,
         productId: design.productId!,
+        configurationId: design.configurationId,
+        variantSelections: design.variantSelections,
+        size: design.size,
+        color: design.color,
         files: design.files || [],
         isPublic: design.isPublic || false,
         isNSFW: design.isNSFW || false,
@@ -297,6 +329,10 @@ export const api = {
             id: d.id,
             userId: d.user_id,
             productId: d.product_id,
+            configurationId: d.configuration_id,
+            variantSelections: d.variant_selections,
+            size: d.size,
+            color: d.color,
             files: d.files,
             isPublic: d.is_public,
             isNSFW: d.is_nsfw,
@@ -323,6 +359,10 @@ export const api = {
             id: d.id,
             userId: d.user_id,
             productId: d.product_id,
+            configurationId: d.configuration_id,
+            variantSelections: d.variant_selections,
+            size: d.size,
+            color: d.color,
             files: d.files,
             isPublic: d.is_public,
             isNSFW: d.is_nsfw,
@@ -348,12 +388,53 @@ export const api = {
         throw new Error('Order service not configured. Please contact support.')
       }
 
+      let variantSelections = orderData.variantSelections
+      let size = orderData.size
+      let color = orderData.color
+      let configurationId: string | undefined
+
+      if (orderData.designId && supabaseService.isConfigured()) {
+        try {
+          const designRow = await supabaseService.getDesignById(orderData.designId)
+          if (designRow) {
+            configurationId = designRow.configuration_id as string | undefined
+            if (!variantSelections) {
+              variantSelections = designRow.variant_selections as Order['variantSelections']
+            }
+            if (!size && designRow.size) size = designRow.size as string
+            if (!color && designRow.color) color = designRow.color as string
+          }
+        } catch (error) {
+          console.warn('Unable to load design details for order:', error)
+        }
+      }
+
+      if (variantSelections) {
+        if (!size && variantSelections.size) size = variantSelections.size
+        if (!color && variantSelections.color) color = variantSelections.color
+      }
+
+      let totalAmount = orderData.totalAmount ?? 0
+      const products = await getCatalogProducts()
+      const product = products.find((item) => item.id === orderData.productId)
+      if (product) {
+        const configuration = resolveConfiguration(product, configurationId)
+        const subtotal = product.basePrice + (configuration?.priceModifier ?? 0)
+        totalAmount = roundCurrency(subtotal + DEFAULT_SHIPPING)
+
+        if (product.category === 'apparel') {
+          if (!size) size = variantSelections?.size || 'M'
+          if (!color) color = variantSelections?.color || 'White'
+        }
+      }
+
       const row = orderToRow({
         ...orderData,
         status: 'pending',
-        size: orderData.size || 'M',
-        color: orderData.color || 'White',
-        totalAmount: orderData.totalAmount ?? 0,
+        variantSelections,
+        size,
+        color,
+        totalAmount,
         shippingAddress: orderData.shippingAddress!
       })
       const inserted = await supabaseService.saveOrder(row)
@@ -433,7 +514,16 @@ export const api = {
           )
         )
 
-        const variantId = parseInt(product.printfulSKU) || 71
+        const selections: Order['variantSelections'] = {
+          ...(design.variantSelections || {}),
+          ...(orderObj.variantSelections || {})
+        }
+        if (design.size && !selections.size) selections.size = design.size
+        if (design.color && !selections.color) selections.color = design.color
+        if (orderObj.size && !selections.size) selections.size = orderObj.size
+        if (orderObj.color && !selections.color) selections.color = orderObj.color
+
+        const { variantId } = await printfulService.resolveVariantId(product, selections)
 
         const orderRequest: PrintfulOrderRequest = {
           recipient: {
