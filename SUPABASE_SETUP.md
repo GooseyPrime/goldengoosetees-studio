@@ -98,9 +98,9 @@ EXCEPTION
 END $$;
 
 -- ============================================
--- Users Table
+-- Profiles Table (user data - separate from auth.users)
 -- ============================================
-CREATE TABLE IF NOT EXISTS public.users (
+CREATE TABLE IF NOT EXISTS public.profiles (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     email TEXT UNIQUE NOT NULL,
     name TEXT NOT NULL,
@@ -113,14 +113,14 @@ CREATE TABLE IF NOT EXISTS public.users (
 );
 
 -- Index for email lookups
-CREATE INDEX IF NOT EXISTS idx_users_email ON public.users(email);
+CREATE INDEX IF NOT EXISTS idx_profiles_email ON public.profiles(email);
 
 -- ============================================
 -- Designs Table
 -- ============================================
 CREATE TABLE IF NOT EXISTS public.designs (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID REFERENCES public.users(id) ON DELETE SET NULL,
+    user_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
     product_id TEXT NOT NULL,
     configuration_id TEXT,
     variant_selections JSONB DEFAULT '{}'::jsonb,
@@ -148,7 +148,7 @@ CREATE INDEX IF NOT EXISTS idx_designs_created_at ON public.designs(created_at D
 -- ============================================
 CREATE TABLE IF NOT EXISTS public.orders (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE RESTRICT,
+    user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE RESTRICT,
     design_id UUID REFERENCES public.designs(id) ON DELETE SET NULL,
     product_id TEXT NOT NULL,
     variant_selections JSONB DEFAULT '{}'::jsonb,
@@ -189,35 +189,35 @@ CREATE INDEX IF NOT EXISTS idx_orders_created_at ON public.orders(created_at DES
 -- ============================================
 -- Enable Row Level Security (RLS)
 -- ============================================
-ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.designs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
 
 -- ============================================
--- RLS Policies for users table
+-- RLS Policies for profiles table
 -- (Optimized with subselect pattern for better plan caching)
 -- ============================================
-DROP POLICY IF EXISTS "Users can view their own profile" ON public.users;
-CREATE POLICY "Users can view their own profile" ON public.users
+DROP POLICY IF EXISTS "Users can view their own profile" ON public.profiles;
+CREATE POLICY "Users can view their own profile" ON public.profiles
     FOR SELECT 
     TO authenticated
     USING ((SELECT auth.uid()) = id);
 
-DROP POLICY IF EXISTS "Users can insert their own profile" ON public.users;
-CREATE POLICY "Users can insert their own profile" ON public.users
+DROP POLICY IF EXISTS "Users can insert their own profile" ON public.profiles;
+CREATE POLICY "Users can insert their own profile" ON public.profiles
     FOR INSERT 
     TO authenticated
     WITH CHECK ((SELECT auth.uid()) = id);
 
-DROP POLICY IF EXISTS "Users can update their own profile" ON public.users;
-CREATE POLICY "Users can update their own profile" ON public.users
+DROP POLICY IF EXISTS "Users can update their own profile" ON public.profiles;
+CREATE POLICY "Users can update their own profile" ON public.profiles
     FOR UPDATE 
     TO authenticated
     USING ((SELECT auth.uid()) = id)
     WITH CHECK ((SELECT auth.uid()) = id);
 
-DROP POLICY IF EXISTS "Users can delete their own profile" ON public.users;
-CREATE POLICY "Users can delete their own profile" ON public.users
+DROP POLICY IF EXISTS "Users can delete their own profile" ON public.profiles;
+CREATE POLICY "Users can delete their own profile" ON public.profiles
     FOR DELETE 
     TO authenticated
     USING ((SELECT auth.uid()) = id);
@@ -289,9 +289,9 @@ $$;
 -- ============================================
 -- Triggers for updated_at
 -- ============================================
-DROP TRIGGER IF EXISTS update_users_updated_at ON public.users;
-CREATE TRIGGER update_users_updated_at
-    BEFORE UPDATE ON public.users
+DROP TRIGGER IF EXISTS update_profiles_updated_at ON public.profiles;
+CREATE TRIGGER update_profiles_updated_at
+    BEFORE UPDATE ON public.profiles
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
@@ -311,11 +311,12 @@ CREATE TRIGGER update_orders_updated_at
 ### Schema Notes
 
 **Important Changes from Previous Version:**
-- **Table naming**: All tables use the `public` schema qualifier for clarity
+- **Table naming**: Uses `profiles` instead of `users` to avoid confusion with Supabase's built-in `auth.users` table
+- **Schema qualifiers**: All tables use the `public` schema qualifier for clarity
 - **Primary keys**: `designs` and `orders` now use UUID instead of TEXT for better performance and consistency
 - **Type safety**: Uses PostgreSQL ENUMs (`user_role`, `order_status`) instead of plain TEXT
 - **New fields**: 
-  - `users.birthdate` for age verification
+  - `profiles.birthdate` for age verification
   - `designs.configuration_id`, `variant_selections` for multi-product support
   - `orders.variant_selections` for tracking selected product variants
   - Additional Stripe and Printful tracking fields

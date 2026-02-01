@@ -4,14 +4,14 @@ This directory contains SQL migration files for the Golden Goose Tees Kiosk data
 
 ## Current Migrations
 
-### 1. `optimize_users_rls_policies.sql`
-**Purpose**: Optimize Row-Level Security (RLS) policies for the `public.users` table and other tables.
+### 1. `optimize_profiles_rls_policies.sql`
+**Purpose**: Optimize Row-Level Security (RLS) policies for the `public.profiles` table and other tables.
 
 **Changes**:
-- Adds missing DELETE policy for users
-- Adds missing admin UPDATE policy for users
+- Adds missing DELETE policy for profiles
+- Adds missing admin UPDATE policy for profiles
 - Optimizes all policies with subselect pattern `(SELECT auth.uid())` for better query plan caching
-- Applied to: users, designs, orders, design_sessions, admin_audit_log
+- Applied to: profiles, designs, orders, design_sessions, admin_audit_log
 
 **Status**: ✅ Production ready, fully idempotent
 
@@ -24,7 +24,7 @@ This directory contains SQL migration files for the Golden Goose Tees Kiosk data
 supabase db push
 
 -- Or via psql
-psql -h your-db-host -U postgres -d postgres -f supabase/migrations/optimize_users_rls_policies.sql
+psql -h your-db-host -U postgres -d postgres -f supabase/migrations/optimize_profiles_rls_policies.sql
 ```
 
 **Documentation**: See `/MIGRATION_GUIDE.md` for detailed instructions.
@@ -57,7 +57,7 @@ Format: `<description_of_change>.sql`
 
 Examples:
 - `add_user_preferences_table.sql`
-- `optimize_users_rls_policies.sql`
+- `optimize_profiles_rls_policies.sql`
 - `add_soft_delete_to_orders.sql`
 
 ## Applying Migrations

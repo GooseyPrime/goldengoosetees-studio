@@ -146,7 +146,7 @@ export const supabaseService = {
     }
 
     try {
-      const { error } = await supabaseClient!.from('users').select('count').limit(1)
+      const { error } = await supabaseClient!.from('profiles').select('count').limit(1)
       if (error && error.message.includes('relation') && error.message.includes('does not exist')) {
         return { success: true, needsSetup: true }
       }
@@ -176,7 +176,7 @@ export const supabaseService = {
     let existingUserById: UserProfile = null
     try {
       const { data } = await supabaseClient!
-        .from('users')
+        .from('profiles')
         .select('*')
         .eq('id', user.id)
         .single()
@@ -190,7 +190,7 @@ export const supabaseService = {
     if (user.email && !existingUserById) {
       try {
         const { data } = await supabaseClient!
-          .from('users')
+          .from('profiles')
           .select('*')
           .eq('email', user.email)
           .single()
@@ -209,7 +209,7 @@ export const supabaseService = {
       // Update the existing user record to use the new auth ID
       // This links the Google auth to the existing email account
       const { data: linkedData, error: linkError } = await supabaseClient!
-        .from('users')
+        .from('profiles')
         .update({
           id: user.id,
           avatar: user.user_metadata?.avatar_url || existingUserByEmail.avatar,
@@ -227,7 +227,7 @@ export const supabaseService = {
     }
 
     const { data, error } = await supabaseClient!
-      .from('users')
+      .from('profiles')
       .upsert({
         id: user.id,
         email: user.email,
@@ -250,7 +250,7 @@ export const supabaseService = {
     }
 
     const { data, error } = await supabaseClient!
-      .from('users')
+      .from('profiles')
       .select('*')
       .eq('id', userId)
       .single()
@@ -265,7 +265,7 @@ export const supabaseService = {
     }
 
     const { data, error } = await supabaseClient!
-      .from('users')
+      .from('profiles')
       .update(updates)
       .eq('id', userId)
       .select()

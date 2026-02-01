@@ -54,7 +54,7 @@ export default async function handler(
 
     // Update user role
     const { data, error } = await supabaseAdmin
-      .from('users')
+      .from('profiles')
       .update({ role })
       .eq('id', userId)
       .select()
