@@ -74,25 +74,18 @@ export async function setAppConfig(updates: Partial<AppConfig>): Promise<void> {
       .single()
 
     if (existing) {
-      // Update existing config
+      // Update existing config (updated_at is handled by trigger)
       const { error } = await supabase
         .from('app_config')
-        .update({
-          ...updates,
-          updated_at: new Date().toISOString(),
-        })
+        .update(updates)
         .eq('id', existing.id)
 
       if (error) throw error
     } else {
-      // Insert new config
+      // Insert new config (timestamps are handled by database defaults)
       const { error } = await supabase
         .from('app_config')
-        .insert({
-          ...updates,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
+        .insert(updates)
 
       if (error) throw error
     }

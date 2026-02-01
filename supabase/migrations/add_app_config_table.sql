@@ -102,6 +102,6 @@ INSERT INTO app_config (
     TRUE,
     TRUE
 )
-ON CONFLICT DO NOTHING;
+ON CONFLICT (id) DO NOTHING;
 
 -- Note: Service role key bypasses RLS automatically for server-side operations
