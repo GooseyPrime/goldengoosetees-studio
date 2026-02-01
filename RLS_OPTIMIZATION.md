@@ -45,13 +45,13 @@ Updated for fresh database deployments with:
 
 **Before:**
 ```sql
-CREATE POLICY "Users can view their own profile" ON users
+CREATE POLICY "Users can view their own profile" ON profiles
     FOR SELECT USING (auth.uid() = id);
 ```
 
 **After:**
 ```sql
-CREATE POLICY "Users can view their own profile" ON users
+CREATE POLICY "Users can view their own profile" ON profiles
     FOR SELECT 
     TO authenticated
     USING ((SELECT auth.uid()) = id);
@@ -66,7 +66,7 @@ CREATE POLICY "Users can view their own profile" ON users
 
 Added missing DELETE policy:
 ```sql
-CREATE POLICY "Users can delete their own profile" ON users
+CREATE POLICY "Users can delete their own profile" ON profiles
     FOR DELETE 
     TO authenticated
     USING ((SELECT auth.uid()) = id);
@@ -78,12 +78,12 @@ CREATE POLICY "Users can delete their own profile" ON users
 
 Added missing UPDATE policy for admins and optimized existing admin policies:
 ```sql
-CREATE POLICY "Admins can update all users" ON users
+CREATE POLICY "Admins can update all users" ON profiles
     FOR UPDATE 
     TO authenticated
     USING (
         EXISTS (
-            SELECT 1 FROM users 
+            SELECT 1 FROM profiles 
             WHERE id = (SELECT auth.uid()) 
             AND role = 'admin'
         )
@@ -103,7 +103,7 @@ CREATE POLICY "Admins can update all users" ON users
 
 ### Role Definitions
 - **authenticated**: Any logged-in user (via Supabase Auth)
-- **admin**: Users with `role = 'admin'` in the users table
+- **admin**: Users with `role = 'admin'` in the profiles table
 - **service role**: Backend services with SERVICE_ROLE_KEY (bypasses RLS)
 
 ---
@@ -136,7 +136,7 @@ supabase db reset
 ```javascript
 // Sign in as regular user
 const { data: profile } = await supabase
-  .from('users')
+  .from('profiles')
   .select('*')
   .eq('id', userId)
   .single();
@@ -149,7 +149,7 @@ const { data: profile } = await supabase
 ```javascript
 // Sign in as admin user (role = 'admin')
 const { data: allUsers } = await supabase
-  .from('users')
+  .from('profiles')
   .select('*');
 
 // Should return all users
@@ -159,7 +159,7 @@ const { data: allUsers } = await supabase
 ```javascript
 // Sign in as regular user
 const { error } = await supabase
-  .from('users')
+  .from('profiles')
   .delete()
   .eq('id', userId);
 
@@ -173,7 +173,7 @@ const { error } = await supabase
 await supabase.auth.signOut();
 
 const { data, error } = await supabase
-  .from('users')
+  .from('profiles')
   .select('*');
 
 // Should fail with permission error
