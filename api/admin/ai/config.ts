@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { requireAdmin } from '../../../_lib/auth'
-import { getAppConfig, setAppConfig } from '../../../_lib/config'
+import { requireAdmin } from '../../_lib/auth'
+import { getAppConfig, setAppConfig } from '../../_lib/config'
 
 const ALLOWED_KEYS = new Set([
   'conversational_provider',
