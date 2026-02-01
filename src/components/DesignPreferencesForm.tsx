@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Sparkle, Info, UploadSimple, Image, MagicWand, ArrowRight } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
+import { copy } from '@/lib/copy'
 
 export interface DesignPreferences {
   concept: string
@@ -68,8 +69,8 @@ export function DesignPreferencesForm({ onSubmit, onSkip, onUpload, isLoading }:
     return (
       <div className="w-full max-w-3xl mx-auto space-y-6">
         <div className="text-center mb-8">
-          <h2 className="text-2xl font-bold mb-2">How would you like to create your design?</h2>
-          <p className="text-muted-foreground">Choose your preferred method to get started</p>
+          <h2 className="text-2xl font-bold mb-2">{copy.howToCreate}</h2>
+          <p className="text-muted-foreground">{copy.chooseMethod}</p>
         </div>
 
         <div className="grid md:grid-cols-2 gap-6">
@@ -83,11 +84,11 @@ export function DesignPreferencesForm({ onSubmit, onSkip, onUpload, isLoading }:
                 <MagicWand size={24} weight="duotone" className="text-primary" />
               </div>
               <CardTitle className="text-lg flex items-center gap-2">
-                AI Design Generator
-                <Badge variant="secondary" className="text-xs">Recommended</Badge>
+                {copy.aiDesignGenerator}
+                <Badge variant="secondary" className="text-xs">{copy.recommended}</Badge>
               </CardTitle>
               <CardDescription>
-                Describe your idea and our AI will create a custom design for you
+                {copy.aiGeneratorDescription}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -106,7 +107,7 @@ export function DesignPreferencesForm({ onSubmit, onSkip, onUpload, isLoading }:
                 </li>
               </ul>
               <Button variant="outline" className="w-full mt-4 gap-2">
-                Create with AI <ArrowRight size={16} />
+                {copy.createWithAI} <ArrowRight size={16} />
               </Button>
             </CardContent>
           </Card>
@@ -126,9 +127,9 @@ export function DesignPreferencesForm({ onSubmit, onSkip, onUpload, isLoading }:
               <div className="w-12 h-12 rounded-lg bg-accent/10 flex items-center justify-center mb-3 group-hover:bg-accent/20 transition-colors">
                 <UploadSimple size={24} weight="duotone" className="text-accent" />
               </div>
-              <CardTitle className="text-lg">Upload Your Own</CardTitle>
+              <CardTitle className="text-lg">{copy.uploadYourOwn}</CardTitle>
               <CardDescription>
-                Already have a design? Upload your image file directly
+                {copy.uploadDescription}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -147,7 +148,7 @@ export function DesignPreferencesForm({ onSubmit, onSkip, onUpload, isLoading }:
                 </li>
               </ul>
               <Button variant="outline" className="w-full mt-4 gap-2">
-                Upload Image <ArrowRight size={16} />
+                {copy.uploadImage} <ArrowRight size={16} />
               </Button>
             </CardContent>
           </Card>
@@ -155,7 +156,7 @@ export function DesignPreferencesForm({ onSubmit, onSkip, onUpload, isLoading }:
 
         <div className="text-center pt-4">
           <Button variant="link" onClick={onSkip} className="text-muted-foreground">
-            Skip to chat with design assistant
+            {copy.skipToChat}
           </Button>
         </div>
       </div>
@@ -203,10 +204,10 @@ export function DesignPreferencesForm({ onSubmit, onSkip, onUpload, isLoading }:
       <CardHeader className="text-center pb-2">
         <div className="flex items-center justify-center gap-2 mb-2">
           <Sparkle size={24} weight="duotone" className="text-primary" />
-          <CardTitle className="text-xl">Quick Design Brief</CardTitle>
+          <CardTitle className="text-xl">{copy.quickDesignBrief}</CardTitle>
         </div>
         <CardDescription>
-          Tell us about your design idea. Fill in what you know - we'll handle the rest!
+          {copy.briefDescription}
         </CardDescription>
       </CardHeader>
 
@@ -310,11 +311,11 @@ export function DesignPreferencesForm({ onSubmit, onSkip, onUpload, isLoading }:
               className="flex-1 h-12 text-base"
             >
               {isLoading ? (
-                'Generating...'
+                copy.brewingMagic
               ) : (
                 <>
                   <Sparkle size={20} weight="fill" className="mr-2" />
-                  Generate My Design
+                  {copy.generateMyDesign}
                 </>
               )}
             </Button>

@@ -24,6 +24,7 @@ import {
   ArrowSquareOut
 } from '@phosphor-icons/react'
 import { toast } from 'sonner'
+import { copy } from '@/lib/copy'
 import { motion, AnimatePresence } from 'framer-motion'
 
 // Environment variables
@@ -596,9 +597,9 @@ export function CheckoutFlow({
                 <Package size={64} weight="duotone" className="text-primary" />
               </motion.div>
               <div>
-                <h3 className="text-xl font-semibold mb-2">Processing Your Order</h3>
+                <h3 className="text-xl font-semibold mb-2">{copy.processingOrder}</h3>
                 <p className="text-muted-foreground">
-                  Please wait while we process your payment and submit your order to Printful...
+                  {copy.processingOrderDescription}
                 </p>
               </div>
             </motion.div>

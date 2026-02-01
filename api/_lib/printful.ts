@@ -246,10 +246,19 @@ export const printfulServer = {
   },
 
   /**
-   * Get all products
+   * Get all products (Catalog API)
+   * @param categoryId - Optional category ID to filter by
    */
-  async getProducts(): Promise<PrintfulProduct[]> {
-    return request<PrintfulProduct[]>('/products')
+  async getProducts(categoryId?: number): Promise<PrintfulProduct[]> {
+    const query = categoryId ? `?category_id=${categoryId}` : ''
+    return request<PrintfulProduct[]>(`/products${query}`)
+  },
+
+  /**
+   * Get catalog categories
+   */
+  async getCategories(): Promise<Array<{ id: number; parent_id?: number; title: string; image_url?: string }>> {
+    return request<Array<{ id: number; parent_id?: number; title: string; image_url?: string }>>('/categories')
   },
 
   /**

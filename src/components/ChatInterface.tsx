@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { ChatMessage } from '@/lib/types'
+import { copy } from '@/lib/copy'
 import { PaperPlaneRight, Robot, User } from '@phosphor-icons/react'
 import { motion, AnimatePresence } from 'framer-motion'
 
@@ -46,8 +47,8 @@ export function ChatInterface({ messages, onSendMessage, isLoading }: ChatInterf
             <Robot size={24} weight="duotone" className="text-primary-foreground" />
           </div>
           <div>
-            <h3 className="font-semibold">AI Design Assistant</h3>
-            <p className="text-xs text-muted-foreground">Powered by AI</p>
+            <h3 className="font-semibold">{copy.aiDesignAssistant}</h3>
+            <p className="text-xs text-muted-foreground">{copy.poweredByAI}</p>
           </div>
         </div>
       </div>
@@ -124,7 +125,7 @@ export function ChatInterface({ messages, onSendMessage, isLoading }: ChatInterf
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyPress={handleKeyPress}
-            placeholder="Describe your design idea..."
+            placeholder={copy.chatPlaceholder}
             disabled={isLoading}
             className="flex-1 bg-white/5 border-white/10 focus:border-primary/50"
           />
