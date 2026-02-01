@@ -36,6 +36,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
+import { copy } from '@/lib/copy'
 
 interface ImageEditorProps {
   open: boolean
@@ -559,7 +560,7 @@ export function ImageEditor({ open, onOpenChange, design, product, onSave }: Ima
       
       loadImageToCanvas(result)
       saveToHistory()
-      toast.success('Background removed!')
+      toast.success('Background removed! Your design is ready.')
     } catch (error: any) {
       toast.error(error.message || 'Failed to remove background')
     } finally {
@@ -651,14 +652,14 @@ export function ImageEditor({ open, onOpenChange, design, product, onSave }: Ima
                 size="sm"
                 onClick={handleReset}
               >
-                Reset All
+                {copy.resetAll}
               </Button>
               <Button
                 onClick={handleSave}
                 className="gap-2"
               >
                 <FloppyDisk size={16} weight="fill" />
-                Save Changes
+                {copy.saveChanges}
               </Button>
             </div>
           </div>
@@ -899,7 +900,7 @@ export function ImageEditor({ open, onOpenChange, design, product, onSave }: Ima
                     className="w-full"
                     onClick={saveToHistory}
                   >
-                    Apply Changes
+                    {copy.applyChanges}
                   </Button>
                 </TabsContent>
 

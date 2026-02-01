@@ -1,5 +1,6 @@
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { copy } from '@/lib/copy'
 import { Badge } from '@/components/ui/badge'
 import { DesignFile, Product } from '@/lib/types'
 import { Pencil, Trash, CheckCircle, FolderOpen, UploadSimple } from '@phosphor-icons/react'
@@ -43,9 +44,9 @@ export function DesignBin({
     <Card className="p-4 glass-panel border border-white/10">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h3 className="font-semibold text-lg">Design Progress</h3>
+          <h3 className="font-semibold text-lg">{copy.designProgress}</h3>
           <p className="text-sm text-muted-foreground">
-            {completedCount} of {totalCount} areas complete
+            {copy.areasComplete(completedCount, totalCount)}
           </p>
         </div>
         <Badge variant={completedCount === totalCount ? 'default' : 'secondary'}>
@@ -176,7 +177,7 @@ export function DesignBin({
           onClick={onOpenManager}
         >
           <FolderOpen size={18} />
-          Open Design Manager
+          {copy.openDesignManager}
         </Button>
       )}
 
@@ -188,7 +189,7 @@ export function DesignBin({
         >
           <div className="flex items-center gap-2 text-sm text-green-400">
             <CheckCircle size={20} weight="fill" />
-            <span className="font-medium">All areas complete! Ready for checkout.</span>
+            <span className="font-medium">{copy.allAreasComplete}</span>
           </div>
         </motion.div>
       )}

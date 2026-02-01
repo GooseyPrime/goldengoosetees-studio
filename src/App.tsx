@@ -3,6 +3,7 @@ import { useAppKV } from '@/hooks/useAppKV'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ProductCard } from '@/components/ProductCard'
+import { CatalogBrowser } from '@/components/CatalogBrowser'
 import { ProductConfigurationSelector } from '@/components/ProductConfigurationSelector'
 import { ChatInterface } from '@/components/ChatInterface'
 import { DesignPreview } from '@/components/DesignPreview'
@@ -39,6 +40,7 @@ import {
   MagicWand,
 } from '@phosphor-icons/react'
 import { toast, Toaster } from 'sonner'
+import { copy } from '@/lib/copy'
 import { motion, AnimatePresence } from 'framer-motion'
 import logoImage from '@/assets/images/GoldenGooseTees.jpg'
 
@@ -140,22 +142,30 @@ function App() {
         await kvService.set('pending-designs', MOCK_PENDING_DESIGNS)
       }
 
-      // Check for existing user session
-      // This handles both returning from OAuth and existing sessions
-      try {
-        const existingUser = await api.auth.getCurrentUser()
-        if (existingUser) {
-          setCurrentUser(existingUser)
-          // Show welcome message if we just returned from OAuth
-          if (isOAuthRedirect()) {
-            toast.success(`Welcome, ${existingUser.name || existingUser.email}!`)
-            // Clean up URL hash/params
-            window.history.replaceState(null, '', window.location.pathname)
+      // Session-first bootstrap: restore auth state on refresh
+      // Retry once after 300ms in case Supabase hasn't rehydrated from storage yet
+      const tryGetUser = async (retries = 1): Promise<void> => {
+        try {
+          const existingUser = await api.auth.getCurrentUser()
+          if (existingUser) {
+            setCurrentUser(existingUser)
+            if (isOAuthRedirect()) {
+              toast.success(`Welcome, ${existingUser.name || existingUser.email}!`)
+              window.history.replaceState(null, '', window.location.pathname)
+            }
+          } else if (retries > 0) {
+            await new Promise(r => setTimeout(r, 300))
+            return tryGetUser(0)
+          }
+        } catch (error) {
+          console.error('Failed to get current user:', error)
+          if (retries > 0) {
+            await new Promise(r => setTimeout(r, 300))
+            return tryGetUser(0)
           }
         }
-      } catch (error) {
-        console.error('Failed to get current user:', error)
       }
+      await tryGetUser()
     }
 
     initializeApp()
@@ -217,6 +227,17 @@ function App() {
           const user = await api.auth.getCurrentUser()
           if (user) {
             setCurrentUser(user)
+          }
+        } else if (event === 'INITIAL_SESSION') {
+          // Supabase fired with existing session (e.g. on refresh)
+          if (import.meta.env.DEV) {
+            console.log('🔐 Processing INITIAL_SESSION event')
+          }
+          if (session?.user) {
+            const user = await api.auth.getCurrentUser()
+            if (user) {
+              setCurrentUser(user)
+            }
           }
         }
       } catch (error) {
@@ -286,8 +307,17 @@ function App() {
     setCurrentDesign(null)
   }
 
-  const handleProductSwitch = (productId: string) => {
-    const nextProduct = MOCK_PRODUCTS.find(product => product.id === productId)
+  const handleProductSwitch = async (productId: string) => {
+    let nextProduct = MOCK_PRODUCTS.find(product => product.id === productId)
+    if (!nextProduct) {
+      try {
+        const res = await fetch(`/api/printful/catalog/product/${productId}`)
+        const data = await res.json()
+        if (res.ok && data.product) nextProduct = data.product
+      } catch {
+        // ignore
+      }
+    }
     if (!nextProduct) return
     setSelectedProduct(nextProduct)
     setSelectedConfiguration(null)
@@ -950,7 +980,7 @@ function App() {
 
     setGeneratingAreaId(currentPrintArea)
     setIsGenerating(true)
-    toast.info('Generating your design...', { duration: 3000 })
+    toast.info(copy.generatingYourDesign, { duration: 3000 })
 
     try {
       const printArea = selectedProduct.printAreas.find(pa => pa.id === currentPrintArea)
@@ -1179,7 +1209,7 @@ function App() {
                         className="rounded-full border-white/20 bg-white/5 hover:bg-white/10"
                       >
                         <UserIcon size={16} className="mr-2" />
-                        Sign In
+                        {copy.joinTheFlock}
                       </Button>
                     </>
                   )}
@@ -1304,17 +1334,17 @@ function App() {
                   <section id="gallery" className="space-y-8 scroll-mt-24">
                     <div className="flex flex-wrap items-center justify-between gap-4">
                       <div>
-                        <h3 className="text-2xl font-semibold">Studio Gallery</h3>
-                        <p className="text-sm text-muted-foreground">
-                          Pick a base tee to begin your design journey.
-                        </p>
+                      <h3 className="text-2xl font-semibold">{copy.studioGallery}</h3>
+                      <p className="text-sm text-muted-foreground">
+                        {copy.pickBaseTee}
+                      </p>
                       </div>
                       <Button
                         variant="outline"
                         className="rounded-full border-white/20 bg-white/5 hover:bg-white/10"
                         onClick={() => setActiveView('SELECT_PRODUCT')}
                       >
-                        View All Products
+                        {copy.viewAllProducts}
                       </Button>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -1338,25 +1368,20 @@ function App() {
                 >
                   <div className="mb-10 text-center max-w-2xl mx-auto glass-panel rounded-3xl p-8">
                     <Badge variant="secondary" className="rounded-full px-4 py-2 text-xs uppercase tracking-[0.2em]">
-                      Studio View
+                      {copy.studioView}
                     </Badge>
                     <h2 className="text-3xl sm:text-4xl font-semibold mt-4 mb-3 tracking-tight">
-                      Design Your Perfect Tee
+                      {copy.designYourPerfectTee}
                     </h2>
                     <p className="text-base sm:text-lg text-muted-foreground">
-                      Choose a product and let our AI assistant help you create a custom design.
+                      {copy.chooseProductPrompt}
                     </p>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                    {MOCK_PRODUCTS.map((product) => (
-                      <ProductCard
-                        key={product.id}
-                        product={product}
-                        onSelect={handleProductSelect}
-                      />
-                    ))}
-                  </div>
+                  <CatalogBrowser
+                    onSelectProduct={handleProductSelect}
+                    fallbackProducts={MOCK_PRODUCTS}
+                  />
                 </motion.div>
               )}
 
@@ -1453,7 +1478,7 @@ function App() {
                         className="rounded-full border-white/20 bg-white/5 hover:bg-white/10"
                       >
                         <UploadSimple size={20} className="mr-2" />
-                        Publish to Catalog
+                        {copy.publishToCatalog}
                       </Button>
                       {designFiles.length > 0 && (
                         <Button
@@ -1471,7 +1496,7 @@ function App() {
                         className="gap-2 rounded-full"
                       >
                         <ShoppingCart size={20} weight="fill" />
-                        Proceed to Checkout
+                        {copy.proceedToCheckout}
                         <Badge variant="secondary" className="font-mono rounded-full">
                           ${getCurrentPrice().toFixed(2)}
                         </Badge>
@@ -1552,13 +1577,13 @@ function App() {
                   {!designsComplete && designFiles.length > 0 && selectedProduct && selectedConfiguration && (
                     <div className="p-4 bg-primary/10 border border-primary/30 rounded-2xl text-center">
                       <p className="text-sm text-foreground">
-                        Complete designs for all print areas before checkout: {
+                        {copy.completeDesignsPrompt(
                           selectedProduct.printAreas
                             .filter(pa => selectedConfiguration.printAreas.includes(pa.id))
                             .filter(pa => !designFiles.some(df => df.printAreaId === pa.id))
                             .map(pa => pa.name)
                             .join(', ')
-                        }
+                        )}
                       </p>
                     </div>
                   )}
@@ -1575,7 +1600,7 @@ function App() {
                         className="gap-3 rounded-full shadow-lg hover:shadow-xl transition-shadow bg-accent hover:bg-accent/90 text-accent-foreground"
                       >
                         <ShoppingCart size={24} weight="fill" />
-                        <span className="font-semibold">Finalize & Checkout</span>
+                        <span className="font-semibold">{copy.finalizeCheckout}</span>
                         <Badge variant="secondary" className="font-mono text-base px-3 py-1 rounded-full">
                           ${getCurrentPrice().toFixed(2)}
                         </Badge>
@@ -1614,7 +1639,7 @@ function App() {
                     className="gap-3 rounded-full shadow-lg hover:shadow-xl transition-shadow bg-accent hover:bg-accent/90 text-accent-foreground"
                   >
                     <ShoppingCart size={24} weight="fill" />
-                    <span className="font-semibold">Finalize & Checkout</span>
+                    <span className="font-semibold">{copy.finalizeCheckout}</span>
                     <Badge variant="secondary" className="font-mono text-base px-3 py-1 rounded-full">
                       ${getCurrentPrice().toFixed(2)}
                     </Badge>
@@ -1680,8 +1705,12 @@ function App() {
               onOpenChange={setShowDesignEditor}
               design={editingDesign}
               product={selectedProduct}
-              products={MOCK_PRODUCTS}
-              onSwitchProduct={handleProductSwitch}
+              products={
+                MOCK_PRODUCTS.some(p => p.id === selectedProduct.id)
+                  ? MOCK_PRODUCTS
+                  : [...MOCK_PRODUCTS, selectedProduct]
+              }
+              onSwitchProduct={(id) => void handleProductSwitch(id)}
               onSave={handleSaveEditedDesign}
             />
           )}

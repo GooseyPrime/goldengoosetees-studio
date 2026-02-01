@@ -23,6 +23,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
+import { copy } from '@/lib/copy'
 
 interface DesignEditorProps {
   open: boolean
@@ -289,7 +290,7 @@ export function DesignEditor({
           <DialogHeader className="px-6 py-4 border-b border-white/10 bg-white/5">
             <div className="flex items-center justify-between">
               <div>
-                <DialogTitle className="text-lg font-semibold">Edit Design</DialogTitle>
+                <DialogTitle className="text-lg font-semibold">{copy.editDesign}</DialogTitle>
                 <DialogDescription>
                   {printArea?.name} - {printArea?.widthInches}" x {printArea?.heightInches}"
                 </DialogDescription>
@@ -428,7 +429,7 @@ export function DesignEditor({
                     className="w-full rounded-full border-white/20 bg-white/5 hover:bg-white/10"
                     onClick={saveToHistory}
                   >
-                    Apply Changes
+                    {copy.applyChanges}
                   </Button>
                 </TabsContent>
 
@@ -526,7 +527,7 @@ export function DesignEditor({
                 className="rounded-full px-4 font-semibold"
               >
                 <FloppyDisk size={16} weight="fill" className="mr-2" />
-                Save
+                {copy.saveChanges}
               </Button>
             </div>
           </div>
@@ -571,7 +572,7 @@ export function DesignEditor({
                 disabled={isAILoading || !aiPrompt.trim()}
                 className="flex-1 rounded-full"
               >
-                {isAILoading ? 'Editing...' : 'Apply AI Edit'}
+                {isAILoading ? copy.brewingMagic : copy.applyAiEdit}
               </Button>
             </div>
 

@@ -13,6 +13,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { GoogleLogo, ShieldCheck, Warning } from '@phosphor-icons/react'
 import { api } from '@/lib/api'
 import { User } from '@/lib/types'
+import { copy } from '@/lib/copy'
 import { toast } from 'sonner'
 
 interface AuthDialogProps {
@@ -183,9 +184,9 @@ export function AuthDialog({
         {!needsAgeVerification ? (
           <>
             <DialogHeader>
-              <DialogTitle className="text-2xl">Sign in or create an account</DialogTitle>
+              <DialogTitle className="text-2xl">{copy.signInOrCreate}</DialogTitle>
               <DialogDescription>
-                Sign in to publish your design, place an order, or manage your account. We'll collect your birthdate for age verification.
+                {copy.signInDescription}
               </DialogDescription>
             </DialogHeader>
 
@@ -206,7 +207,7 @@ export function AuthDialog({
                 size="lg"
               >
                 <GoogleLogo size={20} weight="bold" className="mr-2" />
-                {isLoading ? 'Connecting...' : 'Continue with Google'}
+                {isLoading ? copy.brewingMagic : copy.continueWithGoogle}
               </Button>
 
               <div className="flex items-center gap-3">
@@ -273,7 +274,7 @@ export function AuthDialog({
                     className="text-primary hover:underline"
                     onClick={() => setAuthMode('signin')}
                   >
-                    Already have an account? Sign in
+                    {copy.alreadyHaveAccount}
                   </button>
                 ) : (
                   <button
@@ -289,7 +290,7 @@ export function AuthDialog({
               <p className="text-xs text-center text-muted-foreground">
                 By continuing, you agree to our Terms of Service and Privacy Policy.
                 <br />
-                <strong className="text-accent">No refunds or cancellations after order completion.</strong>
+                <strong className="text-accent">{copy.noRefundsNote}</strong>
               </p>
             </div>
           </>

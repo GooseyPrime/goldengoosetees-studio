@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Product, ProductConfiguration, ProductVariantType } from '@/lib/types'
+import { copy } from '@/lib/copy'
 import { Button } from '@/components/ui/button'
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -81,7 +82,7 @@ export function ProductConfigurationSelector({
         onClick={onBack}
         className="mb-6 rounded-full border-white/20 bg-white/5 hover:bg-white/10"
       >
-        ← Back to Products
+        {copy.backToProducts}
       </Button>
 
       <div className="grid md:grid-cols-5 gap-8">
@@ -113,8 +114,8 @@ export function ProductConfigurationSelector({
         <div className="md:col-span-3 space-y-8">
           {product.variants.map((variant) => {
             const selectedValue = variantSelections[variant.id]
-            const title = `Select ${variant.name}`
-            const description = `Choose your preferred ${variant.name.toLowerCase()}`
+            const title = variant.id === 'color' ? copy.selectColor : copy.selectSize
+            const description = variant.id === 'color' ? copy.chooseColor : copy.chooseSize
 
             if (variant.id === 'color') {
               return (
@@ -187,9 +188,9 @@ export function ProductConfigurationSelector({
           })}
 
           <div>
-            <h2 className="text-2xl font-bold mb-2">Choose Print Location</h2>
+            <h2 className="text-2xl font-bold mb-2">{copy.whereShouldItGo}</h2>
             <p className="text-sm text-muted-foreground mb-4">
-              Select where you'd like your custom design printed
+              {copy.choosePrintLocation}
             </p>
 
             <RadioGroup value={selectedConfig} onValueChange={setSelectedConfig}>
@@ -260,10 +261,10 @@ export function ProductConfigurationSelector({
               <Sparkle size={24} weight="duotone" className="text-primary shrink-0" />
               <div className="text-sm">
                 <p className="font-medium text-foreground mb-1">
-                  AI Design Assistant Ready
+                  {copy.yourCreativeWingmanReady}
                 </p>
                 <p className="text-muted-foreground">
-                  Our AI will guide you through creating the perfect design for your selected print areas
+                  {copy.wingmanDescription}
                 </p>
               </div>
             </div>
@@ -275,12 +276,12 @@ export function ProductConfigurationSelector({
             onClick={handleContinue}
             disabled={!selectedConfig || !areVariantsComplete}
           >
-            Start Designing
+            {copy.startDesigning}
             <ArrowRight size={20} weight="bold" className="ml-2" />
           </Button>
 
           <p className="text-xs text-center text-muted-foreground">
-            No refunds or cancellations after order completion
+            {copy.noRefundsNote}
           </p>
         </div>
       </div>
