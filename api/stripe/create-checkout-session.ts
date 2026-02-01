@@ -47,15 +47,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
   let resolvedAmount = body.amount
   if (body.orderId && supabaseAdmin) {
-    const { data } = await supabaseAdmin
+    const { data, error } = await supabaseAdmin
       .from('orders')
       .select('total_amount')
       .eq('id', body.orderId)
       .single()
 
-    const totalAmount = data ? Number((data as any).total_amount) : NaN
-    if (Number.isFinite(totalAmount) && totalAmount > 0) {
-      resolvedAmount = totalAmount
+    if (error) {
+      console.error('Failed to fetch order total_amount:', error.message)
+    } else {
+      const totalAmount = data ? Number((data as any).total_amount) : NaN
+      if (Number.isFinite(totalAmount) && totalAmount > 0) {
+        resolvedAmount = totalAmount
+      }
     }
   }
 
