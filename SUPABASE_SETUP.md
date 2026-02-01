@@ -71,127 +71,263 @@ Supabase Callback:          https://YOUR-PROJECT-REF.supabase.co/auth/v1/callbac
 
 Run the following SQL in your Supabase SQL Editor (Database → SQL Editor):
 
+> **Note**: For the complete, production-ready schema with all features, see [`supabase/schema.sql`](./supabase/schema.sql) in this repository. The SQL below includes the core tables and policies needed to get started.
+
 ```sql
--- Enable UUID extension
+-- ============================================
+-- Enable necessary extensions
+-- ============================================
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- Users table
-CREATE TABLE users (
-  id UUID PRIMARY KEY,
-  email TEXT UNIQUE NOT NULL,
-  name TEXT,
-  avatar TEXT,
-  age_verified BOOLEAN DEFAULT FALSE,
-  role TEXT DEFAULT 'user',
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+-- ============================================
+-- Custom Types (Enums)
+-- ============================================
+
+-- User roles
+DO $$ BEGIN
+    CREATE TYPE user_role AS ENUM ('guest', 'user', 'admin');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
+-- Order status
+DO $$ BEGIN
+    CREATE TYPE order_status AS ENUM ('pending', 'processing', 'fulfilled', 'shipped', 'delivered', 'failed');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
+-- ============================================
+-- Profiles Table (user data - separate from auth.users)
+-- ============================================
+CREATE TABLE IF NOT EXISTS public.profiles (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    email TEXT UNIQUE NOT NULL,
+    name TEXT NOT NULL,
+    avatar TEXT,
+    age_verified BOOLEAN DEFAULT FALSE,
+    birthdate DATE,
+    role user_role DEFAULT 'user',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Designs table
-CREATE TABLE designs (
-  id TEXT PRIMARY KEY,
-  user_id UUID REFERENCES users(id),
-  product_id TEXT NOT NULL,
-  files JSONB NOT NULL,
-  is_public BOOLEAN DEFAULT FALSE,
-  is_nsfw BOOLEAN DEFAULT FALSE,
-  title TEXT NOT NULL,
-  description TEXT,
-  catalog_section TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+-- Index for email lookups
+CREATE INDEX IF NOT EXISTS idx_profiles_email ON public.profiles(email);
+
+-- ============================================
+-- Designs Table
+-- ============================================
+CREATE TABLE IF NOT EXISTS public.designs (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+    product_id TEXT NOT NULL,
+    configuration_id TEXT,
+    variant_selections JSONB DEFAULT '{}'::jsonb,
+    size TEXT,
+    color TEXT,
+    files JSONB NOT NULL DEFAULT '[]'::jsonb,
+    is_public BOOLEAN DEFAULT FALSE,
+    is_nsfw BOOLEAN DEFAULT FALSE,
+    title TEXT NOT NULL DEFAULT 'Untitled Design',
+    description TEXT,
+    catalog_section TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Orders table
-CREATE TABLE orders (
-  id TEXT PRIMARY KEY,
-  user_id UUID REFERENCES users(id) NOT NULL,
-  design_id TEXT REFERENCES designs(id),
-  product_id TEXT NOT NULL,
-  stripe_payment_id TEXT,
-  printful_order_id TEXT,
-  status TEXT NOT NULL,
-  total_amount DECIMAL(10, 2) NOT NULL,
-  shipping_address JSONB NOT NULL,
-  tracking_number TEXT,
-  estimated_delivery TIMESTAMPTZ,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+-- Indexes for designs (optimized for common queries and RLS policies)
+CREATE INDEX IF NOT EXISTS idx_designs_user_id ON public.designs(user_id);
+CREATE INDEX IF NOT EXISTS idx_designs_product_id ON public.designs(product_id);
+CREATE INDEX IF NOT EXISTS idx_designs_is_public ON public.designs(is_public);
+CREATE INDEX IF NOT EXISTS idx_designs_catalog_section ON public.designs(catalog_section);
+CREATE INDEX IF NOT EXISTS idx_designs_created_at ON public.designs(created_at DESC);
+
+-- ============================================
+-- Orders Table
+-- ============================================
+CREATE TABLE IF NOT EXISTS public.orders (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE RESTRICT,
+    design_id UUID REFERENCES public.designs(id) ON DELETE SET NULL,
+    product_id TEXT NOT NULL,
+    variant_selections JSONB DEFAULT '{}'::jsonb,
+    size TEXT,
+    color TEXT,
+    status order_status DEFAULT 'pending',
+    total_amount DECIMAL(10, 2) NOT NULL DEFAULT 0,
+
+    -- Stripe fields
+    stripe_payment_id TEXT,
+    stripe_session_id TEXT,
+
+    -- Printful fields
+    printful_order_id TEXT,
+    printful_external_id TEXT,
+
+    -- Shipping information (stored as JSONB)
+    shipping_address JSONB NOT NULL DEFAULT '{}'::jsonb,
+
+    -- Tracking
+    tracking_number TEXT,
+    tracking_url TEXT,
+    estimated_delivery TIMESTAMPTZ,
+
+    -- Timestamps
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Create indexes for better performance
-CREATE INDEX idx_designs_user_id ON designs(user_id);
-CREATE INDEX idx_designs_is_public ON designs(is_public);
-CREATE INDEX idx_designs_catalog_section ON designs(catalog_section);
-CREATE INDEX idx_orders_user_id ON orders(user_id);
-CREATE INDEX idx_orders_status ON orders(status);
+-- Indexes for orders (optimized for common queries and RLS policies)
+CREATE INDEX IF NOT EXISTS idx_orders_user_id ON public.orders(user_id);
+CREATE INDEX IF NOT EXISTS idx_orders_design_id ON public.orders(design_id);
+CREATE INDEX IF NOT EXISTS idx_orders_status ON public.orders(status);
+CREATE INDEX IF NOT EXISTS idx_orders_stripe_session_id ON public.orders(stripe_session_id);
+CREATE INDEX IF NOT EXISTS idx_orders_printful_order_id ON public.orders(printful_order_id);
+CREATE INDEX IF NOT EXISTS idx_orders_created_at ON public.orders(created_at DESC);
 
+-- ============================================
 -- Enable Row Level Security (RLS)
-ALTER TABLE users ENABLE ROW LEVEL SECURITY;
-ALTER TABLE designs ENABLE ROW LEVEL SECURITY;
-ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
+-- ============================================
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.designs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
 
--- RLS Policies for users table
-CREATE POLICY "Users can read their own data"
-  ON users FOR SELECT
-  USING (auth.uid() = id);
+-- ============================================
+-- RLS Policies for profiles table
+-- (Optimized with subselect pattern for better plan caching)
+-- ============================================
+DROP POLICY IF EXISTS "Users can view their own profile" ON public.profiles;
+CREATE POLICY "Users can view their own profile" ON public.profiles
+    FOR SELECT 
+    TO authenticated
+    USING ((SELECT auth.uid()) = id);
 
-CREATE POLICY "Users can update their own data"
-  ON users FOR UPDATE
-  USING (auth.uid() = id);
+DROP POLICY IF EXISTS "Users can insert their own profile" ON public.profiles;
+CREATE POLICY "Users can insert their own profile" ON public.profiles
+    FOR INSERT 
+    TO authenticated
+    WITH CHECK ((SELECT auth.uid()) = id);
 
-CREATE POLICY "Users can be created by anyone"
-  ON users FOR INSERT
-  WITH CHECK (true);
+DROP POLICY IF EXISTS "Users can update their own profile" ON public.profiles;
+CREATE POLICY "Users can update their own profile" ON public.profiles
+    FOR UPDATE 
+    TO authenticated
+    USING ((SELECT auth.uid()) = id)
+    WITH CHECK ((SELECT auth.uid()) = id);
 
+DROP POLICY IF EXISTS "Users can delete their own profile" ON public.profiles;
+CREATE POLICY "Users can delete their own profile" ON public.profiles
+    FOR DELETE 
+    TO authenticated
+    USING ((SELECT auth.uid()) = id);
+
+-- ============================================
 -- RLS Policies for designs table
-CREATE POLICY "Users can read public designs"
-  ON designs FOR SELECT
-  USING (is_public = true OR auth.uid() = user_id);
+-- (Optimized with subselect pattern for better plan caching)
+-- ============================================
+DROP POLICY IF EXISTS "Users can view their own designs" ON public.designs;
+CREATE POLICY "Users can view their own designs" ON public.designs
+    FOR SELECT 
+    TO authenticated
+    USING ((SELECT auth.uid()) = user_id OR is_public = TRUE);
 
-CREATE POLICY "Users can create their own designs"
-  ON designs FOR INSERT
-  WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users can create designs" ON public.designs;
+CREATE POLICY "Users can create designs" ON public.designs
+    FOR INSERT 
+    TO authenticated
+    WITH CHECK ((SELECT auth.uid()) = user_id);
 
-CREATE POLICY "Users can update their own designs"
-  ON designs FOR UPDATE
-  USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users can update their own designs" ON public.designs;
+CREATE POLICY "Users can update their own designs" ON public.designs
+    FOR UPDATE 
+    TO authenticated
+    USING ((SELECT auth.uid()) = user_id);
 
-CREATE POLICY "Users can delete their own designs"
-  ON designs FOR DELETE
-  USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users can delete their own designs" ON public.designs;
+CREATE POLICY "Users can delete their own designs" ON public.designs
+    FOR DELETE 
+    TO authenticated
+    USING ((SELECT auth.uid()) = user_id);
 
+-- ============================================
 -- RLS Policies for orders table
-CREATE POLICY "Users can read their own orders"
-  ON orders FOR SELECT
-  USING (auth.uid() = user_id);
+-- (Optimized with subselect pattern for better plan caching)
+-- ============================================
+DROP POLICY IF EXISTS "Users can view their own orders" ON public.orders;
+CREATE POLICY "Users can view their own orders" ON public.orders
+    FOR SELECT 
+    TO authenticated
+    USING ((SELECT auth.uid()) = user_id);
 
-CREATE POLICY "Users can create their own orders"
-  ON orders FOR INSERT
-  WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users can create orders" ON public.orders;
+CREATE POLICY "Users can create orders" ON public.orders
+    FOR INSERT 
+    TO authenticated
+    WITH CHECK ((SELECT auth.uid()) = user_id);
 
--- Function to automatically update updated_at timestamp
+DROP POLICY IF EXISTS "Users can update their own orders" ON public.orders;
+CREATE POLICY "Users can update their own orders" ON public.orders
+    FOR UPDATE 
+    TO authenticated
+    USING ((SELECT auth.uid()) = user_id);
+
+-- ============================================
+-- Function: Update timestamp trigger
+-- ============================================
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 SET search_path = public, pg_catalog
 AS $$
 BEGIN
-  NEW.updated_at = NOW();
-  RETURN NEW;
+    NEW.updated_at = NOW();
+    RETURN NEW;
 END;
 $$;
 
+-- ============================================
 -- Triggers for updated_at
-CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+-- ============================================
+DROP TRIGGER IF EXISTS update_profiles_updated_at ON public.profiles;
+CREATE TRIGGER update_profiles_updated_at
+    BEFORE UPDATE ON public.profiles
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_designs_updated_at BEFORE UPDATE ON designs
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+DROP TRIGGER IF EXISTS update_designs_updated_at ON public.designs;
+CREATE TRIGGER update_designs_updated_at
+    BEFORE UPDATE ON public.designs
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_orders_updated_at BEFORE UPDATE ON orders
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+DROP TRIGGER IF EXISTS update_orders_updated_at ON public.orders;
+CREATE TRIGGER update_orders_updated_at
+    BEFORE UPDATE ON public.orders
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
 ```
+
+### Schema Notes
+
+**Important Changes from Previous Version:**
+- **Table naming**: Uses `profiles` instead of `users` to avoid confusion with Supabase's built-in `auth.users` table
+- **Schema qualifiers**: All tables use the `public` schema qualifier for clarity
+- **Primary keys**: `designs` and `orders` now use UUID instead of TEXT for better performance and consistency
+- **Type safety**: Uses PostgreSQL ENUMs (`user_role`, `order_status`) instead of plain TEXT
+- **New fields**: 
+  - `profiles.birthdate` for age verification
+  - `designs.configuration_id`, `variant_selections` for multi-product support
+  - `orders.variant_selections` for tracking selected product variants
+  - Additional Stripe and Printful tracking fields
+- **Indexes**: Comprehensive indexes on foreign keys and commonly queried fields to improve RLS policy performance
+- **Triggers**: Automatic `updated_at` timestamp updates on all tables
+- **Foreign key constraints**: Proper `ON DELETE` behavior (SET NULL for optional refs, RESTRICT for required)
+
+**Performance Optimizations:**
+- Indexes on `user_id` columns improve RLS policy performance
+- Subselect pattern `(SELECT auth.uid())` in policies enables better PostgreSQL plan caching
+- Indexes on timestamp columns support efficient sorting and pagination
 
 ## Step 4: Configure Google OAuth
 

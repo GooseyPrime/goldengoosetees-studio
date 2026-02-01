@@ -122,8 +122,8 @@ In your Vercel project settings (Settings → Environment Variables), add:
 Run this SQL in your Supabase SQL Editor:
 
 ```sql
--- Users table
-CREATE TABLE users (
+-- Profiles table (separate from auth.users)
+CREATE TABLE profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id),
   email TEXT NOT NULL,
   name TEXT,
@@ -136,7 +136,7 @@ CREATE TABLE users (
 -- Designs table
 CREATE TABLE designs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES users(id),
+  user_id UUID REFERENCES profiles(id),
   product_id TEXT NOT NULL,
   files JSONB NOT NULL,
   is_public BOOLEAN DEFAULT FALSE,
@@ -151,7 +151,7 @@ CREATE TABLE designs (
 -- Orders table
 CREATE TABLE orders (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES users(id),
+  user_id UUID REFERENCES profiles(id),
   design_id UUID REFERENCES designs(id),
   product_id TEXT NOT NULL,
   size TEXT,

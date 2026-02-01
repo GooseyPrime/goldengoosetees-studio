@@ -20,7 +20,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- ============================================
 -- DROP TABLE IF EXISTS orders CASCADE;
 -- DROP TABLE IF EXISTS designs CASCADE;
--- DROP TABLE IF EXISTS users CASCADE;
+-- DROP TABLE IF EXISTS profiles CASCADE;
 -- DROP TYPE IF EXISTS user_role CASCADE;
 -- DROP TYPE IF EXISTS order_status CASCADE;
 
@@ -43,9 +43,9 @@ EXCEPTION
 END $$;
 
 -- ============================================
--- Users Table
+-- Profiles Table (user data - separate from auth.users)
 -- ============================================
-CREATE TABLE IF NOT EXISTS users (
+CREATE TABLE IF NOT EXISTS profiles (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     email TEXT UNIQUE NOT NULL,
     name TEXT NOT NULL,
@@ -58,16 +58,17 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 -- Index for email lookups
-CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+CREATE INDEX IF NOT EXISTS idx_profiles_email ON profiles(email);
 
 -- ============================================
 -- Designs Table
 -- ============================================
 CREATE TABLE IF NOT EXISTS designs (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    user_id UUID REFERENCES profiles(id) ON DELETE SET NULL,
     product_id TEXT NOT NULL,
     configuration_id TEXT,
+    variant_selections JSONB DEFAULT '{}'::jsonb,
     size TEXT,
     color TEXT,
     files JSONB NOT NULL DEFAULT '[]'::jsonb,
@@ -92,11 +93,12 @@ CREATE INDEX IF NOT EXISTS idx_designs_created_at ON designs(created_at DESC);
 -- ============================================
 CREATE TABLE IF NOT EXISTS orders (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE RESTRICT,
     design_id UUID REFERENCES designs(id) ON DELETE SET NULL,
     product_id TEXT NOT NULL,
-    size TEXT NOT NULL,
-    color TEXT NOT NULL,
+    variant_selections JSONB DEFAULT '{}'::jsonb,
+    size TEXT,
+    color TEXT,
     status order_status DEFAULT 'pending',
     total_amount DECIMAL(10, 2) NOT NULL DEFAULT 0,
 
@@ -134,7 +136,7 @@ CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at DESC);
 -- ============================================
 CREATE TABLE IF NOT EXISTS design_sessions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    user_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
     product_id TEXT,
     messages JSONB DEFAULT '[]'::jsonb,
     current_designs JSONB DEFAULT '[]'::jsonb,
@@ -181,9 +183,9 @@ END;
 $$;
 
 -- Apply trigger to all tables
-DROP TRIGGER IF EXISTS update_users_updated_at ON users;
-CREATE TRIGGER update_users_updated_at
-    BEFORE UPDATE ON users
+DROP TRIGGER IF EXISTS update_profiles_updated_at ON profiles;
+CREATE TRIGGER update_profiles_updated_at
+    BEFORE UPDATE ON profiles
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
@@ -210,34 +212,34 @@ CREATE TRIGGER update_design_sessions_updated_at
 -- ============================================
 
 -- Enable RLS on all tables
-ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE designs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE design_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE catalog_sections ENABLE ROW LEVEL SECURITY;
 
 -- Users policies (optimized with subselect pattern for better plan caching)
-DROP POLICY IF EXISTS "Users can view their own profile" ON users;
-CREATE POLICY "Users can view their own profile" ON users
+DROP POLICY IF EXISTS "Users can view their own profile" ON profiles;
+CREATE POLICY "Users can view their own profile" ON profiles
     FOR SELECT 
     TO authenticated
     USING ((SELECT auth.uid()) = id);
 
-DROP POLICY IF EXISTS "Users can insert their own profile" ON users;
-CREATE POLICY "Users can insert their own profile" ON users
+DROP POLICY IF EXISTS "Users can insert their own profile" ON profiles;
+CREATE POLICY "Users can insert their own profile" ON profiles
     FOR INSERT 
     TO authenticated
     WITH CHECK ((SELECT auth.uid()) = id);
 
-DROP POLICY IF EXISTS "Users can update their own profile" ON users;
-CREATE POLICY "Users can update their own profile" ON users
+DROP POLICY IF EXISTS "Users can update their own profile" ON profiles;
+CREATE POLICY "Users can update their own profile" ON profiles
     FOR UPDATE 
     TO authenticated
     USING ((SELECT auth.uid()) = id)
     WITH CHECK ((SELECT auth.uid()) = id);
 
-DROP POLICY IF EXISTS "Users can delete their own profile" ON users;
-CREATE POLICY "Users can delete their own profile" ON users
+DROP POLICY IF EXISTS "Users can delete their own profile" ON profiles;
+CREATE POLICY "Users can delete their own profile" ON profiles
     FOR DELETE 
     TO authenticated
     USING ((SELECT auth.uid()) = id);
@@ -303,26 +305,26 @@ CREATE POLICY "Anyone can view catalog sections" ON catalog_sections
 -- ============================================
 
 -- Admin can view all users (optimized with subselect)
-DROP POLICY IF EXISTS "Admins can view all users" ON users;
-CREATE POLICY "Admins can view all users" ON users
+DROP POLICY IF EXISTS "Admins can view all users" ON profiles;
+CREATE POLICY "Admins can view all users" ON profiles
     FOR SELECT 
     TO authenticated
     USING (
         EXISTS (
-            SELECT 1 FROM users 
+            SELECT 1 FROM profiles 
             WHERE id = (SELECT auth.uid()) 
             AND role = 'admin'
         )
     );
 
 -- Admin can update all users
-DROP POLICY IF EXISTS "Admins can update all users" ON users;
-CREATE POLICY "Admins can update all users" ON users
+DROP POLICY IF EXISTS "Admins can update all users" ON profiles;
+CREATE POLICY "Admins can update all users" ON profiles
     FOR UPDATE 
     TO authenticated
     USING (
         EXISTS (
-            SELECT 1 FROM users 
+            SELECT 1 FROM profiles 
             WHERE id = (SELECT auth.uid()) 
             AND role = 'admin'
         )
@@ -335,7 +337,7 @@ CREATE POLICY "Admins can view all designs" ON designs
     TO authenticated
     USING (
         EXISTS (
-            SELECT 1 FROM users 
+            SELECT 1 FROM profiles 
             WHERE id = (SELECT auth.uid()) 
             AND role = 'admin'
         )
@@ -348,7 +350,7 @@ CREATE POLICY "Admins can update all designs" ON designs
     TO authenticated
     USING (
         EXISTS (
-            SELECT 1 FROM users 
+            SELECT 1 FROM profiles 
             WHERE id = (SELECT auth.uid()) 
             AND role = 'admin'
         )
@@ -361,7 +363,7 @@ CREATE POLICY "Admins can view all orders" ON orders
     TO authenticated
     USING (
         EXISTS (
-            SELECT 1 FROM users 
+            SELECT 1 FROM profiles 
             WHERE id = (SELECT auth.uid()) 
             AND role = 'admin'
         )
@@ -374,7 +376,7 @@ CREATE POLICY "Admins can update all orders" ON orders
     TO authenticated
     USING (
         EXISTS (
-            SELECT 1 FROM users 
+            SELECT 1 FROM profiles 
             WHERE id = (SELECT auth.uid()) 
             AND role = 'admin'
         )
@@ -453,7 +455,7 @@ SELECT
     o.created_at,
     o.updated_at
 FROM orders o
-LEFT JOIN users u ON o.user_id = u.id;
+LEFT JOIN profiles u ON o.user_id = u.id;
 
 -- Design catalog view (public designs only)
 CREATE OR REPLACE VIEW design_catalog AS
@@ -468,7 +470,7 @@ SELECT
     d.files,
     d.created_at
 FROM designs d
-LEFT JOIN users u ON d.user_id = u.id
+LEFT JOIN profiles u ON d.user_id = u.id
 WHERE d.is_public = TRUE AND d.is_nsfw = FALSE;
 
 -- ============================================
@@ -478,7 +480,7 @@ WHERE d.is_public = TRUE AND d.is_nsfw = FALSE;
 
 /*
 -- Test admin user (replace with your actual user ID after OAuth)
-INSERT INTO users (id, email, name, role, age_verified) VALUES
+INSERT INTO profiles (id, email, name, role, age_verified) VALUES
     ('00000000-0000-0000-0000-000000000001', 'admin@goldengoosetees.com', 'Admin User', 'admin', TRUE)
 ON CONFLICT (id) DO UPDATE SET role = 'admin';
 
@@ -494,7 +496,7 @@ INSERT INTO designs (user_id, product_id, title, is_public, files) VALUES
 -- ============================================
 CREATE TABLE IF NOT EXISTS admin_audit_log (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    actor_user_id UUID NOT NULL REFERENCES users(id) ON DELETE SET NULL,
+    actor_user_id UUID REFERENCES profiles(id) ON DELETE SET NULL,
     action TEXT NOT NULL,
     target_type TEXT NOT NULL,
     target_id TEXT,
@@ -516,7 +518,7 @@ CREATE POLICY "Admins can view audit logs" ON admin_audit_log
     TO authenticated
     USING (
         EXISTS (
-            SELECT 1 FROM users 
+            SELECT 1 FROM profiles 
             WHERE id = (SELECT auth.uid()) 
             AND role = 'admin'
         )

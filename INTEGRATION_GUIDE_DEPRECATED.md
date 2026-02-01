@@ -42,7 +42,7 @@ async loginWithGoogle(): Promise<User> {
   }
   
   // Store in Supabase
-  await supabase.from('users').upsert(user)
+  await supabase.from('profiles').upsert(user)
   
   return user
 }
@@ -77,7 +77,7 @@ async verifyAge(userId: string, verificationData: any): Promise<boolean> {
   
   // Update user in Supabase
   await supabase
-    .from('users')
+    .from('profiles')
     .update({ ageVerified: isVerified })
     .eq('id', userId)
   

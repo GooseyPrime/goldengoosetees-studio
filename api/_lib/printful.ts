@@ -49,9 +49,14 @@ export interface PrintfulVariant {
   }>
 }
 
+export interface PrintfulProductResponse {
+  product: PrintfulProduct
+  variants: PrintfulVariant[]
+}
+
 export interface PrintfulFile {
   url?: string
-  type: 'default' | 'back' | 'front' | 'preview' | 'embroidery_front'
+  type: 'default' | 'back' | 'front' | 'preview' | 'embroidery_front' | 'left_sleeve' | 'right_sleeve'
   filename?: string
   visible?: boolean
   position?: {
@@ -251,14 +256,16 @@ export const printfulServer = {
    * Get a specific product
    */
   async getProduct(productId: number): Promise<PrintfulProduct> {
-    return request<PrintfulProduct>(`/products/${productId}`)
+    const result = await request<PrintfulProductResponse>(`/products/${productId}`)
+    return result.product
   },
 
   /**
    * Get variants for a product
    */
   async getVariants(productId: number): Promise<PrintfulVariant[]> {
-    return request<PrintfulVariant[]>(`/products/${productId}`)
+    const result = await request<PrintfulProductResponse>(`/products/${productId}`)
+    return result.variants || []
   },
 
   /**
@@ -288,6 +295,30 @@ export const printfulServer = {
   async getSyncVariants(syncProductId: number): Promise<any[]> {
     const product = await request<any>(`/store/products/${syncProductId}`)
     return product.sync_variants || []
+  },
+
+  /**
+   * Create a mockup generation task
+   */
+  async createMockupTask(productId: number, payload: Record<string, unknown>): Promise<{ task_key: string }> {
+    return request<{ task_key: string }>(`/mockup-generator/create-task/${productId}`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    })
+  },
+
+  /**
+   * Get mockup generation task status
+   */
+  async getMockupTask(taskKey: string): Promise<any> {
+    return request<any>(`/mockup-generator/task?task_key=${encodeURIComponent(taskKey)}`)
+  },
+
+  /**
+   * Get Printful printfiles for a product
+   */
+  async getPrintfiles(productId: number): Promise<any> {
+    return request<any>(`/mockup-generator/printfiles/${productId}`)
   },
 
   /**

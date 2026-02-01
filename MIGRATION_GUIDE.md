@@ -95,7 +95,7 @@ AND tablename = 'users';
 ```javascript
 // In your application, with authenticated user
 const { data, error } = await supabase
-  .from('users')
+  .from('profiles')
   .select('*')
   .eq('id', userId)
   .single();
@@ -107,7 +107,7 @@ const { data, error } = await supabase
 ```javascript
 // Try to access another user's profile
 const { data, error } = await supabase
-  .from('users')
+  .from('profiles')
   .select('*')
   .eq('id', 'some-other-user-id')
   .single();
@@ -120,7 +120,7 @@ const { data, error } = await supabase
 ```javascript
 // With authenticated admin user (role = 'admin')
 const { data, error } = await supabase
-  .from('users')
+  .from('profiles')
   .select('*');
 
 // Should succeed and return all users
@@ -130,7 +130,7 @@ const { data, error } = await supabase
 ```javascript
 // With authenticated user
 const { error } = await supabase
-  .from('users')
+  .from('profiles')
   .delete()
   .eq('id', userId);
 
@@ -145,22 +145,22 @@ If you need to revert changes:
 
 ```sql
 -- Drop new policies
-DROP POLICY IF EXISTS "Users can delete their own profile" ON users;
-DROP POLICY IF EXISTS "Admins can update all users" ON users;
+DROP POLICY IF EXISTS "Users can delete their own profile" ON profiles;
+DROP POLICY IF EXISTS "Admins can update all users" ON profiles;
 
 -- Recreate old policies (without subselect pattern)
-CREATE POLICY "Users can view their own profile" ON users
+CREATE POLICY "Users can view their own profile" ON profiles
     FOR SELECT USING (auth.uid() = id);
 
-CREATE POLICY "Users can update their own profile" ON users
+CREATE POLICY "Users can update their own profile" ON profiles
     FOR UPDATE USING (auth.uid() = id);
 
-CREATE POLICY "Users can insert their own profile" ON users
+CREATE POLICY "Users can insert their own profile" ON profiles
     FOR INSERT WITH CHECK (auth.uid() = id);
 
-CREATE POLICY "Admins can view all users" ON users
+CREATE POLICY "Admins can view all users" ON profiles
     FOR SELECT USING (
-        EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin')
+        EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
     );
 ```
 
@@ -169,7 +169,7 @@ CREATE POLICY "Admins can view all users" ON users
 ## Common Issues & Solutions
 
 ### Issue: "relation 'users' does not exist"
-**Solution**: Make sure the users table is created first. Run the full schema.sql or create the table.
+**Solution**: Make sure the profiles table is created first. Run the full schema.sql or create the table.
 
 ### Issue: "permission denied for table users"
 **Solution**: Ensure you're connected with proper permissions (postgres/supabase service role).
@@ -189,11 +189,11 @@ To measure performance improvement:
 ```sql
 -- Before optimization (if you kept a backup)
 EXPLAIN ANALYZE
-SELECT * FROM users WHERE id = 'user-uuid-here';
+SELECT * FROM profiles WHERE id = 'user-uuid-here';
 
 -- After optimization
 EXPLAIN ANALYZE
-SELECT * FROM users WHERE id = 'user-uuid-here';
+SELECT * FROM profiles WHERE id = 'user-uuid-here';
 
 -- Compare the query plans and execution times
 ```

@@ -39,7 +39,7 @@ export default async function handler(
 
     // Build query
     let query = supabaseAdmin
-      .from('users')
+      .from('profiles')
       .select('*', { count: 'exact' })
       .order('created_at', { ascending: false })
 
