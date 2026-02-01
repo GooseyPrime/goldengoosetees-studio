@@ -56,9 +56,9 @@ export async function requireAdmin(req: VercelRequest) {
       throw error
     }
 
-    // Check user role in public.users table
+    // Check user role in public.profiles table
     const { data: userData, error: userError } = await supabaseAdmin
-      .from('users')
+      .from('profiles')
       .select('id, email, role')
       .eq('id', user.id)
       .single()

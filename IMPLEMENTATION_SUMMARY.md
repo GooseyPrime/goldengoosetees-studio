@@ -90,29 +90,29 @@ Can be safely applied to existing databases via:
 ### 1. Regular User Tests
 ```javascript
 // Should succeed: View own profile
-await supabase.from('users').select('*').eq('id', userId).single();
+await supabase.from('profiles').select('*').eq('id', userId).single();
 
 // Should fail: View other profiles
-await supabase.from('users').select('*').eq('id', otherUserId).single();
+await supabase.from('profiles').select('*').eq('id', otherUserId).single();
 
 // Should succeed: Delete own account (NEW)
-await supabase.from('users').delete().eq('id', userId);
+await supabase.from('profiles').delete().eq('id', userId);
 ```
 
 ### 2. Admin User Tests
 ```javascript
 // Should succeed: View all users
-await supabase.from('users').select('*');
+await supabase.from('profiles').select('*');
 
 // Should succeed: Update any user (NEW)
-await supabase.from('users').update({...}).eq('id', targetUserId);
+await supabase.from('profiles').update({...}).eq('id', targetUserId);
 ```
 
 ### 3. Anonymous Tests
 ```javascript
 // Should fail: All operations
 await supabase.auth.signOut();
-await supabase.from('users').select('*');
+await supabase.from('profiles').select('*');
 ```
 
 ## Deployment Checklist

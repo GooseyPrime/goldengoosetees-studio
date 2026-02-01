@@ -21,7 +21,7 @@ async function checkSupabase(): Promise<{ status: 'ok' | 'error', message: strin
   }
 
   try {
-    const { error } = await supabaseAdmin.from('users').select('count').limit(1)
+    const { error } = await supabaseAdmin.from('profiles').select('count').limit(1)
     if (error) {
       return { status: 'error', message: `Connection failed: ${error.message}` }
     }
