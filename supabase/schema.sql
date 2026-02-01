@@ -496,7 +496,7 @@ INSERT INTO designs (user_id, product_id, title, is_public, files) VALUES
 -- ============================================
 CREATE TABLE IF NOT EXISTS admin_audit_log (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    actor_user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE SET NULL,
+    actor_user_id UUID REFERENCES profiles(id) ON DELETE SET NULL,
     action TEXT NOT NULL,
     target_type TEXT NOT NULL,
     target_id TEXT,
