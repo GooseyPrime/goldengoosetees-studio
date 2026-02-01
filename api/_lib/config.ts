@@ -8,13 +8,19 @@ import { createClient } from '@supabase/supabase-js'
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL || ''
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 
+// Check if Supabase is configured
+const isSupabaseConfigured = SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY
+
 // Create Supabase client with service role for server-side operations
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false,
-  },
-})
+// Use placeholder values if not configured to avoid client creation errors
+const supabase = isSupabaseConfigured
+  ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    })
+  : null
 
 export interface AppConfig {
   conversational_provider?: 'gemini' | 'openai' | 'openrouter'
@@ -37,6 +43,12 @@ export interface AppConfig {
  * Returns default values if config table doesn't exist or is empty
  */
 export async function getAppConfig(): Promise<AppConfig> {
+  // If Supabase is not configured, return defaults immediately
+  if (!isSupabaseConfigured || !supabase) {
+    console.warn('Supabase not configured, using default app config')
+    return getDefaultConfig()
+  }
+
   try {
     const { data, error } = await supabase
       .from('app_config')
@@ -65,6 +77,11 @@ export async function getAppConfig(): Promise<AppConfig> {
  * Creates or updates the config row
  */
 export async function setAppConfig(updates: Partial<AppConfig>): Promise<void> {
+  // If Supabase is not configured, throw error
+  if (!isSupabaseConfigured || !supabase) {
+    throw new Error('Supabase not configured - cannot update app config')
+  }
+
   try {
     // First, try to get existing config
     const { data: existing } = await supabase
