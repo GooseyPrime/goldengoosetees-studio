@@ -216,6 +216,9 @@ const toNumber = (value: unknown): number | undefined => {
   return Number.isFinite(parsed) ? parsed : undefined
 }
 
+const ALLOWED_PLACEMENTS = ['front', 'back', 'left_sleeve', 'right_sleeve'] as const
+type PlacementOption = typeof ALLOWED_PLACEMENTS[number]
+
 const resolvePrintfiles = (response: any): Array<Record<string, unknown>> => {
   if (!response) return []
   if (Array.isArray(response)) return response as Array<Record<string, unknown>>
@@ -474,7 +477,10 @@ export class PrintfulService {
       const printfiles = resolvePrintfiles(printfilesResponse)
       if (printfiles.length > 0) {
         const resolved = resolvePrintfilePlacement(placement, printfiles)
-        resolvedPlacement = resolved.placement
+        // Validate that resolved placement is one of the allowed values
+        const normalizedResolved = normalizeToken(resolved.placement)
+        const matchingPlacement = ALLOWED_PLACEMENTS.find(p => normalizeToken(p) === normalizedResolved)
+        resolvedPlacement = matchingPlacement || placement
         areaWidth = resolved.areaWidth
         areaHeight = resolved.areaHeight
       }
