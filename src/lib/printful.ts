@@ -474,7 +474,11 @@ export class PrintfulService {
       const printfiles = resolvePrintfiles(printfilesResponse)
       if (printfiles.length > 0) {
         const resolved = resolvePrintfilePlacement(placement, printfiles)
-        resolvedPlacement = resolved.placement
+        // Validate that resolved placement is one of the allowed values
+        const allowedPlacements: Array<'front' | 'back' | 'left_sleeve' | 'right_sleeve'> = ['front', 'back', 'left_sleeve', 'right_sleeve']
+        const normalizedResolved = normalizeToken(resolved.placement)
+        const matchingPlacement = allowedPlacements.find(p => normalizeToken(p) === normalizedResolved)
+        resolvedPlacement = matchingPlacement || placement
         areaWidth = resolved.areaWidth
         areaHeight = resolved.areaHeight
       }
