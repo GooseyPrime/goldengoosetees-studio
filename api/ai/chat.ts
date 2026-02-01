@@ -151,6 +151,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: 'Messages array is required' })
   }
 
+  // Check if at least one AI provider is configured
+  if (!GEMINI_API_KEY && !OPENAI_API_KEY && !OPENROUTER_API_KEY) {
+    return res.status(503).json({
+      error: 'AI chat service not configured. Please set GEMINI_API_KEY, OPENAI_API_KEY, or OPENROUTER_API_KEY.',
+    })
+  }
+
   const config = await getAppConfig()
   const provider = (config.conversational_provider as Provider) || 'gemini'
   const modelId = (config.conversational_model_id as string) || (bodyModel as string) || 'gemini-2.0-flash'

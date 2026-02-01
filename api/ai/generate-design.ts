@@ -148,7 +148,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   if (!GEMINI_API_KEY && !OPENAI_API_KEY) {
-    return res.status(500).json({
+    return res.status(503).json({
       error: 'Image generation not configured. Set GEMINI_API_KEY and/or OPENAI_API_KEY on the server.',
     })
   }
