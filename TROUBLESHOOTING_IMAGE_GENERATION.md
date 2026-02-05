@@ -124,6 +124,22 @@ Open browser DevTools → Network tab and look for:
 2. Create API key
 3. Set as `OPENROUTER_API_KEY` environment variable
 
+## Gemini Image Generation Details
+
+The app uses Gemini for image generation with a fallback to DALL-E 3.
+
+### responseModalities
+Gemini image-generation models require **both** TEXT and IMAGE in `responseModalities` (image-only is not allowed). The app sends `["TEXT", "IMAGE"]` and uses only the image part from the response. If you see empty or failed image responses, confirm that `api/ai/generate-design.ts` uses `responseModalities: ['TEXT', 'IMAGE']`.
+
+### Model IDs
+Default models used (in `api/ai/generate-design.ts`):
+- **Primary**: `gemini-2.0-flash-exp-image-generation`
+- **Fallback**: `gemini-2.0-flash-exp`
+
+Google may offer newer image-capable models (e.g. Nano Banana series such as `gemini-2.5-flash-image` or `gemini-3-pro-image-preview`). If generation still fails with valid API keys:
+1. Check [Google's image generation docs](https://ai.google.dev/gemini-api/docs/image-generation) for current model names.
+2. Optionally configure `image_model_primary` and `image_model_fallback` in admin AI config (or app config) to use different model IDs.
+
 ## Still Having Issues?
 
 1. Check the console logs on the server (not browser)
@@ -131,6 +147,7 @@ Open browser DevTools → Network tab and look for:
 3. Ensure code is fully deployed (check git commit SHA)
 4. Clear browser cache and reload
 5. Check if the issue is from a browser extension (test in incognito mode)
+6. Confirm Gemini `responseModalities` and model IDs (see "Gemini Image Generation Details" above)
 
 ## Contact
 

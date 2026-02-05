@@ -171,14 +171,19 @@ export function DesignBin({
       </div>
 
       {completedCount > 0 && onOpenManager && (
-        <Button
-          variant="outline"
-          className="w-full mt-4 gap-2 rounded-full border-white/20 bg-white/5 hover:bg-white/10"
-          onClick={onOpenManager}
-        >
-          <FolderOpen size={18} />
-          {copy.openDesignManager}
-        </Button>
+        <div className="mt-4 space-y-2">
+          <Button
+            variant="outline"
+            className="w-full gap-2 rounded-full border-white/20 bg-white/5 hover:bg-white/10"
+            onClick={onOpenManager}
+          >
+            <FolderOpen size={18} />
+            {copy.openDesignManager}
+          </Button>
+          <p className="text-xs text-muted-foreground text-center px-2">
+            {copy.moreControlTip}
+          </p>
+        </div>
       )}
 
       {completedCount === totalCount && (
