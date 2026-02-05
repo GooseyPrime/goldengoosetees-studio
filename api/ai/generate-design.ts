@@ -39,7 +39,7 @@ async function tryGeminiImage(
         body: JSON.stringify({
           contents: [{ role: 'user', parts: [{ text: fullPrompt }] }],
           generationConfig: {
-            responseModalities: ['IMAGE'],
+            responseModalities: ['TEXT', 'IMAGE'],
             imageConfig: {
               aspectRatio,
             },

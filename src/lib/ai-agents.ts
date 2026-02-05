@@ -57,6 +57,18 @@ async function callOpenRouter(
   return data.content || ''
 }
 
+/** User-friendly error messages for design generation (from copy). */
+function getDesignGenerationErrorMessage(status: number, serverMessage?: string): string {
+  if (status === 503) {
+    const lower = (serverMessage || '').toLowerCase()
+    if (lower.includes('not configured') || lower.includes('api key')) {
+      return "Image creation is temporarily unavailable. Please try again later."
+    }
+    return "We couldn't create an image right now. Please try again in a moment or try a different description."
+  }
+  return "We couldn't create an image right now. Please try again in a moment or try a different description."
+}
+
 /** Call backend generate-design (Gemini first, then DALL-E fallback). */
 async function callGenerateDesignApi(
   prompt: string,
@@ -93,7 +105,9 @@ async function callGenerateDesignApi(
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({}))
-    throw new Error(error.error || `Image generation failed: ${response.statusText}`)
+    const serverMessage = error?.error
+    const friendly = getDesignGenerationErrorMessage(response.status, serverMessage)
+    throw new Error(friendly)
   }
 
   const data = await response.json()

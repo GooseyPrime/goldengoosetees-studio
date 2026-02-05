@@ -14,8 +14,10 @@ import {
   ArrowLeft,
   Package,
   Image as ImageIcon,
-  Images
+  Images,
+  Question
 } from '@phosphor-icons/react'
+import { copy } from '@/lib/copy'
 import { motion } from 'framer-motion'
 import { toast } from 'sonner'
 
@@ -41,6 +43,7 @@ export function DesignManagerPage({
   const [showCombiner, setShowCombiner] = useState(false)
   const [combinerPrintAreaId, setCombinerPrintAreaId] = useState<string | null>(null)
   const [previewDesign, setPreviewDesign] = useState<DesignFile | null>(null)
+  const [showHelp, setShowHelp] = useState(false)
 
   const printAreasWithDesigns = product.printAreas.map((area) => {
     const design = designFiles.find((df) => df.printAreaId === area.id)
@@ -89,7 +92,7 @@ export function DesignManagerPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <Button
             variant="outline"
@@ -100,13 +103,21 @@ export function DesignManagerPage({
             Back
           </Button>
           <div>
-            <h2 className="text-3xl font-bold tracking-tight">Design Manager</h2>
+            <h2 className="text-3xl font-bold tracking-tight">Edit your designs</h2>
             <p className="text-muted-foreground">
-              Edit and manage all design components for {product.name}
+              Change, replace, or combine artwork for each spot on {product.name}
             </p>
           </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowHelp(!showHelp)}
+            className="gap-2 text-muted-foreground hover:text-foreground shrink-0"
+          >
+            <Question size={18} />
+            Need help?
+          </Button>
         </div>
-        
         <Card className="px-4 py-2 glass-panel border border-white/10">
           <div className="flex items-center gap-3">
             <div className="text-right">
@@ -145,6 +156,12 @@ export function DesignManagerPage({
           </div>
         </Card>
       </div>
+
+      {showHelp && (
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-muted-foreground">
+          {copy.designManagerHelp}
+        </div>
+      )}
 
       <div className="grid lg:grid-cols-2 gap-6">
         <Card className="glass-panel border border-white/10">
@@ -328,17 +345,17 @@ export function DesignManagerPage({
                           className="gap-2 rounded-full border-white/20 bg-white/5 hover:bg-white/10"
                         >
                           <Pencil size={16} />
-                          Edit
+                          {copy.editThisDesign}
                         </Button>
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => design && handleOpenCombiner(area.id, design)}
                           className="gap-2 rounded-full border-white/20 bg-white/5 hover:bg-white/10"
-                          title="Combine with other images"
+                          title={copy.combineImages}
                         >
                           <Images size={16} />
-                          Combine
+                          {copy.combineImages}
                         </Button>
                         <Button
                           variant="outline"
