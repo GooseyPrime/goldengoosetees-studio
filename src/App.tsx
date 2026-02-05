@@ -452,7 +452,8 @@ function App() {
       // Auto-generate after enough conversation OR if explicit generation intent
       const autoGenerate = shouldGenerate || (conversationLength >= 2 && content.length > 20)
 
-      if (autoGenerate && selectedProduct && currentPrintArea) {
+      const designConcept = extractDesignConcept([...messages, userMessage])
+      if (autoGenerate && selectedProduct && currentPrintArea && isDesignConceptSubstantive(designConcept)) {
         // Generate design immediately - don't wait for AI to ask more questions
         const generatingMessage: ChatMessage = {
           id: `msg-${Date.now() + 1}`,
@@ -462,11 +463,8 @@ function App() {
         }
         setMessages((prev) => [...prev, generatingMessage])
 
-        // Extract the full design concept from conversation
-        const designConcept = extractDesignConcept([...messages, userMessage])
         await generateDesign(designConcept)
 
-        // After generation, add a follow-up message
         const followUpMessage: ChatMessage = {
           id: `msg-${Date.now() + 2}`,
           role: 'assistant',
@@ -509,22 +507,41 @@ function App() {
     }
   }
 
+  const MIN_DESIGN_PROMPT_LENGTH = 12
+  const AFFIRMATIVES = new Set([
+    'yes', 'yep', 'yeah', 'yea', 'ya', 'y', 'ok', 'okay', 'k', 'kk', 'sure', 'alright',
+    'aight', 'fine', 'good', 'great', 'perfect', 'go', 'please', 'thanks', 'thank you',
+  ])
+
+  function isDesignConceptSubstantive(prompt: string): boolean {
+    const trimmed = (prompt || '').trim()
+    if (trimmed.length < MIN_DESIGN_PROMPT_LENGTH) return false
+    const tokens = trimmed.toLowerCase().replace(/[.,!?']/g, ' ').split(/\s+/).filter(Boolean)
+    if (tokens.length === 0) return false
+    const allAffirmative = tokens.every(t => AFFIRMATIVES.has(t))
+    return !allAffirmative
+  }
+
+  function hasSubstantiveDesignConcept(msgs: ChatMessage[]): boolean {
+    const userMessages = msgs.filter(m => m.role === 'user').map(m => m.content)
+    if (userMessages.length === 0) return false
+    const concept = extractDesignConcept(msgs)
+    return isDesignConceptSubstantive(concept)
+  }
+
   // Helper function to extract full design concept from conversation history
   const extractDesignConcept = (msgs: ChatMessage[]): string => {
     const userMessages = msgs
       .filter(m => m.role === 'user')
       .map(m => m.content)
 
-    // Combine all user messages to get the full concept
-    // Weight recent messages more heavily
     if (userMessages.length === 1) {
       return userMessages[0]
     }
 
-    // Get the most descriptive messages (longer ones likely contain design details)
     const descriptiveMessages = userMessages
-      .filter(m => m.length > 10) // Filter out short confirmations
-      .slice(-3) // Take last 3 descriptive messages
+      .filter(m => m.length > 10)
+      .slice(-3)
 
     if (descriptiveMessages.length === 0) {
       return userMessages[userMessages.length - 1]
@@ -606,7 +623,7 @@ function App() {
       }
 
       setDesignFiles((prev) => {
-        const filtered = prev.filter(df => df.printAreaId !== currentPrintArea)
+        const filtered = prev.filter(df => df.printAreaId !== targetPrintArea)
         return [...filtered, newDesign]
       })
 
@@ -617,13 +634,14 @@ function App() {
 
       toast.success('Design generated! Check the preview.')
     } catch (error: any) {
-      // Check if error is due to age verification requirement
       if (error instanceof AgeVerificationRequiredError) {
         setRequiresAgeVerification(true)
         setShowAuthDialog(true)
-        toast.error('Age verification required to generate NSFW content.')
+        toast.error(copy.errorCopy.ageVerificationRequired)
       } else {
-        toast.error(error.message || 'Failed to generate design')
+        const msg = error?.message || ''
+        const contentRejected = msg.includes('Content not approved') || msg.includes('trademark') || msg.includes('copyright')
+        toast.error(contentRejected ? copy.errorCopy.contentNotApproved : (msg || 'Failed to generate design'))
       }
     } finally {
       setIsGenerating(false)
@@ -974,7 +992,12 @@ function App() {
       .join('. ')
 
     if (!recentUserMessages) {
-      toast.error('Please describe your design idea in the chat first')
+      toast.error(copy.describeIdeaPrompt)
+      return
+    }
+
+    if (!isDesignConceptSubstantive(recentUserMessages)) {
+      toast.error(copy.describeIdeaPrompt)
       return
     }
 
@@ -1035,8 +1058,10 @@ function App() {
       }
       setMessages((prev) => [...prev, assistantMessage])
     } catch (error: any) {
-      toast.error(error.message || 'Failed to generate design')
-      const errorContent = await api.ai.getDesignPhaseMessage('error', { error: error?.message })
+      const msg = error?.message || ''
+      const contentRejected = msg.includes('Content not approved') || msg.includes('trademark') || msg.includes('copyright')
+      toast.error(contentRejected ? copy.errorCopy.contentNotApproved : (msg || 'Failed to generate design'))
+      const errorContent = await api.ai.getDesignPhaseMessage('error', { error: msg })
       const errorMessage: ChatMessage = {
         id: `msg-${Date.now()}`,
         role: 'assistant',
@@ -1234,11 +1259,11 @@ function App() {
                         Golden Studio
                       </Badge>
                       <h2 className="text-4xl sm:text-5xl lg:text-6xl font-semibold leading-tight gold-text-glow">
-                        Craft premium tees with an AI‑powered design concierge.
+                        Design your own tee in minutes—no design skills needed.
                       </h2>
                       <p className="text-lg text-muted-foreground max-w-xl">
-                        Build your next drop in minutes. Precision mockups, premium typography, and
-                        a studio workflow tailored for high‑conversion merchandise.
+                        Describe your idea in plain English. We'll create the artwork and show it on your tee.
+                        Change it until it's perfect, then order.
                       </p>
                       <div className="flex flex-wrap gap-3">
                         <Button
@@ -1258,9 +1283,9 @@ function App() {
                         </Button>
                       </div>
                       <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-                        <span className="glass-surface rounded-full px-4 py-2">Printful‑ready mockups</span>
-                        <span className="glass-surface rounded-full px-4 py-2">Instant AI iterations</span>
-                        <span className="glass-surface rounded-full px-4 py-2">Premium dark UI</span>
+                        <span className="glass-surface rounded-full px-4 py-2">Realistic preview</span>
+                        <span className="glass-surface rounded-full px-4 py-2">Change your design in seconds</span>
+                        <span className="glass-surface rounded-full px-4 py-2">Simple, step-by-step</span>
                       </div>
                     </div>
                     <div className="relative">
@@ -1275,7 +1300,7 @@ function App() {
                           <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between">
                             <div>
                               <p className="text-sm font-semibold">{heroProduct?.name}</p>
-                              <p className="text-xs text-muted-foreground">Studio‑ready mockup</p>
+                              <p className="text-xs text-muted-foreground">See how it looks</p>
                             </div>
                             <Badge variant="secondary" className="font-mono">
                               ${heroProduct?.basePrice}
@@ -1301,9 +1326,9 @@ function App() {
                         <MagicWand size={22} weight="fill" className="text-primary" />
                       </div>
                       <div>
-                        <h3 className="text-lg font-semibold">Concierge AI</h3>
+                        <h3 className="text-lg font-semibold">Design assistant</h3>
                         <p className="text-sm text-muted-foreground">
-                          Guided prompts, instant concepts, and premium artwork generation.
+                          Tell us your idea in words. We draw it and put it on your tee.
                         </p>
                       </div>
                     </div>
@@ -1312,9 +1337,9 @@ function App() {
                         <TShirt size={22} weight="fill" className="text-primary" />
                       </div>
                       <div>
-                        <h3 className="text-lg font-semibold">Precision Mockups</h3>
+                        <h3 className="text-lg font-semibold">See it on your tee</h3>
                         <p className="text-sm text-muted-foreground">
-                          See every print area with buttery‑smooth front/back transitions.
+                          See how it looks on the front and back.
                         </p>
                       </div>
                     </div>
@@ -1323,9 +1348,9 @@ function App() {
                         <Sparkle size={22} weight="fill" className="text-primary" />
                       </div>
                       <div>
-                        <h3 className="text-lg font-semibold">Conversion‑ready</h3>
+                        <h3 className="text-lg font-semibold">Easy checkout</h3>
                         <p className="text-sm text-muted-foreground">
-                          Premium checkout flows and gallery‑grade presentation.
+                          Safe checkout and we handle printing and shipping.
                         </p>
                       </div>
                     </div>
@@ -1487,7 +1512,7 @@ function App() {
                           className="gap-2 rounded-full border-white/20 bg-white/5 hover:bg-white/10"
                         >
                           <FolderOpen size={20} />
-                          Manage Designs
+                          {copy.manageDesigns}
                         </Button>
                       )}
                       <Button
@@ -1534,7 +1559,7 @@ function App() {
                       <Button
                         size="lg"
                         onClick={handleGenerateDesignClick}
-                        disabled={isGenerating || isAILoading || messages.length < 2}
+                        disabled={isGenerating || isAILoading || !hasSubstantiveDesignConcept(messages)}
                         className="w-full gap-2 rounded-full bg-primary hover:bg-primary/90"
                       >
                         {isGenerating ? (
