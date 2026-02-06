@@ -140,8 +140,7 @@ const localStorageSet = async <T,>(key: string, value: T): Promise<void> => {
     const encrypted = await encryptValue(value)
     window.localStorage.setItem(getLocalStorageKey(key), encrypted)
   } catch (error) {
-    console.warn('Failed to encrypt local KV entry, storing as JSON', error)
-    window.localStorage.setItem(getLocalStorageKey(key), JSON.stringify(value))
+    console.warn('Failed to encrypt local KV entry, value not stored', error)
   }
 }
 
