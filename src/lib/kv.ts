@@ -97,10 +97,9 @@ const decryptValue = async <T>(data: string): Promise<T | null> => {
 
   try {
     const binary = Uint8Array.from(atob(data), c => c.charCodeAt(0))
-    // Create new typed arrays to ensure proper ArrayBuffer type
-    const salt = new Uint8Array(binary.subarray(0, 16))
-    const iv = new Uint8Array(binary.subarray(16, 28))
-    const ciphertext = new Uint8Array(binary.subarray(28))
+    const salt = binary.slice(0, 16)
+    const iv = binary.slice(16, 28)
+    const ciphertext = binary.slice(28)
 
     const key = await getCryptoKey(salt)
     const decrypted = await window.crypto.subtle.decrypt(
