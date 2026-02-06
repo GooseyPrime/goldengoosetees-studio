@@ -39,7 +39,7 @@ const getCryptoKey = async (salt: Uint8Array): Promise<CryptoKey> => {
   return window.crypto.subtle.deriveKey(
     {
       name: 'PBKDF2',
-      salt,
+      salt: salt as BufferSource,
       iterations: 100000,
       hash: 'SHA-256',
     },
@@ -97,9 +97,10 @@ const decryptValue = async <T>(data: string): Promise<T | null> => {
 
   try {
     const binary = Uint8Array.from(atob(data), c => c.charCodeAt(0))
-    const salt = binary.slice(0, 16)
-    const iv = binary.slice(16, 28)
-    const ciphertext = binary.slice(28)
+    // Create new typed arrays to ensure proper ArrayBuffer type
+    const salt = new Uint8Array(binary.subarray(0, 16))
+    const iv = new Uint8Array(binary.subarray(16, 28))
+    const ciphertext = new Uint8Array(binary.subarray(28))
 
     const key = await getCryptoKey(salt)
     const decrypted = await window.crypto.subtle.decrypt(
