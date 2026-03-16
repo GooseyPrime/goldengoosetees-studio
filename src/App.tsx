@@ -15,10 +15,7 @@ import { AdminDashboard } from '@/components/AdminDashboard'
 import { DesignManagerPage } from '@/components/DesignManagerPage'
 import { DesignPreferencesForm, DesignPreferences, preferencesToPrompt } from '@/components/DesignPreferencesForm'
 import { AccountDialog } from '@/components/AccountDialog'
-import { MOCK_PRODUCTS } from '@/lib/mock-data'
-import { MOCK_PENDING_DESIGNS } from '@/lib/admin-mock-data'
 import { api, AgeVerificationRequiredError } from '@/lib/api'
-import { kvService } from '@/lib/kv'
 import {
   Product,
   ProductConfiguration,
@@ -86,6 +83,11 @@ function App() {
   const [uploadTargetArea, setUploadTargetArea] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
+  const [featuredProducts, setFeaturedProducts] = useState<Product[]>([])
+  const [featuredLoading, setFeaturedLoading] = useState(false)
+  const [featuredError, setFeaturedError] = useState<string | null>(null)
+  const [catalogProducts, setCatalogProducts] = useState<Product[]>([])
+
   const isDesignStage = activeView === 'EDIT_DESIGN' || activeView === 'PREVIEW' || activeView === 'CHECKOUT'
 
   const scrollToSection = useCallback((sectionId: string) => {
@@ -131,17 +133,6 @@ function App() {
 
   useEffect(() => {
     const initializeApp = async () => {
-      // Initialize admin product list (catalog) from KV fallback when empty
-      const products = await kvService.get<Product[]>('admin-products')
-      if (!products || products.length === 0) {
-        await kvService.set('admin-products', MOCK_PRODUCTS)
-      }
-
-      const pendingDesigns = await kvService.get('pending-designs')
-      if (!pendingDesigns) {
-        await kvService.set('pending-designs', MOCK_PENDING_DESIGNS)
-      }
-
       // Session-first bootstrap: restore auth state on refresh
       // Retry once after 300ms in case Supabase hasn't rehydrated from storage yet
       const tryGetUser = async (retries = 1): Promise<void> => {
@@ -170,6 +161,33 @@ function App() {
 
     initializeApp()
   }, [])
+
+  useEffect(() => {
+    if (activeView !== 'landing') return
+    setFeaturedLoading(true)
+    setFeaturedError(null)
+    fetch('/api/printful/catalog/list')
+      .then((res) => res.json())
+      .then((data) => {
+        const list = (data.products || []) as Product[]
+        setFeaturedProducts(list.slice(0, 8))
+      })
+      .catch((err) => {
+        setFeaturedError(err?.message || 'Failed to load featured products')
+        setFeaturedProducts([])
+      })
+      .finally(() => setFeaturedLoading(false))
+  }, [activeView])
+
+  useEffect(() => {
+    if (activeView !== 'SELECT_PRODUCT') return
+    fetch('/api/printful/catalog/list')
+      .then((res) => res.json())
+      .then((data) => {
+        setCatalogProducts((data.products || []) as Product[])
+      })
+      .catch(() => setCatalogProducts([]))
+  }, [activeView])
 
   // Set up auth state change listener for OAuth flows
   // This must be set up once on mount to properly catch OAuth callbacks
@@ -308,7 +326,7 @@ function App() {
   }
 
   const handleProductSwitch = async (productId: string) => {
-    let nextProduct = MOCK_PRODUCTS.find(product => product.id === productId)
+    let nextProduct: Product | null = catalogProducts.find((p) => p.id === productId) ?? null
     if (!nextProduct) {
       try {
         const res = await fetch(`/api/printful/catalog/product/${productId}`)
@@ -318,7 +336,10 @@ function App() {
         // ignore
       }
     }
-    if (!nextProduct) return
+    if (!nextProduct) {
+      toast.error('Product not found. Please try another.')
+      return
+    }
     setSelectedProduct(nextProduct)
     setSelectedConfiguration(null)
     setActiveView('CONFIGURE_VARIANTS')
@@ -1084,7 +1105,12 @@ function App() {
   })()
 
   const cartDisabled = !designsComplete
-  const heroProduct = MOCK_PRODUCTS[0]
+  const heroProduct = featuredProducts[0]
+  const designEditorProductList = selectedProduct
+    ? catalogProducts.some((p) => p.id === selectedProduct.id)
+      ? catalogProducts
+      : [selectedProduct, ...catalogProducts]
+    : []
   const selectedVariantSummary = selectedProduct && selectedConfiguration
     ? formatVariantSummary(selectedProduct, selectedConfiguration.variantSelections)
     : ''
@@ -1290,22 +1316,32 @@ function App() {
                     </div>
                     <div className="relative">
                       <div className="glass-panel rounded-3xl p-6 shadow-2xl">
-                        <div className="relative overflow-hidden rounded-2xl border border-white/10">
-                          <img
-                            src={heroProduct?.imageUrl}
-                            alt={heroProduct?.name || 'Featured tee'}
-                            className="w-full h-full object-cover"
-                          />
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
-                          <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between">
-                            <div>
-                              <p className="text-sm font-semibold">{heroProduct?.name}</p>
-                              <p className="text-xs text-muted-foreground">See how it looks</p>
-                            </div>
-                            <Badge variant="secondary" className="font-mono">
-                              ${heroProduct?.basePrice}
-                            </Badge>
-                          </div>
+                        <div className="relative overflow-hidden rounded-2xl border border-white/10 min-h-[280px] flex items-center justify-center">
+                          {featuredLoading && (
+                            <p className="text-muted-foreground">Loading featured product...</p>
+                          )}
+                          {featuredError && !featuredLoading && (
+                            <p className="text-muted-foreground text-center px-4">{featuredError}</p>
+                          )}
+                          {!featuredLoading && heroProduct && (
+                            <>
+                              <img
+                                src={heroProduct.imageUrl}
+                                alt={heroProduct.name || 'Featured tee'}
+                                className="w-full h-full object-cover"
+                              />
+                              <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
+                              <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between">
+                                <div>
+                                  <p className="text-sm font-semibold">{heroProduct.name}</p>
+                                  <p className="text-xs text-muted-foreground">See how it looks</p>
+                                </div>
+                                <Badge variant="secondary" className="font-mono">
+                                  ${heroProduct.basePrice}
+                                </Badge>
+                              </div>
+                            </>
+                          )}
                         </div>
                       </div>
                       <div className="absolute -bottom-6 -left-6 glass-surface rounded-2xl px-4 py-3">
@@ -1373,13 +1409,29 @@ function App() {
                       </Button>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                      {MOCK_PRODUCTS.map((product) => (
-                        <ProductCard
-                          key={product.id}
-                          product={product}
-                          onSelect={handleProductSelect}
-                        />
-                      ))}
+                      {featuredLoading && (
+                        <div className="col-span-full text-center py-8 text-muted-foreground">
+                          Loading gallery...
+                        </div>
+                      )}
+                      {featuredError && !featuredLoading && (
+                        <div className="col-span-full text-center py-8 text-muted-foreground">
+                          {featuredError}
+                        </div>
+                      )}
+                      {!featuredLoading && featuredProducts.length === 0 && !featuredError && (
+                        <div className="col-span-full text-center py-8 text-muted-foreground">
+                          No products available. Try again later.
+                        </div>
+                      )}
+                      {!featuredLoading &&
+                        featuredProducts.map((product) => (
+                          <ProductCard
+                            key={product.id}
+                            product={product}
+                            onSelect={handleProductSelect}
+                          />
+                        ))}
                     </div>
                   </section>
                 </motion.div>
@@ -1405,7 +1457,7 @@ function App() {
 
                   <CatalogBrowser
                     onSelectProduct={handleProductSelect}
-                    fallbackProducts={MOCK_PRODUCTS}
+                    fallbackProducts={[]}
                   />
                 </motion.div>
               )}
@@ -1730,11 +1782,7 @@ function App() {
               onOpenChange={setShowDesignEditor}
               design={editingDesign}
               product={selectedProduct}
-              products={
-                MOCK_PRODUCTS.some(p => p.id === selectedProduct.id)
-                  ? MOCK_PRODUCTS
-                  : [...MOCK_PRODUCTS, selectedProduct]
-              }
+              products={designEditorProductList}
               onSwitchProduct={(id) => void handleProductSwitch(id)}
               onSave={handleSaveEditedDesign}
             />

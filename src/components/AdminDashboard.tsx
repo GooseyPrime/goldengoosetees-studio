@@ -30,7 +30,7 @@ import {
   Cpu
 } from '@phosphor-icons/react'
 import { Product, Order, Design } from '@/lib/types'
-import { orderRowToOrder } from '@/lib/api'
+import { orderRowToOrder, api } from '@/lib/api'
 import { supabaseService } from '@/lib/supabase'
 
 interface AdminDashboardProps {
@@ -41,8 +41,23 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
   const [products, setProducts] = useAppKV<Product[]>('admin-products', [])
   const [orders, setOrders] = useState<Order[]>([])
   const [ordersLoading, setOrdersLoading] = useState(false)
-  const [pendingDesigns, setPendingDesigns] = useAppKV<Design[]>('pending-designs', [])
+  const [pendingDesigns, setPendingDesigns] = useState<Design[]>([])
+  const [pendingDesignsLoading, setPendingDesignsLoading] = useState(false)
   const [activeTab, setActiveTab] = useState('stats')
+
+  const loadPendingDesigns = useCallback(async () => {
+    setPendingDesignsLoading(true)
+    try {
+      const list = await api.designs.getPendingForAdmin()
+      setPendingDesigns(list)
+    } catch (error) {
+      console.error('Error loading pending designs:', error)
+      toast.error('Failed to load pending designs')
+      setPendingDesigns([])
+    } finally {
+      setPendingDesignsLoading(false)
+    }
+  }, [])
 
   const loadOrders = useCallback(async () => {
     setOrdersLoading(true)
@@ -76,6 +91,12 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
   useEffect(() => {
     loadOrders()
   }, [loadOrders])
+
+  useEffect(() => {
+    if (activeTab === 'approvals') {
+      loadPendingDesigns()
+    }
+  }, [activeTab, loadPendingDesigns])
 
   const pendingOrdersCount = (orders || []).filter(o => o.status === 'pending').length
   const pendingDesignsCount = (pendingDesigns || []).filter(d => d.isPublic && !d.catalogSection).length
@@ -182,9 +203,10 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
 
           <TabsContent value="approvals">
             <DesignApprovals 
-              designs={pendingDesigns || []}
-              onDesignsChange={setPendingDesigns}
+              designs={pendingDesigns}
+              onRefresh={loadPendingDesigns}
               products={products || []}
+              loading={pendingDesignsLoading}
             />
           </TabsContent>
 

@@ -305,6 +305,22 @@ export const supabaseService = {
     return data
   },
 
+  async updateDesign(
+    designId: string,
+    updates: { catalog_section?: string; is_nsfw?: boolean; updated_at?: string }
+  ) {
+    if (!this.isConfigured()) return null
+    const payload = { ...updates, updated_at: updates.updated_at || new Date().toISOString() }
+    const { data, error } = await supabaseClient!
+      .from('designs')
+      .update(payload)
+      .eq('id', designId)
+      .select()
+      .single()
+    if (error) throw error
+    return data
+  },
+
   async getDesignsByUser(userId: string) {
     if (!this.isConfigured()) {
       return []

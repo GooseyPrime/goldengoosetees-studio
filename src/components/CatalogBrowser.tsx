@@ -138,6 +138,19 @@ export function CatalogBrowser({
         <div className="flex items-center justify-center py-16">
           <SpinnerGap size={40} weight="bold" className="animate-spin text-primary" />
         </div>
+      ) : displayProducts.length === 0 ? (
+        <div className="text-center py-16 space-y-4">
+          <p className="text-muted-foreground">
+            {error || 'No products available. Check your connection and try again.'}
+          </p>
+          <Button
+            variant="outline"
+            onClick={() => selectCategory(selectedCategoryId)}
+            className="rounded-full"
+          >
+            Retry
+          </Button>
+        </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {(displayProducts as CatalogProductSummary[]).map((item: CatalogProductSummary) => (

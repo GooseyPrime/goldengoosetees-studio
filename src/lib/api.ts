@@ -4,7 +4,7 @@ import { stripeService } from './stripe'
 import { supabaseService } from './supabase'
 import { aiAgents } from './ai-agents'
 import { kvService } from './kv'
-import { MOCK_PRODUCTS } from './mock-data'
+import { roundCurrency } from './order-dpi'
 import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
 
 // Custom error for age verification requirement
@@ -49,14 +49,15 @@ export function orderRowToOrder(row: Record<string, unknown>): Order {
 
 const DEFAULT_SHIPPING = 5.99
 
-const roundCurrency = (value: number): number => Math.round(value * 100) / 100
-
-const getCatalogProducts = async (): Promise<Product[]> => {
-  const stored = await kvService.get<Product[]>('admin-products')
-  if (stored && stored.length > 0) {
-    return stored
+const getProductById = async (productId: string): Promise<Product | null> => {
+  try {
+    const res = await fetch(`/api/printful/catalog/product/${productId}`)
+    if (!res.ok) return null
+    const data = await res.json()
+    return data.product ?? null
+  } catch {
+    return null
   }
-  return MOCK_PRODUCTS
 }
 
 const resolveConfiguration = (
@@ -379,6 +380,46 @@ export const api = {
       
       await new Promise(resolve => setTimeout(resolve, 500))
       return []
+    },
+
+    async getPendingForAdmin(): Promise<Design[]> {
+      const session = await supabaseService.getSession()
+      if (!session?.access_token) return []
+      const res = await fetch('/api/admin/designs/list', {
+        headers: { Authorization: `Bearer ${session.access_token}` }
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || 'Failed to load pending designs')
+      }
+      const data = await res.json()
+      return data.designs || []
+    },
+
+    async updateForAdmin(
+      designId: string,
+      updates: { catalogSection?: string; isNSFW?: boolean }
+    ): Promise<Design> {
+      const session = await supabaseService.getSession()
+      if (!session?.access_token) throw new Error('Not authenticated')
+      const res = await fetch('/api/admin/designs/update', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({
+          designId,
+          catalogSection: updates.catalogSection,
+          isNSFW: updates.isNSFW
+        })
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || 'Failed to update design')
+      }
+      const data = await res.json()
+      return data.design
     }
   },
   
@@ -415,8 +456,9 @@ export const api = {
       }
 
       let totalAmount = orderData.totalAmount ?? 0
-      const products = await getCatalogProducts()
-      const product = products.find((item) => item.id === orderData.productId)
+      const product = orderData.productId
+        ? await getProductById(orderData.productId)
+        : null
       if (product) {
         const configuration = resolveConfiguration(product, configurationId)
         const subtotal = product.basePrice + (configuration?.priceModifier ?? 0)
