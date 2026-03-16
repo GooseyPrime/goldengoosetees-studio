@@ -367,13 +367,17 @@ export function ImageEditor({ open, onOpenChange, design, product, onSave }: Ima
     }
 
     const dataUrl = finalCanvas.toDataURL('image/png')
-    const newHistory = history.slice(0, historyIndex + 1)
+    let newHistory = history.slice(0, historyIndex + 1)
     newHistory.push({
       dataUrl,
       filters: { ...filters },
       elements: [...elements]
     })
-    
+    const MAX_HISTORY = 30
+    if (newHistory.length > MAX_HISTORY) {
+      newHistory = newHistory.slice(-MAX_HISTORY)
+    }
+
     setHistory(newHistory)
     setHistoryIndex(newHistory.length - 1)
     toast.success('Changes applied')
@@ -595,9 +599,27 @@ export function ImageEditor({ open, onOpenChange, design, product, onSave }: Ima
       finalCtx.drawImage(overlay, 0, 0)
     }
 
+    const widthPx = finalCanvas.width
+    const heightPx = finalCanvas.height
+    const dpi = printArea
+      ? Math.round(Math.min(widthPx / printArea.widthInches, heightPx / printArea.heightInches))
+      : currentDesign.dpi
+
+    if (printArea && dpi < printArea.constraints.minDPI) {
+      const minW = Math.ceil(printArea.widthInches * printArea.constraints.minDPI)
+      const minH = Math.ceil(printArea.heightInches * printArea.constraints.minDPI)
+      toast.error(
+        `Resolution too low for print. Minimum ${minW}×${minH}px at ${printArea.constraints.minDPI} DPI. Current: ~${dpi} DPI.`
+      )
+      return
+    }
+
     const updatedDesign: DesignFile = {
       ...currentDesign,
-      dataUrl: finalCanvas.toDataURL('image/png')
+      dataUrl: finalCanvas.toDataURL('image/png'),
+      widthPx,
+      heightPx,
+      dpi
     }
 
     onSave(updatedDesign)
