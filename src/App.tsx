@@ -304,8 +304,26 @@ function App() {
     }
   }, [isDesignStage, showDesignBrief, selectedProduct, selectedConfiguration, messages.length])
 
-  const handleProductSelect = (product: Product) => {
-    setSelectedProduct(product)
+  const handleProductSelect = async (product: Product) => {
+    let fullProduct = product
+    // Catalog summaries lack configurations/printAreas – fetch the full product before proceeding
+    if (!product.configurations) {
+      try {
+        const res = await fetch(`/api/printful/catalog/product/${product.id}`)
+        const data = await res.json()
+        if (res.ok && data.product) {
+          fullProduct = data.product
+        } else {
+          toast.error('Could not load product details. Please try again.')
+          return
+        }
+      } catch (err) {
+        if (import.meta.env.DEV) console.error('Failed to fetch full product details:', err)
+        toast.error('Could not load product details. Please try again.')
+        return
+      }
+    }
+    setSelectedProduct(fullProduct)
     setSelectedConfiguration(null)
     setActiveView('CONFIGURE_VARIANTS')
     setShowDesignBrief(false)
@@ -326,15 +344,13 @@ function App() {
   }
 
   const handleProductSwitch = async (productId: string) => {
-    let nextProduct: Product | null = catalogProducts.find((p) => p.id === productId) ?? null
-    if (!nextProduct) {
-      try {
-        const res = await fetch(`/api/printful/catalog/product/${productId}`)
-        const data = await res.json()
-        if (res.ok && data.product) nextProduct = data.product
-      } catch {
-        // ignore
-      }
+    let nextProduct: Product | null = null
+    try {
+      const res = await fetch(`/api/printful/catalog/product/${productId}`)
+      const data = await res.json()
+      if (res.ok && data.product) nextProduct = data.product
+    } catch (err) {
+      if (import.meta.env.DEV) console.error('Failed to fetch product for switch:', err)
     }
     if (!nextProduct) {
       toast.error('Product not found. Please try another.')

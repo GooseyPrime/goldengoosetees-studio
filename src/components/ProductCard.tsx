@@ -36,13 +36,17 @@ export function ProductCard({ product, onSelect }: ProductCardProps) {
             {product.description}
           </p>
           <div className="flex items-center gap-2 pt-2 flex-wrap">
-            <Badge variant="outline" className="text-xs">
-              {product.configurations.length} option{product.configurations.length !== 1 ? 's' : ''}
-            </Badge>
-            {product.configurations.length > 1 && (
-              <span className="text-xs text-muted-foreground">
-                from ${product.basePrice}
-              </span>
+            {product.configurations && product.configurations.length > 0 && (
+              <>
+                <Badge variant="outline" className="text-xs">
+                  {product.configurations.length} option{product.configurations.length !== 1 ? 's' : ''}
+                </Badge>
+                {product.configurations.length > 1 && (
+                  <span className="text-xs text-muted-foreground">
+                    from ${product.basePrice}
+                  </span>
+                )}
+              </>
             )}
           </div>
         </div>
