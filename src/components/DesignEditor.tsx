@@ -174,17 +174,22 @@ export function DesignEditor({
     return outputCanvas
   }
 
+  const MAX_HISTORY = 30
+
   const saveToHistory = () => {
     const outputCanvas = renderCanvas({ applyFilters: true })
     if (!outputCanvas) return
 
     const dataUrl = outputCanvas.toDataURL('image/png')
     loadImageToCanvas(dataUrl)
-    const newHistory = history.slice(0, historyIndex + 1)
+    let newHistory = history.slice(0, historyIndex + 1)
     newHistory.push({
       dataUrl,
       filters: { brightness: 100, contrast: 100, saturation: 100, blur: 0 }
     })
+    if (newHistory.length > MAX_HISTORY) {
+      newHistory = newHistory.slice(-MAX_HISTORY)
+    }
 
     setFilters({
       brightness: 100,
@@ -256,6 +261,15 @@ export function DesignEditor({
     const dpi = printArea
       ? Math.round(Math.min(widthPx / printArea.widthInches, heightPx / printArea.heightInches))
       : currentDesign.dpi
+
+    if (printArea && dpi < printArea.constraints.minDPI) {
+      const minW = Math.ceil(printArea.widthInches * printArea.constraints.minDPI)
+      const minH = Math.ceil(printArea.heightInches * printArea.constraints.minDPI)
+      toast.error(
+        `Resolution too low for print. Minimum ${minW}×${minH}px at ${printArea.constraints.minDPI} DPI. Current: ~${dpi} DPI.`
+      )
+      return
+    }
 
     const updatedDesign: DesignFile = {
       ...currentDesign,

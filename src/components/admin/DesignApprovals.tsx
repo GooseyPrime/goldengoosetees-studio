@@ -12,18 +12,22 @@ import {
   Warning
 } from '@phosphor-icons/react'
 import { Design, Product } from '@/lib/types'
+import { api } from '@/lib/api'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
+import { Skeleton } from '@/components/ui/skeleton'
 
 interface DesignApprovalsProps {
   designs: Design[]
-  onDesignsChange: (updater: (prev: Design[]) => Design[]) => void
+  onRefresh: () => void
   products: Product[]
+  loading?: boolean
 }
 
-export function DesignApprovals({ designs, onDesignsChange, products }: DesignApprovalsProps) {
+export function DesignApprovals({ designs, onRefresh, products, loading = false }: DesignApprovalsProps) {
   const [viewingDesign, setViewingDesign] = useState<Design | null>(null)
   const [rejectionReason, setRejectionReason] = useState('')
+  const [actioning, setActioning] = useState(false)
 
   const pendingDesigns = designs.filter(d => d.isPublic && !d.catalogSection)
 
@@ -31,37 +35,48 @@ export function DesignApprovals({ designs, onDesignsChange, products }: DesignAp
     return products.find(p => p.id === productId)
   }
 
-  const handleApprove = (design: Design) => {
+  const handleApprove = async (design: Design) => {
     const section = design.isNSFW ? 'nsfw-graphics' : 'sfw-graphics'
-    
-    onDesignsChange((prev) =>
-      prev.map(d => d.id === design.id 
-        ? { ...d, catalogSection: section, updatedAt: new Date().toISOString() }
-        : d
-      )
-    )
-    
-    toast.success('Design approved and added to catalog')
-    setViewingDesign(null)
+    setActioning(true)
+    try {
+      await api.designs.updateForAdmin(design.id, { catalogSection: section })
+      toast.success('Design approved and added to catalog')
+      setViewingDesign(null)
+      onRefresh()
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Failed to approve design')
+    } finally {
+      setActioning(false)
+    }
   }
 
-  const handleReject = (design: Design) => {
-    onDesignsChange((prev) => prev.filter(d => d.id !== design.id))
-    
-    toast.error(`Design rejected: ${rejectionReason || 'No reason provided'}`)
-    setViewingDesign(null)
-    setRejectionReason('')
+  const handleReject = async (design: Design) => {
+    setActioning(true)
+    try {
+      await api.designs.updateForAdmin(design.id, { catalogSection: 'rejected' })
+      toast.error(`Design rejected: ${rejectionReason || 'No reason provided'}`)
+      setViewingDesign(null)
+      setRejectionReason('')
+      onRefresh()
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Failed to reject design')
+    } finally {
+      setActioning(false)
+    }
   }
 
-  const handleFlagNSFW = (design: Design) => {
-    onDesignsChange((prev) =>
-      prev.map(d => d.id === design.id 
-        ? { ...d, isNSFW: !d.isNSFW, updatedAt: new Date().toISOString() }
-        : d
-      )
-    )
-    
-    toast.info(`Design ${design.isNSFW ? 'unmarked' : 'marked'} as NSFW`)
+  const handleFlagNSFW = async (design: Design) => {
+    setActioning(true)
+    try {
+      await api.designs.updateForAdmin(design.id, { isNSFW: !design.isNSFW })
+      toast.info(`Design ${design.isNSFW ? 'unmarked' : 'marked'} as NSFW`)
+      setViewingDesign(prev => prev?.id === design.id ? { ...prev, isNSFW: !design.isNSFW } : prev)
+      onRefresh()
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Failed to update design')
+    } finally {
+      setActioning(false)
+    }
   }
 
   return (
@@ -76,7 +91,19 @@ export function DesignApprovals({ designs, onDesignsChange, products }: DesignAp
         </Badge>
       </div>
 
-      {pendingDesigns.length === 0 ? (
+      {loading ? (
+        <Card>
+          <CardContent className="py-12 space-y-4">
+            <Skeleton className="h-8 w-48 mx-auto" />
+            <Skeleton className="h-4 w-64 mx-auto" />
+            <div className="grid gap-4 grid-cols-3 mt-6">
+              {[1, 2, 3].map((i) => (
+                <Skeleton key={i} className="aspect-square rounded-lg" />
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      ) : pendingDesigns.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">
             <CheckCircle size={48} className="mx-auto text-muted-foreground mb-3" weight="duotone" />
@@ -252,6 +279,7 @@ export function DesignApprovals({ designs, onDesignsChange, products }: DesignAp
                   variant="outline"
                   className="flex-1"
                   onClick={() => handleReject(viewingDesign)}
+                  disabled={actioning}
                 >
                   <XCircle size={20} className="mr-2" />
                   Reject Design
@@ -259,6 +287,7 @@ export function DesignApprovals({ designs, onDesignsChange, products }: DesignAp
                 <Button
                   className="flex-1"
                   onClick={() => handleApprove(viewingDesign)}
+                  disabled={actioning}
                 >
                   <CheckCircle size={20} className="mr-2" />
                   Approve & Publish

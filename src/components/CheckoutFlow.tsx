@@ -31,6 +31,17 @@ import { motion, AnimatePresence } from 'framer-motion'
 const STRIPE_TEST_MODE = import.meta.env.VITE_STRIPE_TEST_MODE === 'true'
 const APP_URL = import.meta.env.VITE_APP_URL || window.location.origin
 
+function validateDesignDpi(design: Design, product: Product): string | null {
+  for (const file of design.files) {
+    const printArea = product.printAreas.find((pa) => pa.id === file.printAreaId)
+    if (!printArea) continue
+    if (file.dpi < printArea.constraints.minDPI) {
+      return `Design "${file.printAreaId}" is below minimum print resolution (${printArea.constraints.minDPI} DPI). Please edit the design and use a higher resolution.`
+    }
+  }
+  return null
+}
+
 interface CheckoutFlowProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -162,6 +173,12 @@ export function CheckoutFlow({
 
   // Stripe Checkout redirect handler
   const handleStripeCheckout = async () => {
+    const dpiError = validateDesignDpi(design, product)
+    if (dpiError) {
+      toast.error(dpiError)
+      return
+    }
+
     setStep('processing')
     setIsProcessing(true)
 
@@ -226,6 +243,12 @@ export function CheckoutFlow({
     if (!validateCardNumber(cardData.number)) return
     if (!validateExpiry(cardData.expiry)) return
     if (!validateCVC(cardData.cvc)) return
+
+    const dpiError = validateDesignDpi(design, product)
+    if (dpiError) {
+      toast.error(dpiError)
+      return
+    }
 
     setStep('processing')
     setIsProcessing(true)
