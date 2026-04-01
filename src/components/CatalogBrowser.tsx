@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { usePrintfulCatalog, type CatalogProductSummary } from '@/hooks/usePrintfulCatalog'
 import { Product } from '@/lib/types'
 import { copy } from '@/lib/copy'
+import { responsiveImageSources } from '@/lib/image-urls'
 import { motion } from 'framer-motion'
 import { SpinnerGap } from '@phosphor-icons/react'
 
@@ -23,6 +24,7 @@ function CatalogProductCard({
   onSelect: () => void
   isLoading: boolean
 }) {
+  const img = responsiveImageSources(summary.imageUrl)
   return (
     <motion.div
       whileHover={{ y: -4 }}
@@ -34,8 +36,12 @@ function CatalogProductCard({
       >
         <div className="aspect-square overflow-hidden bg-muted relative">
           <img
-            src={summary.imageUrl}
+            src={img.src}
+            srcSet={img.srcSet}
+            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 280px"
             alt={summary.name}
+            loading="lazy"
+            decoding="async"
             className="w-full h-full object-cover"
           />
           {isLoading && (
