@@ -1,13 +1,13 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-
-// --- Inlined from api/_lib/printful-transform.ts ---
+import { printfulServer } from '../../_lib/printful'
+import { getSupabaseAdmin } from '../../_lib/supabase-server'
+import { getCuratedPrintfulProductIds, isCuratedProductId } from '../../_lib/offerings'
+import { catalogStartingRetail, inferPricingCategory, type ProductCategoryHint } from '../../_lib/pricing'
 
 type ProductCategory = 'apparel' | 'drinkware' | 'accessory' | 'poster'
-type ProductMockupTemplate = 'tshirt' | 'mug' | 'hat' | 'poster'
 
-interface PrintfulCatalogProduct {
+interface CatalogProduct {
   id: number
-  main_category_id?: number
   type: string
   type_name: string
   title: string
@@ -16,24 +16,11 @@ interface PrintfulCatalogProduct {
   image: string
   variant_count: number
   currency: string
-  files?: Array<{
-    id?: string
-    type?: string
-    title?: string
-    additional_price?: string | number | null
-    options?: Array<{ id?: string; type?: string; title?: string; additional_price?: number }>
-  }>
-  options?: Array<{
-    id: string
-    title: string
-    type: string
-    values: Record<string, string>
-    additional_price: number | null
-  }>
+  files?: unknown[]
   is_discontinued?: boolean
 }
 
-function inferCategory(product: PrintfulCatalogProduct): ProductCategory {
+function inferCategory(product: CatalogProduct): ProductCategory {
   const descriptor = `${product.type} ${product.type_name} ${product.title} ${product.model || ''}`.toLowerCase()
   if (descriptor.includes('mug') || descriptor.includes('cup') || descriptor.includes('tumbler') || descriptor.includes('bottle')) {
     return 'drinkware'
@@ -47,89 +34,32 @@ function inferCategory(product: PrintfulCatalogProduct): ProductCategory {
   return 'apparel'
 }
 
-function printfulToCatalogSummary(product: PrintfulCatalogProduct): {
-  id: string
-  name: string
-  imageUrl: string
-  category: ProductCategory
-  basePrice: number
-} {
-  const category = inferCategory(product)
-  return {
-    id: String(product.id),
-    name: product.title,
-    imageUrl: product.image,
-    category,
-    basePrice: 19.99, // Placeholder until we have variant data
-  }
+function hintFromCategory(cat: ProductCategory): ProductCategoryHint {
+  if (cat === 'drinkware') return 'drinkware'
+  if (cat === 'poster') return 'poster'
+  if (cat === 'accessory') return 'accessory'
+  return 'apparel'
 }
 
-// --- Inlined from api/_lib/printful.ts ---
-
-const PRINTFUL_API_BASE = 'https://api.printful.com'
-const PRINTFUL_API_KEY = process.env.PRINTFUL_API_KEY ?? process.env.VITE_PRINTFUL_API_KEY
-
-interface PrintfulProduct {
-  id: number
-  type: string
-  type_name: string
-  title: string
-  brand: string | null
-  model: string
-  image: string
-  variant_count: number
-  currency: string
-  options: Array<{
-    id: string
-    title: string
-    type: string
-    values: Record<string, string>
-    additional_price: number | null
-  }>
-  is_discontinued: boolean
+async function minCachedOrLiveBase(productId: number, cachedMin: number | undefined): Promise<number> {
+  if (cachedMin != null && Number.isFinite(cachedMin) && cachedMin > 0) {
+    return cachedMin
+  }
+  try {
+    const variants = await printfulServer.getVariants(productId)
+    let m = Infinity
+    for (const v of variants) {
+      const p = parseFloat(String(v.price))
+      if (Number.isFinite(p) && p > 0) m = Math.min(m, p)
+    }
+    if (m !== Infinity) return m
+  } catch (e) {
+    console.warn('catalog list: live variants failed for', productId, e)
+  }
+  return 19.99
 }
 
-async function request<T>(
-  endpoint: string,
-  options: RequestInit = {}
-): Promise<T> {
-  if (!PRINTFUL_API_KEY) {
-    throw new Error('Printful API key not configured. Set PRINTFUL_API_KEY environment variable.')
-  }
-
-  const url = `${PRINTFUL_API_BASE}${endpoint}`
-  const headers: Record<string, string> = {
-    'Authorization': `Bearer ${PRINTFUL_API_KEY}`,
-    'Content-Type': 'application/json',
-    ...options.headers as Record<string, string>,
-  }
-
-  const response = await fetch(url, { ...options, headers })
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({})) as any
-    throw new Error(error.error?.message || `Printful API error: ${response.statusText}`)
-  }
-  const data = await response.json() as any
-  return data.result as T
-}
-
-const printfulServer = {
-  isConfigured(): boolean {
-    return !!PRINTFUL_API_KEY
-  },
-  async getProducts(categoryId?: number): Promise<PrintfulProduct[]> {
-    const query = categoryId ? `?category_id=${categoryId}` : ''
-    return request<PrintfulProduct[]>(`/products${query}`)
-  },
-}
-
-
-// --- Original handler from api/printful/catalog/list.ts, modified to use inlined code ---
-
-export default async function handler(
-  req: VercelRequest,
-  res: VercelResponse
-): Promise<void | VercelResponse> {
+export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void | VercelResponse> {
   if (req.method !== 'GET') {
     res.status(405).json({ error: 'Method not allowed' })
     return
@@ -141,19 +71,57 @@ export default async function handler(
       return
     }
 
-    const categoryId = req.query.category_id
-      ? parseInt(String(req.query.category_id), 10)
-      : undefined
-    const numCategoryId = Number.isFinite(categoryId) ? (categoryId as number) : undefined
+    const categoryId = req.query.category_id ? parseInt(String(req.query.category_id), 10) : undefined
+    const numCategoryId = Number.isFinite(categoryId) ? categoryId : undefined
 
     const rawProducts = await printfulServer.getProducts(numCategoryId)
+    const curated = getCuratedPrintfulProductIds()
+    const filtered =
+      curated.length === 0
+        ? (rawProducts as CatalogProduct[])
+        : (rawProducts as CatalogProduct[]).filter((p) => isCuratedProductId(p.id))
 
-    const products = rawProducts.map((p: any) =>
-      printfulToCatalogSummary({
-        ...p,
-        files: p.files || [],
+    const admin = getSupabaseAdmin()
+    const minByProduct = new Map<number, number>()
+    if (admin && filtered.length > 0) {
+      const ids = filtered.map((p: CatalogProduct) => p.id)
+      const { data: cacheRows } = await admin
+        .from('printful_variant_price_cache')
+        .select('product_id, printful_base_price')
+        .in('product_id', ids)
+
+      for (const row of cacheRows || []) {
+        const pid = Number(row.product_id)
+        const price = Number(row.printful_base_price)
+        if (!Number.isFinite(pid) || !Number.isFinite(price)) continue
+        const prev = minByProduct.get(pid)
+        if (prev == null || price < prev) minByProduct.set(pid, price)
+      }
+    }
+
+    const products = []
+    for (const p of filtered as CatalogProduct[]) {
+      const category = inferCategory(p)
+      const hint = hintFromCategory(category)
+      const pricingCategory = inferPricingCategory(hint, p.title, p.type_name)
+      const minBase = await minCachedOrLiveBase(p.id, minByProduct.get(p.id))
+      const basePrice = catalogStartingRetail(minBase, pricingCategory)
+
+      products.push({
+        id: String(p.id),
+        name: p.title,
+        description: p.model || p.type_name || p.title,
+        printfulSKU: String(p.id),
+        basePrice,
+        imageUrl: p.image,
+        category,
+        configurations: [],
+        variants: [],
+        printAreas: [],
+        mockupTemplate: category === 'drinkware' ? 'mug' : category === 'poster' ? 'poster' : category === 'accessory' ? 'hat' : 'tshirt',
+        available: !p.is_discontinued,
       })
-    )
+    }
 
     res.status(200).json({
       success: true,

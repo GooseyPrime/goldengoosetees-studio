@@ -5,6 +5,7 @@ import { supabaseService } from './supabase'
 import { aiAgents } from './ai-agents'
 import { kvService } from './kv'
 import { roundCurrency } from './order-dpi'
+import type { PricingQuoteResponse, CreateOrderV2Response } from './pricing'
 import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
 
 // Custom error for age verification requirement
@@ -424,9 +425,71 @@ export const api = {
   },
   
   orders: {
-    async create(orderData: Partial<Order>): Promise<Order> {
+    async requestQuote(params: {
+      designId: string
+      variantId: number
+      configurationId?: string
+      quantity?: number
+      shippingAddress: Order['shippingAddress']
+      recipient: { country_code: string; state_code?: string; zip?: string }
+    }): Promise<PricingQuoteResponse> {
+      const session = await supabaseService.getSession()
+      if (!session?.access_token) {
+        throw new Error('Not authenticated')
+      }
+      const res = await fetch('/api/pricing/quote', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          designId: params.designId,
+          variantId: params.variantId,
+          configurationId: params.configurationId,
+          quantity: params.quantity ?? 1,
+          shippingAddress: params.shippingAddress,
+          recipient: params.recipient,
+          shippingMethod: 'STANDARD',
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error((data as { error?: string }).error || 'Failed to get price quote')
+      }
+      return data as PricingQuoteResponse
+    },
+
+    async create(orderData: Partial<Order> & { pricingQuoteId?: string }): Promise<Order> {
       if (!supabaseService.isConfigured()) {
         throw new Error('Order service not configured. Please contact support.')
+      }
+
+      if (import.meta.env.VITE_PRICING_V2_ENABLED === 'true' && orderData.pricingQuoteId) {
+        const session = await supabaseService.getSession()
+        if (!session?.access_token) {
+          throw new Error('Not authenticated')
+        }
+        const res = await fetch('/api/orders/create', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            pricingQuoteId: orderData.pricingQuoteId,
+            shippingAddress: orderData.shippingAddress,
+          }),
+        })
+        const data = (await res.json().catch(() => ({}))) as CreateOrderV2Response & { error?: string }
+        if (!res.ok) {
+          throw new Error(data.error || 'Failed to create order')
+        }
+        const row = await supabaseService.getOrderById(data.orderId)
+        if (!row) {
+          throw new Error('Order created but not found')
+        }
+        return orderRowToOrder(row as Record<string, unknown>)
       }
 
       let variantSelections = orderData.variantSelections
@@ -548,6 +611,17 @@ export const api = {
         throw new Error('Order not found')
       }
       const orderObj = orderRowToOrder(row as Record<string, unknown>)
+
+      if (import.meta.env.VITE_SERVER_FULFILLMENT_ENABLED === 'true') {
+        const ed =
+          orderObj.estimatedDelivery ||
+          new Date(Date.now() + 7 * 86400000).toISOString()
+        return {
+          printfulOrderId: orderObj.printfulOrderId || 'server_pending',
+          estimatedDelivery: ed,
+          trackingUrl: orderObj.trackingUrl,
+        }
+      }
 
       try {
         const printfulFiles = await Promise.all(

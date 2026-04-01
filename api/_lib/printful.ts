@@ -190,7 +190,7 @@ async function request<T>(
       )
     }
 
-    const data = await response.json() as any
+    const data = (await response.json()) as any
     return data.result as T
   } catch (error: any) {
     // Never log the API key
@@ -198,6 +198,42 @@ async function request<T>(
     console.error('Printful API request failed:', sanitized)
     throw sanitized
   }
+}
+
+/**
+ * POST helper that returns full Printful JSON body (for estimate-costs snapshots).
+ */
+async function postFull(endpoint: string, jsonBody: unknown): Promise<any> {
+  if (!PRINTFUL_API_KEY) {
+    throw new Error('Printful API key not configured. Set PRINTFUL_API_KEY environment variable.')
+  }
+  const url = `${PRINTFUL_API_BASE}${endpoint}`
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${PRINTFUL_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(jsonBody),
+  })
+  const data = (await response.json().catch(() => ({}))) as any
+  if (!response.ok) {
+    const msg = data?.error?.message || response.statusText
+    throw new Error(msg || 'Printful API error')
+  }
+  return data
+}
+
+export function extractPrintfulEstimateTotal(result: any): number {
+  const c = result?.costs ?? result
+  if (!c || typeof c !== 'object') return NaN
+  const candidates = [c.total, c.grand_total, c.Total, (c as any).grandTotal]
+  for (const v of candidates) {
+    if (v == null) continue
+    const n = parseFloat(String(v).replace(/[^0-9.-]+/g, ''))
+    if (Number.isFinite(n) && n >= 0) return n
+  }
+  return NaN
 }
 
 /**
@@ -328,6 +364,24 @@ export const printfulServer = {
    */
   async getPrintfiles(productId: number): Promise<any> {
     return request<any>(`/mockup-generator/printfiles/${productId}`)
+  },
+
+  /**
+   * Estimate costs for a draft order (includes dynamic shipping/tax).
+   */
+  async estimateOrderCosts(payload: {
+    recipient: PrintfulOrderRequest['recipient']
+    items: PrintfulOrderRequest['items']
+  }): Promise<{ costs: PrintfulOrderResponse['costs']; raw: unknown }> {
+    const data = await postFull('/orders/estimate-costs', {
+      recipient: payload.recipient,
+      items: payload.items,
+    })
+    const result = data?.result ?? data
+    return {
+      costs: result?.costs as PrintfulOrderResponse['costs'],
+      raw: result,
+    }
   },
 
   /**

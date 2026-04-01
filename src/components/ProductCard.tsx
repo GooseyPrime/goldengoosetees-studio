@@ -35,7 +35,7 @@ export function ProductCard({ product, onSelect }: ProductCardProps) {
           <div className="flex items-start justify-between gap-2">
             <h3 className="font-semibold text-lg leading-tight">{product.name}</h3>
             <Badge variant="secondary" className="font-mono shrink-0">
-              ${product.basePrice}
+              From ${product.basePrice}
             </Badge>
           </div>
           <p className="text-sm text-muted-foreground line-clamp-2">

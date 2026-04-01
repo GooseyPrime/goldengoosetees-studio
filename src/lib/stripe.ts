@@ -72,6 +72,7 @@ class StripeService {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          orderId: order.id,
           amount: amountInCents,
           currency: 'usd',
           description,

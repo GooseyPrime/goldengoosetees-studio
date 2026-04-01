@@ -37,6 +37,15 @@ Use this before and after promoting to production on Vercel.
 - [ ] API key and store ID set server-side only
 - [ ] Admin or catalog path smoke-tested against live API
 
+## Pricing v2 (optional)
+
+When enabling dynamic pricing / server fulfillment, see [docs/pricing.md](./pricing.md).
+
+- [ ] Run `supabase/migrations/001_pricing_system.sql` on production
+- [ ] Set `PRICING_V2_ENABLED`, `VITE_PRICING_V2_ENABLED` together after smoke-testing quotes
+- [ ] Set `SERVER_FULFILLMENT_ENABLED`, `VITE_SERVER_FULFILLMENT_ENABLED` together; verify Stripe webhook uses **raw body** (deployed handler)
+- [ ] `CRON_SECRET` set if invoking cron manually; Vercel Cron hits `/api/cron/refresh-variant-cache`
+
 ## Post-deploy smoke tests
 
 - [ ] Landing page loads; hero image and fonts render
