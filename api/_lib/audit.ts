@@ -65,3 +65,4 @@ export async function logAdminAction(
     // Don't throw - audit logging failures shouldn't break the operation
   }
 }
+

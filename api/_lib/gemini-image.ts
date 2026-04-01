@@ -74,3 +74,4 @@ Composition:
 - High contrast and readability at a distance
 ${ar ? `- Keep the composition compatible with a ${ar} aspect ratio` : ''}`.trim()
 }
+

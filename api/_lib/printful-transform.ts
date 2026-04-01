@@ -342,3 +342,4 @@ export function printfulToCatalogSummary(product: PrintfulCatalogProduct): {
     basePrice: 19.99, // Placeholder until we have variant data
   }
 }
+

@@ -75,3 +75,4 @@ export default async function handler(
     res.status(statusCode).json({ error: message })
   }
 }
+

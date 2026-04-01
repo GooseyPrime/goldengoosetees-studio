@@ -131,3 +131,4 @@ function getDefaultConfig(): AppConfig {
     alert_external_services: true,
   }
 }
+
