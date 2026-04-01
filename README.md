@@ -1,6 +1,8 @@
 # GoldenGooseTees - AI T-Shirt Design
 
-> 📚 **[Complete Documentation Library](./docs/README.md)** - Setup guides, API references, and troubleshooting
+> 📚 **[Complete Documentation Library](./docs/README.md)** - Setup guides, API references, and troubleshooting  
+> **Repository:** [github.com/GooseyPrime/goldengoosetees-studio](https://github.com/GooseyPrime/goldengoosetees-studio) (transferred from the previous org)  
+> **Production deploy:** Vercel team **intellme** → [goldengoosetees-studio](https://vercel.com/intellme/goldengoosetees-studio) — GitHub **GooseyPrime/goldengoosetees-studio**, branch **`main`**. See [docs/PRODUCTION_CHECKLIST.md](./docs/PRODUCTION_CHECKLIST.md).
 
 A production-ready AI-powered web app for custom T-shirt design. Users create designs through conversational AI (Gemini), generate high-quality artwork (Gemini/DALL-E 3), and checkout with Stripe payments and Printful fulfillment. Built for normal browser use with many concurrent users and server-backed orders.
 
@@ -56,9 +58,9 @@ Before deploying, you'll need accounts with:
 
 ### Step 1: Deploy to Vercel
 
-1. Fork or clone this repository
-2. Connect your repo to Vercel
-3. Import the project in Vercel dashboard
+1. Clone [GooseyPrime/goldengoosetees-studio](https://github.com/GooseyPrime/goldengoosetees-studio) (or your fork).
+2. In Vercel, connect the GitHub repo and set the **production branch** to `main`.
+3. Existing production may already live under the **intellme** team; confirm **Settings → Git** shows the GooseyPrime repo.
 
 ### Step 2: Configure Environment Variables
 

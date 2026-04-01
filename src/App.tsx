@@ -40,6 +40,7 @@ import { toast, Toaster } from 'sonner'
 import { copy } from '@/lib/copy'
 import { motion, AnimatePresence } from 'framer-motion'
 import logoImage from '@/assets/images/GoldenGooseTees.jpg'
+import { responsiveImageSources } from '@/lib/image-urls'
 
 // Helper to detect if we're returning from OAuth redirect
 const isOAuthRedirect = () => {
@@ -1106,6 +1107,7 @@ function App() {
 
   const cartDisabled = !designsComplete
   const heroProduct = featuredProducts[0]
+  const heroImgSources = heroProduct ? responsiveImageSources(heroProduct.imageUrl) : null
   const designEditorProductList = selectedProduct
     ? catalogProducts.some((p) => p.id === selectedProduct.id)
       ? catalogProducts
@@ -1144,6 +1146,9 @@ function App() {
                   <img
                     src={logoImage}
                     alt="GoldenGooseTees Logo"
+                    width={40}
+                    height={40}
+                    decoding="async"
                     className="h-10 w-10 rounded-full object-cover border border-white/20 shadow-lg"
                   />
                   <div className="hidden sm:block text-left">
@@ -1323,12 +1328,16 @@ function App() {
                           {featuredError && !featuredLoading && (
                             <p className="text-muted-foreground text-center px-4">{featuredError}</p>
                           )}
-                          {!featuredLoading && heroProduct && (
+                          {!featuredLoading && heroProduct && heroImgSources && (
                             <>
                               <img
-                                src={heroProduct.imageUrl}
+                                src={heroImgSources.src}
+                                srcSet={heroImgSources.srcSet}
+                                sizes="(max-width: 1024px) 100vw, 50vw"
                                 alt={heroProduct.name || 'Featured tee'}
-                                className="w-full h-full object-cover"
+                                className="w-full h-full min-h-[280px] object-cover"
+                                fetchPriority="high"
+                                decoding="async"
                               />
                               <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
                               <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between">

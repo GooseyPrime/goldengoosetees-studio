@@ -1,6 +1,7 @@
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Product } from '@/lib/types'
+import { responsiveImageSources } from '@/lib/image-urls'
 import { motion } from 'framer-motion'
 
 interface ProductCardProps {
@@ -20,8 +21,12 @@ export function ProductCard({ product, onSelect }: ProductCardProps) {
       >
         <div className="aspect-square overflow-hidden bg-muted">
           <img 
-            src={product.imageUrl} 
+            src={img.src}
+            srcSet={img.srcSet}
+            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 280px"
             alt={product.name}
+            loading="lazy"
+            decoding="async"
             className="w-full h-full object-cover"
           />
         </div>

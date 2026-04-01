@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Product, ProductConfiguration, ProductVariantType } from '@/lib/types'
 import { copy } from '@/lib/copy'
+import { responsiveImageSources } from '@/lib/image-urls'
 import { Button } from '@/components/ui/button'
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -69,6 +70,7 @@ export function ProductConfigurationSelector({
   }
 
   const areVariantsComplete = product.variants.every(variant => !!variantSelections[variant.id])
+  const productImg = responsiveImageSources(product.imageUrl)
 
   return (
     <motion.div
@@ -90,8 +92,12 @@ export function ProductConfigurationSelector({
           <Card className="overflow-hidden glass-panel sticky top-24 border border-white/10">
             <div className="aspect-square overflow-hidden bg-muted">
               <img
-                src={product.imageUrl}
+                src={productImg.src}
+                srcSet={productImg.srcSet}
+                sizes="(max-width: 768px) 100vw, 40vw"
                 alt={product.name}
+                fetchPriority="high"
+                decoding="async"
                 className="w-full h-full object-cover"
               />
             </div>

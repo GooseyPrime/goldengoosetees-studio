@@ -11,8 +11,9 @@
 ### Getting Started (Start Here)
 
 1. **[Main README](../README.md)** - Project overview, tech stack, and quick start
-2. **[Local Development Setup](#local-development-setup)** - Get the app running locally
-3. **[Vercel Deployment](#vercel-deployment)** - Deploy to production
+2. **[Production checklist](./PRODUCTION_CHECKLIST.md)** - Vercel, env, smoke tests before/after deploy
+3. **[Local Development Setup](#local-development-setup)** - Get the app running locally
+4. **[Vercel Deployment](#vercel-deployment)** - Deploy to production
 
 ### Core Setup Guides
 

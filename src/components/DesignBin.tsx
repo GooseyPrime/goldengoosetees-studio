@@ -78,6 +78,8 @@ export function DesignBin({
                   <img
                     src={design.dataUrl}
                     alt={area.name}
+                    loading="lazy"
+                    decoding="async"
                     className="w-full h-full object-cover"
                   />
                 ) : (
