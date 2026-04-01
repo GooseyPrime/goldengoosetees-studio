@@ -3,7 +3,6 @@ import { printfulServer } from '../../_lib/printful'
 import { getSupabaseAdmin } from '../../_lib/supabase-server'
 import { getCuratedPrintfulProductIds, isCuratedProductId } from '../../_lib/offerings'
 import { catalogStartingRetail, inferPricingCategory, type ProductCategoryHint } from '../../_lib/pricing'
-import { buildStaticGridProducts } from '../../_lib/static-catalog'
 
 type ProductCategory = 'apparel' | 'drinkware' | 'accessory' | 'poster'
 
@@ -51,7 +50,7 @@ function hintFromCategory(cat: ProductCategory): ProductCategoryHint {
 /**
  * Use cron-populated cache only for catalog list. Do not call Printful per product here:
  * N sequential variant fetches caused timeouts and Vercel non-JSON error pages, breaking
- * `res.json()` on the client (e.g. "Unexpected token 'A', \"A server e\"...").
+ * the client parser (e.g. "Unexpected token 'A', \"A server e\"...").
  */
 function minBaseFromCache(cachedMin: number | undefined): number {
   if (cachedMin != null && Number.isFinite(cachedMin) && cachedMin > 0) {
@@ -66,20 +65,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     return
   }
 
-  const respondStatic = (fallbackReason: string) => {
-    const products = buildStaticGridProducts()
-    sendJson(res, 200, {
-      success: true,
-      products,
-      paging: { total: products.length, offset: 0, limit: products.length },
-      source: 'static_fallback',
-      fallbackReason,
-    })
-  }
-
   try {
     if (!printfulServer.isConfigured()) {
-      respondStatic('printful_not_configured')
+      sendJson(res, 503, {
+        success: false,
+        error: 'Printful is not configured. Set PRINTFUL_API_KEY (and store ID if required) on the server.',
+        products: [],
+        paging: { total: 0, offset: 0, limit: 24 },
+      })
       return
     }
 
@@ -92,7 +85,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       curated.length === 0 ? rawProducts : rawProducts.filter((p) => isCuratedProductId(p.id))
 
     if (filtered.length === 0) {
-      respondStatic('no_matching_products')
+      sendJson(res, 200, {
+        success: true,
+        products: [],
+        paging: { total: 0, offset: 0, limit: 24 },
+        message:
+          curated.length > 0
+            ? 'No curated products matched the Printful catalog response. Check PRINTFUL_CURATED_PRODUCT_IDS and your Printful store catalog.'
+            : 'No products returned from Printful for this category.',
+      })
       return
     }
 
@@ -157,6 +158,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     })
   } catch (error: any) {
     console.error('Catalog list error:', error)
-    respondStatic(typeof error?.message === 'string' ? error.message : 'printful_error')
+    sendJson(res, 500, {
+      success: false,
+      error: error?.message || 'Failed to fetch catalog from Printful',
+    })
   }
 }

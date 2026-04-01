@@ -1,6 +1,5 @@
 import { useState, useCallback, useEffect } from 'react'
 import type { Product } from '@/lib/types'
-import { getEmergencyCatalogProducts, getEmergencyProductById } from '@/lib/catalog-emergency'
 
 export interface CatalogCategory {
   id: number
@@ -27,6 +26,13 @@ async function parseJsonSafe(res: Response): Promise<Record<string, unknown> | n
   }
 }
 
+function catalogLoadError(res: Response, data: Record<string, unknown> | null): string {
+  const serverErr = data && typeof data.error === 'string' ? data.error.trim() : ''
+  if (serverErr) return serverErr
+  if (!res.ok) return `Catalog request failed (HTTP ${res.status}). Please try again.`
+  return 'Catalog returned an invalid response. Please try again.'
+}
+
 export function usePrintfulCatalog() {
   const [products, setProducts] = useState<Product[]>([])
   const [categories, setCategories] = useState<CatalogCategory[]>([])
@@ -40,6 +46,11 @@ export function usePrintfulCatalog() {
     try {
       const res = await fetch('/api/printful/catalog/categories')
       const data = await parseJsonSafe(res)
+      if (!res.ok) {
+        setCategories([])
+        setCatalogAvailable(false)
+        return
+      }
       const cats = (data?.categories as CatalogCategory[] | undefined) || []
       setCategories(Array.isArray(cats) ? cats : [])
       setCatalogAvailable((cats?.length ?? 0) > 0)
@@ -59,16 +70,20 @@ export function usePrintfulCatalog() {
       const res = await fetch(url)
       const data = await parseJsonSafe(res)
       if (data && data.success === true && Array.isArray(data.products)) {
-        setProducts(data.products as Product[])
+        const list = data.products as Product[]
+        setProducts(list)
         setCatalogAvailable(true)
+        const msg = typeof data.message === 'string' ? data.message.trim() : ''
+        setError(list.length === 0 && msg ? msg : null)
         return
       }
-      setProducts(getEmergencyCatalogProducts())
-      setCatalogAvailable(true)
+      setProducts([])
+      setCatalogAvailable(false)
+      setError(catalogLoadError(res, data))
     } catch {
-      setProducts(getEmergencyCatalogProducts())
-      setCatalogAvailable(true)
-      setError(null)
+      setProducts([])
+      setCatalogAvailable(false)
+      setError('Could not reach the catalog. Check your connection and try again.')
     } finally {
       setLoading(false)
     }
@@ -83,16 +98,10 @@ export function usePrintfulCatalog() {
       if (data && data.success === true && data.product && typeof data.product === 'object') {
         return data.product as Product
       }
-      const offline = getEmergencyProductById(productId)
-      if (offline) {
-        return offline
-      }
-      setError((data?.error as string) || 'Failed to load product')
+      setError((data?.error as string) || catalogLoadError(res, data))
       return null
     } catch {
-      const offline = getEmergencyProductById(productId)
-      if (offline) return offline
-      setError('Failed to load product')
+      setError('Failed to load product. Check your connection and try again.')
       return null
     } finally {
       setLoadingProduct(null)
