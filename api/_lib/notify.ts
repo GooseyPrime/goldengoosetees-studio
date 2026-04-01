@@ -139,3 +139,4 @@ function isCriticalCategory(category: AlertCategory): boolean {
   return ['system_errors', 'payment_orders'].includes(category)
 }
 
+

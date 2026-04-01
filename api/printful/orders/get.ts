@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { requireAdmin } from '../../_lib/auth'
-import { printfulServer } from '@/api/_lib/printful.js'
+import { printfulServer } from '#api/printful.js'
 
 export default async function handler(
   req: VercelRequest,
@@ -38,4 +38,5 @@ export default async function handler(
     })
   }
 }
+
 

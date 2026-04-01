@@ -75,3 +75,4 @@ Composition:
 ${ar ? `- Keep the composition compatible with a ${ar} aspect ratio` : ''}`.trim()
 }
 
+

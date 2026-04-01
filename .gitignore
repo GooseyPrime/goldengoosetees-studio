@@ -36,3 +36,4 @@ pids
 .vercel
 
 .env*.local
+.vercel

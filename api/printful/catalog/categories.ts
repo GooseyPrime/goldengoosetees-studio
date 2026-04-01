@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { printfulServer } from '@/api/_lib/printful.js'
+import { printfulServer } from '#api/printful.js'
 
 /**
  * Public catalog categories - no auth required
@@ -33,4 +33,5 @@ export default async function handler(
     })
   }
 }
+
 

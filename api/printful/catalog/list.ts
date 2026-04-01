@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { printfulServer } from '@/api/_lib/printful.js'
+import { printfulServer } from '#api/printful.js'
 import { printfulToCatalogSummary } from '../../_lib/printful-transform'
 
 /**
@@ -51,4 +51,5 @@ export default async function handler(
     })
   }
 }
+
 

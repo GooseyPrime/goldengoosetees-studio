@@ -3,6 +3,9 @@
     "private": true,
     "version": "0.0.0",
     "type": "module",
+    "imports": {
+        "#api/*": "./api/_lib/*.js"
+    },
     "scripts": {
         "dev": "vite",
         "kill": "fuser -k 5000/tcp",
