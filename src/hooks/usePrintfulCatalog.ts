@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from 'react'
 import type { Product } from '@/lib/types'
+import { parseResponseJson } from '@/lib/parse-response-json'
 
 export interface CatalogCategory {
   id: number
@@ -14,16 +15,6 @@ export interface CatalogProductSummary {
   imageUrl: string
   category: string
   basePrice: number
-}
-
-async function parseJsonSafe(res: Response): Promise<Record<string, unknown> | null> {
-  const text = await res.text()
-  if (!text?.trim()) return null
-  try {
-    return JSON.parse(text) as Record<string, unknown>
-  } catch {
-    return null
-  }
 }
 
 function catalogLoadError(res: Response, data: Record<string, unknown> | null): string {
@@ -44,7 +35,7 @@ export function usePrintfulCatalog() {
   const fetchCategories = useCallback(async () => {
     try {
       const res = await fetch('/api/printful/catalog/categories')
-      const data = await parseJsonSafe(res)
+      const data = await parseResponseJson(res)
       if (!res.ok) {
         setCategories([])
         return
@@ -64,7 +55,7 @@ export function usePrintfulCatalog() {
       if (categoryId != null) params.set('category_id', String(categoryId))
       const url = `/api/printful/catalog/list${params.toString() ? `?${params}` : ''}`
       const res = await fetch(url)
-      const data = await parseJsonSafe(res)
+      const data = await parseResponseJson(res)
       if (data && data.success === true && Array.isArray(data.products)) {
         const list = data.products as Product[]
         setProducts(list)
@@ -87,7 +78,7 @@ export function usePrintfulCatalog() {
     setError(null)
     try {
       const res = await fetch(`/api/printful/catalog/product/${productId}`)
-      const data = await parseJsonSafe(res)
+      const data = await parseResponseJson(res)
       if (data && data.success === true && data.product && typeof data.product === 'object') {
         return data.product as Product
       }
