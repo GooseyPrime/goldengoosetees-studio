@@ -30,7 +30,7 @@ export default async function handler(
 
   try {
     if (!printfulServer.isConfigured()) {
-      res.status(503).json({ error: 'Catalog not configured' })
+      res.status(503).json({ error: 'Printful is not configured. Set PRINTFUL_API_KEY on the server.' })
       return
     }
 
@@ -48,7 +48,7 @@ export default async function handler(
   } catch (error: any) {
     console.error('Catalog product error:', error)
     res.status(500).json({
-      error: error?.message || 'Failed to fetch product',
+      error: error?.message || 'Failed to fetch product from Printful',
     })
   }
 }

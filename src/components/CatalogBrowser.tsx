@@ -1,18 +1,15 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { ProductCard } from '@/components/ProductCard'
 import { Badge } from '@/components/ui/badge'
 import { usePrintfulCatalog, type CatalogProductSummary } from '@/hooks/usePrintfulCatalog'
 import { Product } from '@/lib/types'
-import { copy } from '@/lib/copy'
 import { responsiveImageSources } from '@/lib/image-urls'
 import { motion } from 'framer-motion'
 import { SpinnerGap } from '@phosphor-icons/react'
 
 interface CatalogBrowserProps {
   onSelectProduct: (product: Product) => void
-  fallbackProducts?: Product[]
 }
 
 function CatalogProductCard({
@@ -66,10 +63,7 @@ function CatalogProductCard({
   )
 }
 
-export function CatalogBrowser({
-  onSelectProduct,
-  fallbackProducts = [],
-}: CatalogBrowserProps) {
+export function CatalogBrowser({ onSelectProduct }: CatalogBrowserProps) {
   const {
     products,
     categories,
@@ -78,7 +72,6 @@ export function CatalogBrowser({
     loading,
     loadingProduct,
     error,
-    catalogAvailable,
     fetchProductById,
   } = usePrintfulCatalog()
 
@@ -91,23 +84,6 @@ export function CatalogBrowser({
     if (fullProduct) {
       onSelectProduct(fullProduct)
     }
-  }
-
-  const useFallback = catalogAvailable === false || (catalogAvailable === null && !loading)
-  const displayProducts = useFallback ? fallbackProducts : products
-
-  if (useFallback && fallbackProducts.length > 0) {
-    return (
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        {fallbackProducts.map((product) => (
-          <ProductCard
-            key={product.id}
-            product={product}
-            onSelect={onSelectProduct}
-          />
-        ))}
-      </div>
-    )
   }
 
   return (
@@ -144,7 +120,7 @@ export function CatalogBrowser({
         <div className="flex items-center justify-center py-16">
           <SpinnerGap size={40} weight="bold" className="animate-spin text-primary" />
         </div>
-      ) : displayProducts.length === 0 ? (
+      ) : products.length === 0 ? (
         <div className="text-center py-16 space-y-4">
           <p className="text-muted-foreground">
             {error || 'No products available. Check your connection and try again.'}
@@ -159,7 +135,7 @@ export function CatalogBrowser({
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {(displayProducts as CatalogProductSummary[]).map((item: CatalogProductSummary) => (
+          {(products as CatalogProductSummary[]).map((item: CatalogProductSummary) => (
             <CatalogProductCard
               key={item.id}
               summary={item}

@@ -20,6 +20,12 @@ interface CatalogProduct {
   is_discontinued?: boolean
 }
 
+function sendJson(res: VercelResponse, status: number, body: Record<string, unknown>): void {
+  res.statusCode = status
+  res.setHeader('Content-Type', 'application/json; charset=utf-8')
+  res.end(JSON.stringify(body))
+}
+
 function inferCategory(product: CatalogProduct): ProductCategory {
   const descriptor = `${product.type} ${product.type_name} ${product.title} ${product.model || ''}`.toLowerCase()
   if (descriptor.includes('mug') || descriptor.includes('cup') || descriptor.includes('tumbler') || descriptor.includes('bottle')) {
@@ -44,7 +50,7 @@ function hintFromCategory(cat: ProductCategory): ProductCategoryHint {
 /**
  * Use cron-populated cache only for catalog list. Do not call Printful per product here:
  * N sequential variant fetches caused timeouts and Vercel non-JSON error pages, breaking
- * `res.json()` on the client (e.g. "Unexpected token 'A', \"A server e\"...").
+ * the client parser (e.g. "Unexpected token 'A', \"A server e\"...").
  */
 function minBaseFromCache(cachedMin: number | undefined): number {
   if (cachedMin != null && Number.isFinite(cachedMin) && cachedMin > 0) {
@@ -55,25 +61,41 @@ function minBaseFromCache(cachedMin: number | undefined): number {
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void | VercelResponse> {
   if (req.method !== 'GET') {
-    res.status(405).json({ error: 'Method not allowed' })
+    sendJson(res, 405, { error: 'Method not allowed' })
     return
   }
 
   try {
     if (!printfulServer.isConfigured()) {
-      res.status(200).json({ success: true, products: [], paging: { total: 0, offset: 0, limit: 24 } })
+      sendJson(res, 503, {
+        success: false,
+        error: 'Printful is not configured. Set PRINTFUL_API_KEY (and store ID if required) on the server.',
+        products: [],
+        paging: { total: 0, offset: 0, limit: 24 },
+      })
       return
     }
 
     const categoryId = req.query.category_id ? parseInt(String(req.query.category_id), 10) : undefined
     const numCategoryId = Number.isFinite(categoryId) ? categoryId : undefined
 
-    const rawProducts = await printfulServer.getProducts(numCategoryId)
+    const rawProducts = (await printfulServer.getProducts(numCategoryId)) as CatalogProduct[]
     const curated = getCuratedPrintfulProductIds()
     const filtered =
-      curated.length === 0
-        ? (rawProducts as CatalogProduct[])
-        : (rawProducts as CatalogProduct[]).filter((p) => isCuratedProductId(p.id))
+      curated.length === 0 ? rawProducts : rawProducts.filter((p) => isCuratedProductId(p.id))
+
+    if (filtered.length === 0) {
+      sendJson(res, 200, {
+        success: true,
+        products: [],
+        paging: { total: 0, offset: 0, limit: 24 },
+        message:
+          curated.length > 0
+            ? 'No curated products matched the Printful catalog response. Check PRINTFUL_CURATED_PRODUCT_IDS and your Printful store catalog.'
+            : 'No products returned from Printful for this category.',
+      })
+      return
+    }
 
     const minByProduct = new Map<number, number>()
     const admin = getSupabaseAdmin()
@@ -125,7 +147,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       })
     }
 
-    res.status(200).json({
+    sendJson(res, 200, {
       success: true,
       products,
       paging: {
@@ -136,8 +158,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     })
   } catch (error: any) {
     console.error('Catalog list error:', error)
-    res.status(500).json({
-      error: error?.message || 'Failed to fetch catalog',
+    sendJson(res, 500, {
+      success: false,
+      error: error?.message || 'Failed to fetch catalog from Printful',
     })
   }
 }
