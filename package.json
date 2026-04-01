@@ -14,6 +14,8 @@
         "test": "vitest run",
         "test:watch": "vitest",
         "sku-table": "tsx scripts/sku-pricing-table.ts",
+        "printful-resolve-launch": "tsx scripts/printful-resolve-launch-products.ts",
+        "smoke:catalog-list": "tsx scripts/smoke-catalog-list.ts",
         "optimize": "vite optimize",
         "preview": "vite preview"
     },
