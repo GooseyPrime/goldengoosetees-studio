@@ -13,6 +13,30 @@ The Printful integration enables:
 - Estimated delivery dates
 - Product catalog synchronization
 
+## Storefront catalog (curated product IDs)
+
+The live kiosk/catalog list is **not** the full Printful catalog. It only shows **catalog product** IDs you allow.
+
+- **Production source of truth:** set **`PRINTFUL_CURATED_PRODUCT_IDS`** in Vercel (**Settings → Environment Variables**) to a comma-separated list of Printful **catalog** `product_id` values (no spaces, or trim them). Redeploy after changing. When this env var is set, it **replaces** the in-repo defaults entirely.
+- **Repo defaults:** [`api/_lib/offerings.ts`](./api/_lib/offerings.ts) lists fallback IDs for local dev and previews without that env var.
+- **Discover / verify IDs:** with `PRINTFUL_API_KEY` set, run `npm run printful-resolve-launch` to print a keyword-matched table and a suggested `PRINTFUL_CURATED_PRODUCT_IDS=...` line (see [`Printful_Pricing_GoldenGooseTees.md`](./Printful_Pricing_GoldenGooseTees.md) launch offer set).
+
+### Default launch lineup (catalog `product_id`)
+
+Aligned with the pricing spec (apparel → headwear → drinkware → wall art):
+
+| ID | Product (short) |
+|----|-----------------|
+| **71** | Bella + Canvas 3001 — staple tee |
+| **12** | Gildan 64000 — value tee |
+| **145** | Gildan 18000 — crewneck sweatshirt |
+| **146** | Gildan 18500 — hoodie |
+| **206** | Classic Dad Hat (Yupoong 6245CM) |
+| **100** | 5 Panel Trucker Cap (Yupoong 6006) |
+| **81** | Knit Beanie (Otto Cap 82-480) |
+| **19** | White Glossy Mug (11 oz ceramic) |
+| **1** | Enhanced Matte Paper Poster |
+
 ## Prerequisites
 
 1. A Printful account (sign up at https://www.printful.com)
@@ -62,11 +86,11 @@ Visit https://www.printful.com and log in to your account.
 
 The app uses Printful's product variant IDs for fulfillment. You need to ensure your products are mapped to the correct Printful SKUs.
 
-### Common Printful Product IDs:
-- **71** - Bella + Canvas 3001 (Unisex Jersey Short Sleeve Tee)
-- **146** - Gildan 5000 (Unisex Heavy Cotton Tee)
+### Other catalog product IDs (examples)
 - **163** - Gildan 2400 (Unisex Long Sleeve Tee)
 - **72** - Gildan 5300 (Unisex Pocket Tee)
+
+Note: **146** in the Printful catalog is the **Gildan 18500 hoodie**, not the Gildan 5000 tee. Use the [Product Catalog](https://www.printful.com/product-catalog) or `npm run printful-resolve-launch` to confirm IDs.
 
 To find more product IDs:
 1. Visit the [Printful Product Catalog](https://www.printful.com/product-catalog)

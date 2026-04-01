@@ -1,13 +1,21 @@
 /**
  * Curated Printful catalog product IDs (launch set).
- * Override with PRINTFUL_CURATED_PRODUCT_IDS="71,146,306,..."
+ * In production, set PRINTFUL_CURATED_PRODUCT_IDS (comma-separated) in Vercel — that list
+ * replaces these defaults entirely. Repo defaults are for local/preview without env.
  *
- * Defaults align with PRINTFUL_SETUP.md + spec categories:
- * 71 Bella+Canvas 3001, 146 Gildan 5000, 306 crewneck, 380 hoodie,
- * 483 11oz mug, 468 poster, 189 dad cap, 148 trucker-style cap (verify in dashboard).
+ * Order: apparel → headwear → drinkware → wall art (Printful_Pricing_GoldenGooseTees.md).
+ * IDs verified via scripts/printful-resolve-launch-products.ts against Catalog API.
  */
 const DEFAULT_CURATED_PRODUCT_IDS = [
-  71, 146, 306, 380, 483, 468, 189, 148,
+  71, // Bella+Canvas 3001 — Unisex Staple T-Shirt
+  12, // Gildan 64000 — Unisex Basic Softstyle (spec value tee; not Gildan 5000)
+  145, // Gildan 18000 — Unisex Crew Neck Sweatshirt
+  146, // Gildan 18500 — Unisex Heavy Blend Hoodie
+  206, // Yupoong 6245CM — Classic Dad Hat (embroidered)
+  100, // Yupoong 6006 — 5 Panel Trucker Cap
+  81, // Otto Cap 82-480 — Knit Beanie (embroidered)
+  19, // White Glossy Mug (11 oz ceramic)
+  1, // Enhanced Matte Paper Poster (in) — unframed poster
 ]
 
 export function getCuratedPrintfulProductIds(): number[] {
