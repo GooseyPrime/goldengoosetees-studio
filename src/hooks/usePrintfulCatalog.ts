@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from 'react'
 import type { Product } from '@/lib/types'
+import { getEmergencyCatalogProducts, getEmergencyProductById } from '@/lib/catalog-emergency'
 
 export interface CatalogCategory {
   id: number
@@ -16,6 +17,16 @@ export interface CatalogProductSummary {
   basePrice: number
 }
 
+async function parseJsonSafe(res: Response): Promise<Record<string, unknown> | null> {
+  const text = await res.text()
+  if (!text?.trim()) return null
+  try {
+    return JSON.parse(text) as Record<string, unknown>
+  } catch {
+    return null
+  }
+}
+
 export function usePrintfulCatalog() {
   const [products, setProducts] = useState<Product[]>([])
   const [categories, setCategories] = useState<CatalogCategory[]>([])
@@ -25,34 +36,14 @@ export function usePrintfulCatalog() {
   const [error, setError] = useState<string | null>(null)
   const [catalogAvailable, setCatalogAvailable] = useState<boolean | null>(null)
 
-  const parseJsonResponse = async (res: Response): Promise<any> => {
-    const text = await res.text()
-    if (!text?.trim()) {
-      throw new Error(
-        res.ok
-          ? 'Catalog returned an empty response. Please try again.'
-          : 'Catalog service is temporarily unavailable. Please try again.'
-      )
-    }
-    try {
-      return JSON.parse(text)
-    } catch {
-      throw new Error(
-        res.ok
-          ? 'Catalog returned an invalid response. Please try again.'
-          : 'Catalog service is temporarily unavailable. Please try again.'
-      )
-    }
-  }
-
   const fetchCategories = useCallback(async () => {
     try {
       const res = await fetch('/api/printful/catalog/categories')
-      const data = await parseJsonResponse(res)
-      if (!res.ok) throw new Error(data.error || 'Failed to fetch categories')
-      setCategories(data.categories || [])
-      setCatalogAvailable((data.categories?.length ?? 0) > 0)
-    } catch (err) {
+      const data = await parseJsonSafe(res)
+      const cats = (data?.categories as CatalogCategory[] | undefined) || []
+      setCategories(Array.isArray(cats) ? cats : [])
+      setCatalogAvailable((cats?.length ?? 0) > 0)
+    } catch {
       setCatalogAvailable(false)
       setCategories([])
     }
@@ -66,15 +57,18 @@ export function usePrintfulCatalog() {
       if (categoryId != null) params.set('category_id', String(categoryId))
       const url = `/api/printful/catalog/list${params.toString() ? `?${params}` : ''}`
       const res = await fetch(url)
-      const data = await parseJsonResponse(res)
-      if (!res.ok) throw new Error(data.error || 'Failed to fetch products')
-      const list = data.products || []
-      setProducts(list)
-      setCatalogAvailable(list.length >= 0)
-    } catch (err: any) {
-      setError(err?.message || 'Failed to load catalog')
-      setProducts([])
-      setCatalogAvailable(false)
+      const data = await parseJsonSafe(res)
+      if (data && data.success === true && Array.isArray(data.products)) {
+        setProducts(data.products as Product[])
+        setCatalogAvailable(true)
+        return
+      }
+      setProducts(getEmergencyCatalogProducts())
+      setCatalogAvailable(true)
+    } catch {
+      setProducts(getEmergencyCatalogProducts())
+      setCatalogAvailable(true)
+      setError(null)
     } finally {
       setLoading(false)
     }
@@ -85,11 +79,20 @@ export function usePrintfulCatalog() {
     setError(null)
     try {
       const res = await fetch(`/api/printful/catalog/product/${productId}`)
-      const data = await parseJsonResponse(res)
-      if (!res.ok) throw new Error(data.error || 'Failed to fetch product')
-      return data.product as Product
-    } catch (err: any) {
-      setError(err?.message || 'Failed to load product')
+      const data = await parseJsonSafe(res)
+      if (data && data.success === true && data.product && typeof data.product === 'object') {
+        return data.product as Product
+      }
+      const offline = getEmergencyProductById(productId)
+      if (offline) {
+        return offline
+      }
+      setError((data?.error as string) || 'Failed to load product')
+      return null
+    } catch {
+      const offline = getEmergencyProductById(productId)
+      if (offline) return offline
+      setError('Failed to load product')
       return null
     } finally {
       setLoadingProduct(null)
@@ -110,7 +113,7 @@ export function usePrintfulCatalog() {
 
   useEffect(() => {
     fetchProducts(selectedCategoryId)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCategoryId])
 
   return {

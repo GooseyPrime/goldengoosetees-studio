@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { printfulServer } from '../../../_lib/printful'
 import { printfulToProduct } from '../../../_lib/printful-transform'
+import { buildStaticFullProduct } from '../../../_lib/static-catalog'
 
 /**
  * Public catalog product detail - no auth required
@@ -30,6 +31,11 @@ export default async function handler(
 
   try {
     if (!printfulServer.isConfigured()) {
+      const fallback = buildStaticFullProduct(id)
+      if (fallback) {
+        res.status(200).json({ success: true, product: fallback, source: 'static_fallback' })
+        return
+      }
       res.status(503).json({ error: 'Catalog not configured' })
       return
     }
@@ -47,6 +53,16 @@ export default async function handler(
     })
   } catch (error: any) {
     console.error('Catalog product error:', error)
+    const fallback = buildStaticFullProduct(id)
+    if (fallback) {
+      res.status(200).json({
+        success: true,
+        product: fallback,
+        source: 'static_fallback',
+        fallbackReason: error?.message || 'printful_error',
+      })
+      return
+    }
     res.status(500).json({
       error: error?.message || 'Failed to fetch product',
     })

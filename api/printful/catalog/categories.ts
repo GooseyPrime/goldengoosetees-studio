@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { printfulServer } from '#api/printful.js'
+import { printfulServer } from '../../_lib/printful'
 
 /**
  * Public catalog categories - no auth required
@@ -28,8 +28,11 @@ export default async function handler(
     })
   } catch (error: any) {
     console.error('Catalog categories error:', error)
-    res.status(500).json({
-      error: error?.message || 'Failed to fetch categories',
+    res.status(200).json({
+      success: true,
+      categories: [],
+      source: 'degraded',
+      message: error?.message || 'categories_unavailable',
     })
   }
 }

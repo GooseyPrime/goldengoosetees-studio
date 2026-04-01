@@ -3,6 +3,7 @@ import { printfulServer } from '../../_lib/printful'
 import { getSupabaseAdmin } from '../../_lib/supabase-server'
 import { getCuratedPrintfulProductIds, isCuratedProductId } from '../../_lib/offerings'
 import { catalogStartingRetail, inferPricingCategory, type ProductCategoryHint } from '../../_lib/pricing'
+import { buildStaticGridProducts } from '../../_lib/static-catalog'
 
 type ProductCategory = 'apparel' | 'drinkware' | 'accessory' | 'poster'
 
@@ -18,6 +19,12 @@ interface CatalogProduct {
   currency: string
   files?: unknown[]
   is_discontinued?: boolean
+}
+
+function sendJson(res: VercelResponse, status: number, body: Record<string, unknown>): void {
+  res.statusCode = status
+  res.setHeader('Content-Type', 'application/json; charset=utf-8')
+  res.end(JSON.stringify(body))
 }
 
 function inferCategory(product: CatalogProduct): ProductCategory {
@@ -55,25 +62,39 @@ function minBaseFromCache(cachedMin: number | undefined): number {
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void | VercelResponse> {
   if (req.method !== 'GET') {
-    res.status(405).json({ error: 'Method not allowed' })
+    sendJson(res, 405, { error: 'Method not allowed' })
     return
+  }
+
+  const respondStatic = (fallbackReason: string) => {
+    const products = buildStaticGridProducts()
+    sendJson(res, 200, {
+      success: true,
+      products,
+      paging: { total: products.length, offset: 0, limit: products.length },
+      source: 'static_fallback',
+      fallbackReason,
+    })
   }
 
   try {
     if (!printfulServer.isConfigured()) {
-      res.status(200).json({ success: true, products: [], paging: { total: 0, offset: 0, limit: 24 } })
+      respondStatic('printful_not_configured')
       return
     }
 
     const categoryId = req.query.category_id ? parseInt(String(req.query.category_id), 10) : undefined
     const numCategoryId = Number.isFinite(categoryId) ? categoryId : undefined
 
-    const rawProducts = await printfulServer.getProducts(numCategoryId)
+    const rawProducts = (await printfulServer.getProducts(numCategoryId)) as CatalogProduct[]
     const curated = getCuratedPrintfulProductIds()
     const filtered =
-      curated.length === 0
-        ? (rawProducts as CatalogProduct[])
-        : (rawProducts as CatalogProduct[]).filter((p) => isCuratedProductId(p.id))
+      curated.length === 0 ? rawProducts : rawProducts.filter((p) => isCuratedProductId(p.id))
+
+    if (filtered.length === 0) {
+      respondStatic('no_matching_products')
+      return
+    }
 
     const minByProduct = new Map<number, number>()
     const admin = getSupabaseAdmin()
@@ -125,7 +146,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       })
     }
 
-    res.status(200).json({
+    sendJson(res, 200, {
       success: true,
       products,
       paging: {
@@ -136,8 +157,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     })
   } catch (error: any) {
     console.error('Catalog list error:', error)
-    res.status(500).json({
-      error: error?.message || 'Failed to fetch catalog',
-    })
+    respondStatic(typeof error?.message === 'string' ? error.message : 'printful_error')
   }
 }
