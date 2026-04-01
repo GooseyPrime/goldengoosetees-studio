@@ -10,6 +10,7 @@ interface ProductCardProps {
 }
 
 export function ProductCard({ product, onSelect }: ProductCardProps) {
+  const img = responsiveImageSources(product.imageUrl)
   return (
     <motion.div
       whileHover={{ y: -4 }}
