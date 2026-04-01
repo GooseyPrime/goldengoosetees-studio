@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { requireAdmin } from '../../_lib/auth'
-import { printfulServer } from '../../_lib/printful'
+import { printfulServer } from '../../_lib/printful.js'
 import { createClient } from '@supabase/supabase-js'
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL

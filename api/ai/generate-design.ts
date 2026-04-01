@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { buildGeminiTeeGraphicPrompt, pickClosestGeminiAspectRatio } from '../_lib/gemini-image'
-import { getAppConfig } from '../_lib/config'
-import { notifyAdmin } from '../_lib/notify'
+import { buildGeminiTeeGraphicPrompt, pickClosestGeminiAspectRatio } from '../_lib/gemini-image.js'
+import { getAppConfig } from '../_lib/config.js'
+import { notifyAdmin } from '../_lib/notify.js'
 
 // Environment variables - server-side only
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY
