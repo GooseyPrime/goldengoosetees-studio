@@ -162,7 +162,7 @@ Once you've tested thoroughly:
 
 ## Security Best Practices
 
-1. **Never commit keys to git**: Keys are stored in Spark KV, not in code
+1. **Never commit keys to git**: Keys are stored in Vercel environment variables, not in code
 2. **Use test mode for development**: Always test with test keys first
 3. **Restrict API keys**: Use restricted keys when possible
 4. **Monitor dashboard**: Regularly check your Stripe dashboard for unusual activity

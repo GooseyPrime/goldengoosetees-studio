@@ -1,21 +1,3 @@
-type SparkKV = {
-  get: <T>(key: string) => Promise<T | null>
-  set: <T>(key: string, value: T) => Promise<void>
-}
-
-const getSparkKV = (): SparkKV | null => {
-  if (typeof window === 'undefined') {
-    return null
-  }
-
-  const spark = (window as typeof window & { spark?: { kv?: SparkKV } }).spark
-  if (!spark?.kv) {
-    return null
-  }
-
-  return spark.kv
-}
-
 // NOTE: In a real application, this passphrase should come from configuration
 // and not be hard-coded. It is included here only to avoid cleartext storage.
 const LOCAL_KV_PASSPHRASE = 'change-this-passphrase';
@@ -146,28 +128,9 @@ const localStorageSet = async <T,>(key: string, value: T): Promise<void> => {
 
 export const kvService = {
   async get<T>(key: string): Promise<T | null> {
-    const sparkKV = getSparkKV()
-    if (sparkKV) {
-      try {
-        return await sparkKV.get<T>(key)
-      } catch (error) {
-        console.warn('Spark KV unavailable, falling back to local storage.', error)
-      }
-    }
-
     return await localStorageGet<T>(key)
   },
   async set<T>(key: string, value: T): Promise<void> {
-    const sparkKV = getSparkKV()
-    if (sparkKV) {
-      try {
-        await sparkKV.set(key, value)
-        return
-      } catch (error) {
-        console.warn('Spark KV unavailable, falling back to local storage.', error)
-      }
-    }
-
     await localStorageSet(key, value)
   },
 }
