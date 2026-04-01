@@ -23,7 +23,7 @@ const LOCAL_KV_PASSPHRASE = 'change-this-passphrase';
 const textEncoder = typeof TextEncoder !== 'undefined' ? new TextEncoder() : null
 const textDecoder = typeof TextDecoder !== 'undefined' ? new TextDecoder() : null
 
-const getCryptoKey = async (salt: Uint8Array): Promise<CryptoKey> => {
+const getCryptoKey = async (salt: Uint8Array<ArrayBuffer>): Promise<CryptoKey> => {
   if (typeof window === 'undefined' || !window.crypto?.subtle || !textEncoder) {
     throw new Error('Web Crypto not available')
   }
@@ -56,9 +56,9 @@ const encryptValue = async (value: unknown): Promise<string> => {
     return JSON.stringify(value)
   }
 
-  const salt = new Uint8Array(16)
+  const salt = new Uint8Array(new ArrayBuffer(16))
   window.crypto.getRandomValues(salt)
-  const iv = new Uint8Array(12)
+  const iv = new Uint8Array(new ArrayBuffer(12))
   window.crypto.getRandomValues(iv)
 
   const key = await getCryptoKey(salt)
@@ -97,9 +97,9 @@ const decryptValue = async <T>(data: string): Promise<T | null> => {
 
   try {
     const binary = Uint8Array.from(atob(data), c => c.charCodeAt(0))
-    const salt = binary.slice(0, 16)
-    const iv = binary.slice(16, 28)
-    const ciphertext = binary.slice(28)
+    const salt = new Uint8Array(binary.buffer.slice(0, 16)) as Uint8Array<ArrayBuffer>
+    const iv = new Uint8Array(binary.buffer.slice(16, 28)) as Uint8Array<ArrayBuffer>
+    const ciphertext = new Uint8Array(binary.buffer.slice(28)) as Uint8Array<ArrayBuffer>
 
     const key = await getCryptoKey(salt)
     const decrypted = await window.crypto.subtle.decrypt(
