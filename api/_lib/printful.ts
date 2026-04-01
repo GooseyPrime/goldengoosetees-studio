@@ -190,7 +190,7 @@ async function request<T>(
       )
     }
 
-    const data = await response.json()
+    const data = await response.json() as any
     return data.result as T
   } catch (error: any) {
     // Never log the API key
@@ -226,7 +226,7 @@ async function uploadFile(file: Blob, filename: string): Promise<{ id: string; u
     throw new Error(sanitizedError.error?.message || 'Failed to upload file to Printful')
   }
 
-  const data = await response.json()
+  const data = await response.json() as any
   return data.result
 }
 

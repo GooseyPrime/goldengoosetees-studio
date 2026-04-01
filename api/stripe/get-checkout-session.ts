@@ -24,7 +24,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const response = await fetch(`${STRIPE_API_BASE}/checkout/sessions/${encodeURIComponent(sessionId)}`, {
       headers: { Authorization: `Bearer ${STRIPE_SECRET_KEY}` },
     })
-    const data = await response.json()
+    const data = await response.json() as any
     if (!response.ok) {
       res.status(response.status).json({ error: data?.error?.message || 'Failed to get checkout session' })
       return

@@ -101,7 +101,7 @@ async function sendEmail(
   })
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({}))
+    const error = await response.json().catch(() => ({})) as any
     throw new Error(`Mailjet email error: ${error?.ErrorMessage || response.statusText}`)
   }
 }
@@ -127,7 +127,7 @@ async function sendSMS(to: string, message: string): Promise<void> {
   })
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({}))
+    const error = await response.json().catch(() => ({})) as any
     throw new Error(`Mailjet SMS error: ${error?.ErrorMessage || response.statusText}`)
   }
 }

@@ -166,11 +166,11 @@ async function submitToPrintful(order: any): Promise<{
   })
 
   if (!response.ok) {
-    const error = await response.json()
+    const error = await response.json() as any
     throw new Error(error.error?.message || 'Failed to create Printful order')
   }
 
-  const data = await response.json()
+  const data = await response.json() as any
   const printfulOrderId = data.result.id.toString()
 
   // Confirm the order

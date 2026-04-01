@@ -106,10 +106,10 @@ async function request<T>(
 
   const response = await fetch(url, { ...options, headers })
   if (!response.ok) {
-    const error = await response.json().catch(() => ({}))
+    const error = await response.json().catch(() => ({})) as any
     throw new Error(error.error?.message || `Printful API error: ${response.statusText}`)
   }
-  const data = await response.json()
+  const data = await response.json() as any
   return data.result as T
 }
 

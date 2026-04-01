@@ -113,7 +113,7 @@ Check for potential IP violations and respond with JSON only.`
       })
     }
 
-    const data = await response.json()
+    const data = await response.json() as any
     const content = data.choices[0]?.message?.content || '{}'
     const result = JSON.parse(content)
 

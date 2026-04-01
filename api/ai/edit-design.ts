@@ -51,11 +51,11 @@ The result should be print-ready with transparent or white background, suitable 
     })
 
     if (!genRes.ok) {
-      const err = await genRes.json().catch(() => ({}))
+      const err = await genRes.json().catch(() => ({})) as any
       throw new Error(err.error || `Image generation failed: ${genRes.statusText}`)
     }
 
-    const data = await genRes.json()
+    const data = await genRes.json() as any
     return res.status(200).json({ imageUrl: data.imageUrl })
   } catch (error: any) {
     console.error('Edit design error:', error)

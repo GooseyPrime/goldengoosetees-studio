@@ -47,7 +47,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       },
       body: formData.toString(),
     })
-    const data = await response.json()
+    const data = await response.json() as any
     if (!response.ok) {
       res.status(response.status).json({ error: data?.error?.message || 'Failed to create payment intent' })
       return

@@ -92,7 +92,7 @@ async function sendEmail(to: string, subject: string, shortMessage: string, deta
     }),
   })
   if (!response.ok) {
-    const error = await response.json().catch(() => ({}))
+    const error = await response.json().catch(() => ({})) as any
     throw new Error(`Mailjet email error: ${error?.ErrorMessage || response.statusText}`)
   }
 }
@@ -174,12 +174,12 @@ async function tryGeminiImage(
       })
 
       if (!response.ok) {
-        const errBody = await response.json().catch(() => ({}))
+        const errBody = await response.json().catch(() => ({})) as any
         console.warn(`Gemini ${model} image gen failed:`, response.status, errBody?.error?.message)
         continue
       }
 
-      const data = await response.json()
+      const data = await response.json() as any
       const parts = data?.candidates?.[0]?.content?.parts || []
       const imagePart =
         parts.find((p: any) => p?.inlineData?.data) ||
@@ -240,12 +240,12 @@ CRITICAL REQUIREMENTS:
   })
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({}))
+    const error = await response.json().catch(() => ({})) as any
     console.warn('DALL-E image gen failed:', response.status, error?.error?.message)
     return null
   }
 
-  const data = await response.json()
+  const data = await response.json() as any
   const base64Image = data.data?.[0]?.b64_json
   const revisedPrompt = data.data?.[0]?.revised_prompt
   if (!base64Image) return null

@@ -48,10 +48,10 @@ async function chatWithGemini(
     body: JSON.stringify(body),
   })
   if (!response.ok) {
-    const err = await response.json().catch(() => ({}))
+    const err = await response.json().catch(() => ({})) as any
     throw new Error(err?.error?.message || `Gemini: ${response.statusText}`)
   }
-  const data = await response.json()
+  const data = await response.json() as any
   const text = data?.candidates?.[0]?.content?.parts?.[0]?.text
   if (text == null) throw new Error('Empty Gemini response')
   return String(text)
@@ -85,10 +85,10 @@ async function chatWithOpenAI(
     body: JSON.stringify(body),
   })
   if (!response.ok) {
-    const err = await response.json().catch(() => ({}))
+    const err = await response.json().catch(() => ({})) as any
     throw new Error(err?.error?.message || `OpenAI: ${response.statusText}`)
   }
-  const data = await response.json()
+  const data = await response.json() as any
   const content = data?.choices?.[0]?.message?.content
   if (content == null) throw new Error('Empty OpenAI response')
   return String(content)
@@ -124,10 +124,10 @@ async function chatWithOpenRouter(
     body: JSON.stringify(body),
   })
   if (!response.ok) {
-    const err = await response.json().catch(() => ({}))
+    const err = await response.json().catch(() => ({})) as any
     throw new Error(err?.error?.message || `OpenRouter: ${response.statusText}`)
   }
-  const data = await response.json()
+  const data = await response.json() as any
   const content = data?.choices?.[0]?.message?.content
   if (content == null) throw new Error('Empty OpenRouter response')
   return String(content)

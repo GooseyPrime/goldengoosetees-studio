@@ -86,10 +86,10 @@ export default async function handler(
         body: Buffer.from(base64, 'base64'),
       })
       if (!uploadRes.ok) {
-        const errData = await uploadRes.json().catch(() => ({}))
+        const errData = await uploadRes.json().catch(() => ({})) as any
         throw new Error(errData.detail || 'Failed to upload image')
       }
-      const uploadData = await uploadRes.json()
+      const uploadData = await uploadRes.json() as any
       imageInput = uploadData.urls?.get || uploadData.url || uploadData
     }
 
@@ -106,11 +106,11 @@ export default async function handler(
     })
 
     if (!createRes.ok) {
-      const errData = await createRes.json().catch(() => ({}))
+      const errData = await createRes.json().catch(() => ({})) as any
       throw new Error(errData.detail || errData.error || 'Failed to create prediction')
     }
 
-    let prediction = await createRes.json()
+    let prediction = await createRes.json() as any
     let attempts = 0
     const maxAttempts = 30
 
@@ -119,7 +119,7 @@ export default async function handler(
       const pollRes = await fetch(`https://api.replicate.com/v1/predictions/${prediction.id}`, {
         headers: { Authorization: `Bearer ${REPLICATE_API_TOKEN}` },
       })
-      prediction = await pollRes.json()
+      prediction = await pollRes.json() as any
       attempts++
     }
 
