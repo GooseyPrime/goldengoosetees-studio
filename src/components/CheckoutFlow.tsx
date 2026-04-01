@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -12,9 +12,11 @@ import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Separator } from '@/components/ui/separator'
 import { Progress } from '@/components/ui/progress'
-import { Design, Product, User } from '@/lib/types'
+import { Design, Product, User, Order } from '@/lib/types'
 import { api } from '@/lib/api'
 import { stripeService } from '@/lib/stripe'
+import { printfulService } from '@/lib/printful'
+import type { PricingQuoteResponse } from '@/lib/pricing'
 import {
   CreditCard,
   Package,
@@ -30,6 +32,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 // Environment variables
 const STRIPE_TEST_MODE = import.meta.env.VITE_STRIPE_TEST_MODE === 'true'
 const APP_URL = import.meta.env.VITE_APP_URL || window.location.origin
+const PRICING_V2 = import.meta.env.VITE_PRICING_V2_ENABLED === 'true'
 
 function validateDesignDpi(design: Design, product: Product): string | null {
   for (const file of design.files) {
@@ -67,6 +70,7 @@ export function CheckoutFlow({
   const [estimatedDelivery, setEstimatedDelivery] = useState<string>()
   const [isTestMode] = useState(STRIPE_TEST_MODE)
   const [useStripeCheckout, setUseStripeCheckout] = useState(true) // Default to Stripe Checkout
+  const [activeQuote, setActiveQuote] = useState<PricingQuoteResponse | null>(null)
 
   const [shippingData, setShippingData] = useState({
     name: user.name,
@@ -106,6 +110,35 @@ export function CheckoutFlow({
     const groups = cleaned.match(/.{1,4}/g) || []
     return groups.join(' ').substring(0, 19)
   }
+
+  const fetchPriceQuote = useCallback(async (): Promise<PricingQuoteResponse> => {
+    const selections: Order['variantSelections'] = {
+      ...(design.variantSelections || {}),
+      ...(designSize ? { size: designSize } : {}),
+      ...(designColor ? { color: designColor } : {}),
+    }
+    const { variantId } = await printfulService.resolveVariantId(product, selections)
+    const shippingAddress: Order['shippingAddress'] = {
+      name: shippingData.name,
+      line1: shippingData.line1,
+      line2: shippingData.line2 || undefined,
+      city: shippingData.city,
+      state: shippingData.state,
+      postal_code: shippingData.postal_code,
+      country: shippingData.country,
+    }
+    return api.orders.requestQuote({
+      designId: design.id,
+      variantId,
+      configurationId: design.configurationId,
+      shippingAddress,
+      recipient: {
+        country_code: shippingData.country,
+        state_code: shippingData.state,
+        zip: shippingData.postal_code,
+      },
+    })
+  }, [design, product, designSize, designColor, shippingData])
 
   const formatExpiry = (value: string) => {
     const cleaned = value.replace(/\D/g, '')
@@ -183,20 +216,51 @@ export function CheckoutFlow({
     setIsProcessing(true)
 
     try {
-      const totalWithShipping = product.basePrice + 5.99
+      let totalAmount: number
+      let order: Order
 
-      // Create order first
-      const order = await api.orders.create({
-        userId: user.id,
-        designId: design.id,
-        productId: product.id,
-        size: designSize,
-        color: designColor,
-        totalAmount: totalWithShipping,
-        shippingAddress: shippingData
-      })
+      if (PRICING_V2) {
+        const quote = await fetchPriceQuote()
+        setActiveQuote(quote)
+        totalAmount = quote.retailTotal
+        order = await api.orders.create({
+          userId: user.id,
+          designId: design.id,
+          productId: product.id,
+          size: designSize,
+          color: designColor,
+          shippingAddress: {
+            name: shippingData.name,
+            line1: shippingData.line1,
+            line2: shippingData.line2 || undefined,
+            city: shippingData.city,
+            state: shippingData.state,
+            postal_code: shippingData.postal_code,
+            country: shippingData.country,
+          },
+          pricingQuoteId: quote.quoteId,
+        })
+      } else {
+        totalAmount = product.basePrice + 5.99
+        order = await api.orders.create({
+          userId: user.id,
+          designId: design.id,
+          productId: product.id,
+          size: designSize,
+          color: designColor,
+          totalAmount,
+          shippingAddress: {
+            name: shippingData.name,
+            line1: shippingData.line1,
+            line2: shippingData.line2 || undefined,
+            city: shippingData.city,
+            state: shippingData.state,
+            postal_code: shippingData.postal_code,
+            country: shippingData.country,
+          },
+        })
+      }
 
-      // Create Stripe Checkout Session
       const session = await stripeService.createCheckoutSession({
         orderId: order.id,
         productName: `${product.name} - ${design.title}`,
@@ -204,7 +268,7 @@ export function CheckoutFlow({
           ? `Variants: ${variantSummary}`
           : `Size: ${designSize || 'Standard'}, Color: ${designColor || 'Standard'}`,
         productImage: product.imageUrl,
-        amount: totalWithShipping,
+        amount: totalAmount,
         customerEmail: user.email,
         successUrl: `${APP_URL}?checkout=success&order_id=${order.id}&session_id={CHECKOUT_SESSION_ID}`,
         cancelUrl: `${APP_URL}?checkout=canceled&order_id=${order.id}`,
@@ -215,7 +279,6 @@ export function CheckoutFlow({
         }
       })
 
-      // Redirect to Stripe Checkout
       stripeService.redirectToCheckout(session.url)
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to create checkout session.'
@@ -226,15 +289,26 @@ export function CheckoutFlow({
     }
   }
 
-  const handleShippingSubmit = (e: React.FormEvent) => {
+  const handleShippingSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (useStripeCheckout) {
-      // Go directly to Stripe Checkout
-      handleStripeCheckout()
-    } else {
-      // Continue to inline card payment
-      setStep('payment')
+      await handleStripeCheckout()
+      return
     }
+    if (PRICING_V2) {
+      setIsProcessing(true)
+      try {
+        const quote = await fetchPriceQuote()
+        setActiveQuote(quote)
+        setStep('payment')
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : 'Could not calculate shipping and tax.')
+      } finally {
+        setIsProcessing(false)
+      }
+      return
+    }
+    setStep('payment')
   }
 
   const handlePaymentSubmit = async (e: React.FormEvent) => {
@@ -254,17 +328,45 @@ export function CheckoutFlow({
     setIsProcessing(true)
 
     try {
-      const totalWithShipping = product.basePrice + 5.99
+      const shippingAddress: Order['shippingAddress'] = {
+        name: shippingData.name,
+        line1: shippingData.line1,
+        line2: shippingData.line2 || undefined,
+        city: shippingData.city,
+        state: shippingData.state,
+        postal_code: shippingData.postal_code,
+        country: shippingData.country,
+      }
 
-      const order = await api.orders.create({
-        userId: user.id,
-        designId: design.id,
-        productId: product.id,
-        size: designSize,
-        color: designColor,
-        totalAmount: totalWithShipping,
-        shippingAddress: shippingData
-      })
+      let order: Order
+      if (PRICING_V2) {
+        if (!activeQuote) {
+          toast.error('Price quote missing. Go back to shipping.')
+          setStep('shipping')
+          setIsProcessing(false)
+          return
+        }
+        order = await api.orders.create({
+          userId: user.id,
+          designId: design.id,
+          productId: product.id,
+          size: designSize,
+          color: designColor,
+          shippingAddress,
+          pricingQuoteId: activeQuote.quoteId,
+        })
+      } else {
+        const totalWithShipping = product.basePrice + 5.99
+        order = await api.orders.create({
+          userId: user.id,
+          designId: design.id,
+          productId: product.id,
+          size: designSize,
+          color: designColor,
+          totalAmount: totalWithShipping,
+          shippingAddress,
+        })
+      }
 
       const [expMonth, expYear] = cardData.expiry.split('/').map(s => s.trim())
       const fullYear = expYear.length === 2 ? `20${expYear}` : expYear
@@ -370,7 +472,9 @@ export function CheckoutFlow({
                   </div>
                   <div className="text-right">
                     <p className="font-mono text-xl font-semibold">${product.basePrice}</p>
-                    <p className="text-xs text-muted-foreground">+ shipping</p>
+                    <p className="text-xs text-muted-foreground">
+                      {PRICING_V2 ? 'Starts at · final total after address' : '+ est. shipping'}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -573,19 +677,49 @@ export function CheckoutFlow({
                 <Separator className="my-4" />
 
                 <div className="space-y-2 p-4 bg-muted/50 rounded-lg">
-                  <div className="flex justify-between text-sm">
-                    <span>Subtotal</span>
-                    <span className="font-mono">${product.basePrice}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span>Shipping</span>
-                    <span className="font-mono">$5.99</span>
-                  </div>
-                  <Separator className="my-2" />
-                  <div className="flex justify-between font-semibold text-lg">
-                    <span>Total</span>
-                    <span className="font-mono">${(product.basePrice + 5.99).toFixed(2)}</span>
-                  </div>
+                  {PRICING_V2 && activeQuote ? (
+                    <>
+                      <div className="flex justify-between text-sm">
+                        <span>Printful subtotal (COGS ref.)</span>
+                        <span className="font-mono">
+                          ${activeQuote.printfulCosts?.subtotal ?? '—'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span>Est. shipping</span>
+                        <span className="font-mono">
+                          ${activeQuote.printfulCosts?.shipping ?? '—'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span>Est. tax</span>
+                        <span className="font-mono">
+                          ${activeQuote.printfulCosts?.tax ?? activeQuote.printfulCosts?.vat ?? '—'}
+                        </span>
+                      </div>
+                      <Separator className="my-2" />
+                      <div className="flex justify-between font-semibold text-lg">
+                        <span>Total due</span>
+                        <span className="font-mono">${activeQuote.retailTotal.toFixed(2)}</span>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex justify-between text-sm">
+                        <span>Subtotal</span>
+                        <span className="font-mono">${product.basePrice}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span>Shipping (est.)</span>
+                        <span className="font-mono">$5.99</span>
+                      </div>
+                      <Separator className="my-2" />
+                      <div className="flex justify-between font-semibold text-lg">
+                        <span>Total</span>
+                        <span className="font-mono">${(product.basePrice + 5.99).toFixed(2)}</span>
+                      </div>
+                    </>
+                  )}
                 </div>
 
                 <div className="flex gap-2">

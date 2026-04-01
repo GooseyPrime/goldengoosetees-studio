@@ -21,6 +21,7 @@
 - **[Supabase Setup](../SUPABASE_SETUP.md)** - Database, authentication (Google OAuth), and storage
 - **[Stripe Setup](../STRIPE_SETUP.md)** - Payment processing configuration
 - **[Printful Setup](../PRINTFUL_SETUP.md)** - Order fulfillment and product mapping
+- **[Pricing v2 / quotes](./pricing.md)** - Printful estimate-costs, server orders, webhooks, cron cache
 
 #### AI Configuration
 - **[AI System Guide](../AI_SYSTEM_GUIDE.md)** - AI agent architecture and provider configuration
