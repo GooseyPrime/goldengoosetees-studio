@@ -3,7 +3,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY
 const STRIPE_API_BASE = 'https://api.stripe.com/v1'
 
-export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
+export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void | VercelResponse> {
   if (req.method !== 'GET') {
     res.status(405).json({ error: 'Method not allowed' })
     return

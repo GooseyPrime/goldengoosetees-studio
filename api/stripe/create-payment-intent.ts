@@ -10,7 +10,7 @@ type CreatePaymentIntentBody = {
   description?: string
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
+export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void | VercelResponse> {
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'Method not allowed' })
     return

@@ -10,7 +10,7 @@ import { printfulToProduct } from '../../../_lib/printful-transform'
 export default async function handler(
   req: VercelRequest,
   res: VercelResponse
-): Promise<void> {
+): Promise<void | VercelResponse> {
   if (req.method !== 'GET') {
     res.status(405).json({ error: 'Method not allowed' })
     return

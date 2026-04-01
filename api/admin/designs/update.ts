@@ -45,7 +45,7 @@ function designRowToDesign(row: Record<string, unknown>): Design {
 export default async function handler(
   req: VercelRequest,
   res: VercelResponse
-): Promise<void> {
+): Promise<void | VercelResponse> {
   if (req.method !== 'PATCH') {
     res.status(405).json({ error: 'Method not allowed' })
     return

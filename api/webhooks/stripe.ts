@@ -71,7 +71,7 @@ async function verifyStripeSignature(
 async function updateOrderStatus(
   orderId: string,
   updates: Record<string, any>
-): Promise<void> {
+): Promise<void | VercelResponse> {
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
     console.error('Supabase not configured')
     return
@@ -199,7 +199,7 @@ async function submitToPrintful(order: any): Promise<{
 }
 
 // Handle checkout.session.completed event
-async function handleCheckoutCompleted(session: any): Promise<void> {
+async function handleCheckoutCompleted(session: any): Promise<void | VercelResponse> {
   const orderId = session.metadata?.order_id
 
   if (!orderId) {
@@ -247,7 +247,7 @@ async function handleCheckoutCompleted(session: any): Promise<void> {
 export default async function handler(
   req: VercelRequest,
   res: VercelResponse
-): Promise<void> {
+): Promise<void | VercelResponse> {
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'Method not allowed' })
     return

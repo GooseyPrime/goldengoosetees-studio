@@ -15,7 +15,7 @@ const REMBG_VERSION = 'fb8af171cfa1616ddcf1242c093f9c46bcada5ad4cf6f2fbe8b81b330
 export default async function handler(
   req: VercelRequest,
   res: VercelResponse
-): Promise<void> {
+): Promise<void | VercelResponse> {
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'Method not allowed' })
     return

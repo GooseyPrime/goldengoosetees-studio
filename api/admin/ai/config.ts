@@ -20,7 +20,7 @@ const ALLOWED_KEYS = new Set([
 export default async function handler(
   req: VercelRequest,
   res: VercelResponse
-): Promise<void> {
+): Promise<void | VercelResponse> {
   try {
     await requireAdmin(req)
   } catch (error: any) {
