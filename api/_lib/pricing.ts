@@ -182,6 +182,8 @@ export function priceQuote(input: PriceQuoteInput): PriceQuoteResult {
 
 /** Catalog "starting at" retail from a single-variant Printful base cost (no shipping). */
 export function catalogStartingRetail(printfulBaseCost: number, category: PricingCategory): number {
-  const q = priceQuote({ printfulTotalCost: printfulBaseCost, category })
+  const c = Number(printfulBaseCost)
+  const safe = Number.isFinite(c) && c >= 0 ? c : 19.99
+  const q = priceQuote({ printfulTotalCost: safe, category })
   return q.retailTotal
 }

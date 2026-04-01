@@ -25,10 +25,30 @@ export function usePrintfulCatalog() {
   const [error, setError] = useState<string | null>(null)
   const [catalogAvailable, setCatalogAvailable] = useState<boolean | null>(null)
 
+  const parseJsonResponse = async (res: Response): Promise<any> => {
+    const text = await res.text()
+    if (!text?.trim()) {
+      throw new Error(
+        res.ok
+          ? 'Catalog returned an empty response. Please try again.'
+          : 'Catalog service is temporarily unavailable. Please try again.'
+      )
+    }
+    try {
+      return JSON.parse(text)
+    } catch {
+      throw new Error(
+        res.ok
+          ? 'Catalog returned an invalid response. Please try again.'
+          : 'Catalog service is temporarily unavailable. Please try again.'
+      )
+    }
+  }
+
   const fetchCategories = useCallback(async () => {
     try {
       const res = await fetch('/api/printful/catalog/categories')
-      const data = await res.json()
+      const data = await parseJsonResponse(res)
       if (!res.ok) throw new Error(data.error || 'Failed to fetch categories')
       setCategories(data.categories || [])
       setCatalogAvailable((data.categories?.length ?? 0) > 0)
@@ -46,7 +66,7 @@ export function usePrintfulCatalog() {
       if (categoryId != null) params.set('category_id', String(categoryId))
       const url = `/api/printful/catalog/list${params.toString() ? `?${params}` : ''}`
       const res = await fetch(url)
-      const data = await res.json()
+      const data = await parseJsonResponse(res)
       if (!res.ok) throw new Error(data.error || 'Failed to fetch products')
       const list = data.products || []
       setProducts(list)
@@ -65,7 +85,7 @@ export function usePrintfulCatalog() {
     setError(null)
     try {
       const res = await fetch(`/api/printful/catalog/product/${productId}`)
-      const data = await res.json()
+      const data = await parseJsonResponse(res)
       if (!res.ok) throw new Error(data.error || 'Failed to fetch product')
       return data.product as Product
     } catch (err: any) {
