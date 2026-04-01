@@ -1464,10 +1464,7 @@ function App() {
                     </p>
                   </div>
 
-                  <CatalogBrowser
-                    onSelectProduct={handleProductSelect}
-                    fallbackProducts={[]}
-                  />
+                  <CatalogBrowser onSelectProduct={handleProductSelect} />
                 </motion.div>
               )}
 

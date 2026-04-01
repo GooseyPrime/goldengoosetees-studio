@@ -40,7 +40,6 @@ export function usePrintfulCatalog() {
   const [loading, setLoading] = useState(false)
   const [loadingProduct, setLoadingProduct] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [catalogAvailable, setCatalogAvailable] = useState<boolean | null>(null)
 
   const fetchCategories = useCallback(async () => {
     try {
@@ -48,14 +47,11 @@ export function usePrintfulCatalog() {
       const data = await parseJsonSafe(res)
       if (!res.ok) {
         setCategories([])
-        setCatalogAvailable(false)
         return
       }
       const cats = (data?.categories as CatalogCategory[] | undefined) || []
       setCategories(Array.isArray(cats) ? cats : [])
-      setCatalogAvailable((cats?.length ?? 0) > 0)
     } catch {
-      setCatalogAvailable(false)
       setCategories([])
     }
   }, [])
@@ -72,17 +68,14 @@ export function usePrintfulCatalog() {
       if (data && data.success === true && Array.isArray(data.products)) {
         const list = data.products as Product[]
         setProducts(list)
-        setCatalogAvailable(true)
         const msg = typeof data.message === 'string' ? data.message.trim() : ''
         setError(list.length === 0 && msg ? msg : null)
         return
       }
       setProducts([])
-      setCatalogAvailable(false)
       setError(catalogLoadError(res, data))
     } catch {
       setProducts([])
-      setCatalogAvailable(false)
       setError('Could not reach the catalog. Check your connection and try again.')
     } finally {
       setLoading(false)
@@ -133,7 +126,6 @@ export function usePrintfulCatalog() {
     loading,
     loadingProduct,
     error,
-    catalogAvailable,
     fetchProductById,
   }
 }
