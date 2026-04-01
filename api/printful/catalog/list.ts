@@ -41,20 +41,14 @@ function hintFromCategory(cat: ProductCategory): ProductCategoryHint {
   return 'apparel'
 }
 
-async function minCachedOrLiveBase(productId: number, cachedMin: number | undefined): Promise<number> {
+/**
+ * Use cron-populated cache only for catalog list. Do not call Printful per product here:
+ * N sequential variant fetches caused timeouts and Vercel non-JSON error pages, breaking
+ * `res.json()` on the client (e.g. "Unexpected token 'A', \"A server e\"...").
+ */
+function minBaseFromCache(cachedMin: number | undefined): number {
   if (cachedMin != null && Number.isFinite(cachedMin) && cachedMin > 0) {
     return cachedMin
-  }
-  try {
-    const variants = await printfulServer.getVariants(productId)
-    let m = Infinity
-    for (const v of variants) {
-      const p = parseFloat(String(v.price))
-      if (Number.isFinite(p) && p > 0) m = Math.min(m, p)
-    }
-    if (m !== Infinity) return m
-  } catch (e) {
-    console.warn('catalog list: live variants failed for', productId, e)
   }
   return 19.99
 }
@@ -81,21 +75,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         ? (rawProducts as CatalogProduct[])
         : (rawProducts as CatalogProduct[]).filter((p) => isCuratedProductId(p.id))
 
-    const admin = getSupabaseAdmin()
     const minByProduct = new Map<number, number>()
+    const admin = getSupabaseAdmin()
     if (admin && filtered.length > 0) {
-      const ids = filtered.map((p: CatalogProduct) => p.id)
-      const { data: cacheRows } = await admin
-        .from('printful_variant_price_cache')
-        .select('product_id, printful_base_price')
-        .in('product_id', ids)
+      try {
+        const ids = filtered.map((p: CatalogProduct) => p.id)
+        const { data: cacheRows, error: cacheErr } = await admin
+          .from('printful_variant_price_cache')
+          .select('product_id, printful_base_price')
+          .in('product_id', ids)
 
-      for (const row of cacheRows || []) {
-        const pid = Number(row.product_id)
-        const price = Number(row.printful_base_price)
-        if (!Number.isFinite(pid) || !Number.isFinite(price)) continue
-        const prev = minByProduct.get(pid)
-        if (prev == null || price < prev) minByProduct.set(pid, price)
+        if (cacheErr) {
+          console.warn('catalog list: variant cache read skipped', cacheErr.message)
+        } else {
+          for (const row of cacheRows || []) {
+            const pid = Number(row.product_id)
+            const price = Number(row.printful_base_price)
+            if (!Number.isFinite(pid) || !Number.isFinite(price)) continue
+            const prev = minByProduct.get(pid)
+            if (prev == null || price < prev) minByProduct.set(pid, price)
+          }
+        }
+      } catch (e: any) {
+        console.warn('catalog list: cache lookup failed', e?.message)
       }
     }
 
@@ -104,7 +106,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       const category = inferCategory(p)
       const hint = hintFromCategory(category)
       const pricingCategory = inferPricingCategory(hint, p.title, p.type_name)
-      const minBase = await minCachedOrLiveBase(p.id, minByProduct.get(p.id))
+      const minBase = minBaseFromCache(minByProduct.get(p.id))
       const basePrice = catalogStartingRetail(minBase, pricingCategory)
 
       products.push({
