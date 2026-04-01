@@ -27,7 +27,13 @@ export function usePrintfulCatalog() {
 
   const parseJsonResponse = async (res: Response): Promise<any> => {
     const text = await res.text()
-    if (!text?.trim()) return {}
+    if (!text?.trim()) {
+      throw new Error(
+        res.ok
+          ? 'Catalog returned an empty response. Please try again.'
+          : 'Catalog service is temporarily unavailable. Please try again.'
+      )
+    }
     try {
       return JSON.parse(text)
     } catch {

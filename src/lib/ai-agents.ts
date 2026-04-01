@@ -51,13 +51,23 @@ async function callOpenRouter(
   const raw = await response.text()
   let data: { content?: string; error?: string } = {}
   try {
-    data = raw?.trim() ? (JSON.parse(raw) as typeof data) : {}
-  } catch {
-    throw new Error(
-      response.ok
-        ? 'The design assistant returned an invalid response. Please try again.'
-        : `Chat API error: ${response.statusText}`
-    )
+    if (!raw?.trim()) {
+      throw new Error(
+        response.ok
+          ? 'The design assistant returned an empty response. Please try again.'
+          : `Chat API error: ${response.statusText}`
+      )
+    }
+    data = JSON.parse(raw) as typeof data
+  } catch (err) {
+    if (err instanceof SyntaxError) {
+      throw new Error(
+        response.ok
+          ? 'The design assistant returned an invalid response. Please try again.'
+          : `Chat API error: ${response.statusText}`
+      )
+    }
+    throw err
   }
 
   if (!response.ok) {
