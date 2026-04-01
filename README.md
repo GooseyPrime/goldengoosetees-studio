@@ -254,8 +254,8 @@ After configuring all environment variables, trigger a redeployment in Vercel.
 
 ```bash
 # Clone the repository
-git clone https://github.com/InTellMe/goldengoosetees-kiosk.git
-cd goldengoosetees-kiosk
+git clone https://github.com/GooseyPrime/goldengoosetees-studio.git
+cd goldengoosetees-studio
 
 # Install dependencies
 npm install
