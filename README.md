@@ -264,10 +264,33 @@ npm install
 cp .env.example .env.local
 
 # Fill in your environment variables in .env.local
-
-# Start development server
-npm run dev
 ```
+
+**Catalog and other `/api/*` routes are Vercel serverless functions.** Plain `npm run dev` (Vite only) does not serve them, so `fetch('/api/printful/catalog/...')` would hit the wrong server and fail unless you proxy or use Vercel’s dev server.
+
+Pick one:
+
+1. **Single command (recommended):** run the app with API routes on one port (requires [Vercel CLI](https://vercel.com/docs/cli) and login):
+
+   ```bash
+   npm run dev:vercel
+   ```
+
+   Open the URL Vercel prints (often `http://localhost:3000`).
+
+2. **Two terminals:** run the API on port 3000 and Vite on 5173 with proxy:
+
+   ```bash
+   # Terminal A
+   npx vercel dev --listen 3000
+
+   # Terminal B (proxies /api → http://127.0.0.1:3000)
+   npm run dev
+   ```
+
+   Open `http://localhost:5173`. Override the proxy target with `VITE_DEV_API_PROXY` if needed.
+
+For the catalog to return products locally, `.env.local` must include **`PRINTFUL_API_KEY`** (server-side; loaded by `vercel dev`).
 
 ---
 

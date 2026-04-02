@@ -16,6 +16,7 @@ import { DesignManagerPage } from '@/components/DesignManagerPage'
 import { DesignPreferencesForm, DesignPreferences, preferencesToPrompt } from '@/components/DesignPreferencesForm'
 import { AccountDialog } from '@/components/AccountDialog'
 import { api, AgeVerificationRequiredError } from '@/lib/api'
+import { parseResponseJson } from '@/lib/parse-response-json'
 import {
   Product,
   ProductConfiguration,
@@ -168,13 +169,17 @@ function App() {
     setFeaturedLoading(true)
     setFeaturedError(null)
     fetch('/api/printful/catalog/list')
-      .then((res) => res.json())
-      .then((data) => {
-        const list = (data.products || []) as Product[]
-        setFeaturedProducts(list.slice(0, 8))
+      .then(async (res) => {
+        const data = await parseResponseJson<{ products?: Product[] }>(res)
+        if (!data?.products || !Array.isArray(data.products)) {
+          setFeaturedError('Failed to load featured products')
+          setFeaturedProducts([])
+          return
+        }
+        setFeaturedProducts(data.products.slice(0, 8))
       })
-      .catch((err) => {
-        setFeaturedError(err?.message || 'Failed to load featured products')
+      .catch(() => {
+        setFeaturedError('Failed to load featured products')
         setFeaturedProducts([])
       })
       .finally(() => setFeaturedLoading(false))
@@ -183,9 +188,9 @@ function App() {
   useEffect(() => {
     if (activeView !== 'SELECT_PRODUCT') return
     fetch('/api/printful/catalog/list')
-      .then((res) => res.json())
-      .then((data) => {
-        setCatalogProducts((data.products || []) as Product[])
+      .then(async (res) => {
+        const data = await parseResponseJson<{ products?: Product[] }>(res)
+        setCatalogProducts((data?.products && Array.isArray(data.products) ? data.products : []) as Product[])
       })
       .catch(() => setCatalogProducts([]))
   }, [activeView])
@@ -331,8 +336,8 @@ function App() {
     if (!nextProduct) {
       try {
         const res = await fetch(`/api/printful/catalog/product/${productId}`)
-        const data = await res.json()
-        if (res.ok && data.product) nextProduct = data.product
+        const data = await parseResponseJson<{ product?: Product }>(res)
+        if (res.ok && data?.product) nextProduct = data.product
       } catch {
         // ignore
       }
