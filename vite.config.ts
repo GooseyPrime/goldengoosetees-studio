@@ -1,18 +1,22 @@
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react-swc";
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
 
 import { resolve } from 'path'
 
 const projectRoot = process.env.PROJECT_ROOT || import.meta.dirname
 
+// https://vite.dev/config/
 // Vite does not run /api/* (Vercel serverless). Proxy to a second process that does, e.g.:
 //   Terminal A: npx vercel dev --listen 3000
 //   Terminal B: npm run dev   → browser http://localhost:5173, /api → 3000
-const devApiProxyTarget = process.env.VITE_DEV_API_PROXY || 'http://127.0.0.1:3000'
+export default defineConfig(({ mode }) => {
+  // loadEnv merges .env, .env.local, .env.[mode], .env.[mode].local so that
+  // VITE_DEV_API_PROXY can be overridden from any of those files.
+  const env = loadEnv(mode, process.cwd(), '')
+  const devApiProxyTarget = env.VITE_DEV_API_PROXY || 'http://127.0.0.1:3000'
 
-// https://vite.dev/config/
-export default defineConfig({
+  return {
   plugins: [
     react(),
     tailwindcss(),
@@ -54,4 +58,5 @@ export default defineConfig({
       },
     },
   },
+  };
 });
