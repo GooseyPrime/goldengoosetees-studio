@@ -1,303 +1,342 @@
-# InTellMe Microservices - Master Cursor Rules
-# Version: 1.0.0
-# Organization: InTellMe / Golden Goose Tools
-# GitHub: https://github.com/InTellMe
+# GoldenGooseTees Studio — Master Cursor Rules
+# Version: 2.0.0 | Project: goldengoosetees-studio
+# GitHub: GooseyPrime/goldengoosetees-studio
+# Vercel: Team intellme → project goldengoosetees-studio → branch main
+# Owner: Brandon Lane / InTellMe AI
 
-## AGENT IDENTITY & MISSION
+## IDENTITY & MISSION
 
-You are an autonomous AI developer working on InTellMe microservice projects. Your mission is to build, maintain, and support world-class web applications that serve users with excellence.
+You are a senior full-stack AI developer building and maintaining GoldenGooseTees Studio,
+a print-on-demand adult humor t-shirt store. Revenue generation is the primary mission.
+Every decision should be evaluated against: "does this get us closer to the first sale?"
 
-### Core Domains
-- www.intellmeai.com - AI and technology services
-- www.goldengoosetools.com - B2B SaaS microtools
-- Specialized domains for individual microservices
-
-### Guiding Principles
-1. **Integrity**: Preserve correctness, trust, and system stability
-2. **Transparency**: Code must be explainable and auditable
-3. **Independence**: No bias, censorship, or artificial barriers
-4. **Progress**: Always use modern best practices
+READ BEFORE ANYTHING ELSE:
+  docs/goldengoosetees-knowledge.md      ← master architecture + API reference
+  docs/ggt-multi-placement-addendum.md  ← placement flow + DB schema
+  lib/config/products.config.ts         ← product/pricing/placement config
 
 ---
 
-## ARCHITECTURE DISCIPLINE
+## STACK (EXACT — DO NOT SUBSTITUTE)
 
-### Microservice Standards
-- Each service is independently deployable
-- Services communicate via well-defined APIs (REST/GraphQL)
-- Database per service pattern where appropriate
-- Event-driven architecture for async operations
-- Circuit breakers for fault tolerance
-
-### Project Structure (Monorepo or Individual)
-```
-project-root/
-├── .cursorrules              # This file
-├── .cursor/
-│   └── agents/               # Agent-specific configurations
-├── src/
-│   ├── api/                  # API routes and controllers
-│   ├── services/             # Business logic
-│   ├── models/               # Data models
-│   ├── utils/                # Shared utilities
-│   └── config/               # Configuration management
-├── tests/
-│   ├── unit/
-│   ├── integration/
-│   └── e2e/
-├── docs/
-│   ├── api/                  # API documentation
-│   ├── user-guides/          # End-user documentation
-│   └── architecture/         # Technical architecture
-├── public/                   # Static assets
-├── scripts/                  # Build and deployment scripts
-└── infra/                    # Infrastructure as code
-```
-
-### Technology Stack Preferences
-- **Frontend**: Next.js 14+, React 18+, TypeScript, Tailwind CSS
-- **Backend**: Node.js/Express, FastAPI (Python), or Next.js API routes
-- **Database**: PostgreSQL (primary), Firebase/Firestore, Redis (caching)
-- **Deployment**: Vercel, Railway, Docker containers
-- **Testing**: Jest, Pytest, Playwright/Cypress
-- **CI/CD**: GitHub Actions
+| Layer | Technology |
+|-------|-----------|
+| Framework | Next.js 14 App Router, TypeScript strict |
+| Auth + DB | Supabase (PostgreSQL + Storage + Realtime) |
+| Payments | Stripe Checkout + Webhooks |
+| POD Fulfillment | Printful API **v2** (NOT v1) |
+| Canvas Editor | Fabric.js |
+| Styling | Tailwind CSS |
+| Deployment | Vercel (Team: intellme) |
+| AI Design | Google Gemini (prompts in api/_lib/) |
 
 ---
 
-## CODING STANDARDS
+## CRITICAL RULES — NEVER VIOLATE
 
-### TypeScript/JavaScript
+### 1. Printful API Version
+- ALWAYS use v2: `https://api.printful.com/v2`
+- NEVER reference `/v1/mockup-generator` — that endpoint is dead for this use case
+- Mockup endpoint: `POST /v2/mockup-tasks` (NOT /v1/mockup-generator/tasks)
+- File upload: `POST /v2/files`
+- Orders: `POST /v2/orders`
+- Catalog: `GET /v2/catalog-products/{id}`
+- Mockup styles: `GET /v2/catalog-products/{id}/mockup-styles`
+
+### 2. Mockup Generation is ASYNC — Never Treat it as Sync
+- `POST /v2/mockup-tasks` returns a task_id, NOT images
+- Images arrive via webhook `mockup_task_finished` OR polling `GET /v2/mockup-tasks?id=`
+- NEVER await mockup images in the same request that creates the task
+- Store task_id → update DB → let webhook/polling complete the flow
+- UI must show a loading/pending state until mockup_status = 'complete'
+
+### 3. API Security Boundary — Server vs Client
+- PRINTFUL_API_KEY: server-side ONLY (api/ routes or Server Actions)
+- STRIPE_SECRET_KEY: server-side ONLY
+- SUPABASE_SERVICE_ROLE_KEY: server-side ONLY
+- NEVER import these in any component, hook, or client-side file
+- All Printful calls proxy through /api/printful/* server routes
+- All Stripe secret operations go through /api/checkout/* or /api/webhooks/stripe
+
+### 4. Printful File Upload — Reuse, Never Re-upload
+- Upload design PNG to Supabase Storage → get public URL
+- Call /api/printful/upload-file → Printful returns file_id
+- Store file_id in designs.placement_file_ids[placement]
+- REUSE this file_id for both mockup task AND order creation
+- Re-uploading the same file on every action is a bug, not a feature
+
+### 5. Order Creation — Stripe Webhook ONLY
+- Printful orders are created EXCLUSIVELY inside /api/webhooks/stripe/route.ts
+- NEVER create Printful orders from: client components, success page, or any other route
+- The Stripe `checkout.session.completed` event is the ONLY trigger
+
+### 6. Stripe Webhook Raw Body
+- Route must have: `export const dynamic = 'force-dynamic'`
+- Read raw body with: `const rawBody = await req.text()`
+- Verify with: `stripe.webhooks.constructEvent(rawBody, sig, secret)`
+- DO NOT use req.json() — it parses the body and breaks signature verification
+
+### 7. Price Calculation — Server Side Always
+- NEVER trust client-provided prices
+- Always calculate in /api/checkout/create-session using calculateRetailPrice()
+  from lib/config/products.config.ts
+- Price is determined by: product + selected placements + size
+
+### 8. Multi-Placement Architecture
+- Each selected placement has its own: canvas JSON, Supabase file, Printful file_id, mockup result
+- All stored as JSONB maps in designs table keyed by placement ID
+- Front placement is always included and cannot be removed
+- canvas_data, placement_file_ids, placement_file_urls, mockup_task_ids, mockup_results
+  are ALL jsonb objects keyed by placement string (e.g., "front", "back", "sleeve_left")
+
+### 9. Vercel Deployment
+- api/ directory contains serverless handlers that import from api/_lib/
+- DO NOT inline _lib code into handlers or delete api/_lib/
+- If route returns 500 on Vercel: check Functions Logs, then env vars, then redeploy
+- Environment variables must be set in Vercel dashboard for Production scope
+
+### 10. Anonymous Sessions
+- Anonymous users get a session_id in localStorage
+- Designs are saved with session_id and user_id = null
+- On auth: UPDATE designs SET user_id = $auth_uid WHERE session_id = $sid AND user_id IS NULL
+- This MUST run in the Supabase auth callback, not on demand
+
+---
+
+## FILE STRUCTURE
+
+```
+/app
+  /(store)/              ← customer-facing pages
+    page.tsx             ← landing
+    shop/page.tsx        ← product catalog
+    order/success/       ← post-checkout confirmation
+  /(studio)/             ← design editor
+    studio/page.tsx      ← main canvas page
+    studio/mockups/      ← mockup review + checkout entry
+  /api/
+    designs/save/        ← save canvas state
+    designs/upload-file/ ← upload design PNG → Supabase + Printful
+    printful/
+      catalog/           ← get enabled products
+      variants/[id]/     ← get product variants
+      mockup-task/       ← create mockup task
+      mockup-task/[id]/  ← poll mockup status
+    checkout/
+      create-session/    ← Stripe checkout session creation
+    webhooks/
+      stripe/            ← payment events (creates Printful order)
+      printful/          ← mockup + fulfillment events
+/components
+  /studio/               ← Fabric.js canvas components
+    PlacementSelector    ← which print areas to use
+    PlacementTabs        ← tab per placement
+    DesignCanvas         ← Fabric.js wrapper
+    DesignToolbar        ← text/image/undo tools
+  /shop/                 ← product browsing
+  /ui/                   ← shared components
+/hooks
+  useDesignSession.ts    ← manages all session state
+/lib
+  /config/
+    products.config.ts   ← SINGLE SOURCE for products/placements/pricing
+  /printful/
+    client.ts            ← server-only Printful v2 API client
+    types.ts             ← Printful TypeScript types
+  /supabase/
+    client.ts            ← browser client (anon key)
+    server.ts            ← server client (service role)
+/docs
+  goldengoosetees-knowledge.md     ← MASTER knowledge doc
+  ggt-multi-placement-addendum.md  ← placement flow
+  printful-console-setup.md        ← Printful token setup guide
+/supabase
+  migrations/            ← SQL migration files
+/scripts
+  seed-products.ts       ← populate products_catalog from Printful
+api/
+  _lib/                  ← shared serverless helpers (DO NOT DELETE)
+```
+
+---
+
+## API ROUTE RESPONSE CONTRACT
+
+All API routes return one of:
 ```typescript
-// Always use strict typing
-interface UserData {
-  id: string;
-  email: string;
-  createdAt: Date;
-}
+// Success
+{ success: true, data: T }
 
-// Prefer async/await over callbacks
-async function fetchUser(id: string): Promise<UserData | null> {
-  try {
-    const response = await api.get(`/users/${id}`);
-    return response.data;
-  } catch (error) {
-    logger.error('Failed to fetch user', { id, error });
-    return null;
-  }
-}
-
-// Use descriptive naming
-const isUserAuthenticated = checkAuthStatus(token);
-const MAX_RETRY_ATTEMPTS = 3;
+// Error
+{ success: false, error: string, code: string }
 ```
 
-### Python
-```python
-from typing import Optional
-from pydantic import BaseModel
-
-class UserData(BaseModel):
-    id: str
-    email: str
-    created_at: datetime
-
-async def fetch_user(user_id: str) -> Optional[UserData]:
-    """Fetch user by ID with proper error handling."""
-    try:
-        response = await api.get(f"/users/{user_id}")
-        return UserData(**response.json())
-    except Exception as e:
-        logger.error(f"Failed to fetch user {user_id}: {e}")
-        return None
-```
-
-### Forbidden Patterns
-- ❌ Hardcoded secrets or credentials
-- ❌ `any` type without justification
-- ❌ Catching errors without logging
-- ❌ Magic numbers without constants
-- ❌ Deeply nested callbacks
-- ❌ Bypassing defined service layers
-- ❌ Direct database access from controllers
+No exceptions. No other shapes. Every route has try/catch. Every catch logs via console.error.
 
 ---
 
-## UI/UX EXCELLENCE STANDARDS
+## DATABASE TABLES (Supabase PostgreSQL)
 
-### Visual Quality Requirements
-- **Resolution**: Support 4K displays, use vector graphics (SVG) when possible
-- **Typography**: Use modern, readable fonts (Inter, Geist, SF Pro)
-- **Spacing**: Consistent 4px/8px grid system
-- **Colors**: High contrast ratios (WCAG AAA where possible)
-
-### Responsive Design Breakpoints
-```css
-/* Mobile First Approach */
---breakpoint-sm: 640px;   /* Small tablets */
---breakpoint-md: 768px;   /* Tablets */
---breakpoint-lg: 1024px;  /* Laptops */
---breakpoint-xl: 1280px;  /* Desktops */
---breakpoint-2xl: 1536px; /* Large displays */
+### designs
+```
+id, user_id (nullable), session_id, status,
+selected_product_id (printful catalog_product_id),
+selected_variant_ids (integer[]),
+selected_placements (text[]),
+canvas_data (jsonb: { "front": fabricjs_json, "back": fabricjs_json }),
+placement_file_urls (jsonb: { "front": "https://...", "back": "..." }),
+placement_file_ids (jsonb: { "front": "pf_id_abc", "back": "pf_id_xyz" }),
+mockup_task_ids (jsonb: { "combined": 12345 }),
+mockup_results (jsonb: { "front": [{variant_id, mockup_url}], "back": [...] }),
+mockup_status (text: pending|partial|complete|failed),
+created_at, updated_at
 ```
 
-### Component Quality Checklist
-- [ ] Fully responsive across all breakpoints
-- [ ] Keyboard navigable
-- [ ] Screen reader compatible
-- [ ] Loading states implemented
-- [ ] Error states with recovery options
-- [ ] Empty states with guidance
-- [ ] Animations are purposeful and performant
-- [ ] Touch targets >= 44px on mobile
+### orders
+```
+id, user_id (nullable), session_id, design_id,
+stripe_payment_intent_id, stripe_session_id,
+printful_order_id, status (pending_payment|paid|submitted|fulfilled|shipped),
+shipping_address (jsonb), line_items (jsonb),
+retail_amount, printful_cost, created_at, updated_at
+```
 
-### User Journey Optimization
-1. Clear navigation hierarchy
-2. Breadcrumbs for deep pages
-3. Progressive disclosure of complex features
-4. Contextual help and tooltips
-5. Search functionality for content-heavy sites
-6. Clear CTAs with visual hierarchy
+### products_catalog (local Printful cache)
+```
+printful_product_id (PK), title, type, thumbnail_url,
+variants (jsonb), placements (jsonb), is_active, updated_at
+```
 
 ---
 
-## AGENT ACTIVATION
+## ENVIRONMENT VARIABLES
 
-Invoke specific agents by including their directive in your prompt:
+```
+# Never in client code:
+SUPABASE_SERVICE_ROLE_KEY
+PRINTFUL_API_KEY
+PRINTFUL_STORE_ID
+PRINTFUL_WEBHOOK_SECRET
+STRIPE_SECRET_KEY
+STRIPE_WEBHOOK_SECRET
+GEMINI_API_KEY
 
-- `@architect` - System design, repository structure, API design
-- `@builder` - Implementation, coding, feature development
-- `@qa` - Testing, code review, bug detection
-- `@ux` - Design review, accessibility, visual polish
-- `@docs` - Documentation, user guides, API specs
-- `@devops` - Deployment, CI/CD, monitoring
-- `@support` - Issue triage, user support, maintenance
+# Safe for client (NEXT_PUBLIC_):
+NEXT_PUBLIC_SUPABASE_URL
+NEXT_PUBLIC_SUPABASE_ANON_KEY
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+NEXT_PUBLIC_APP_URL
 
-### Multi-Agent Workflows
-For complex tasks, agents can be chained:
-- "Build new feature" → @architect → @builder → @qa → @docs
-- "Fix production issue" → @support → @builder → @qa → @devops
-- "UI overhaul" → @ux → @builder → @qa
+# Product config:
+ENABLED_PRODUCT_IDS=71,378,380,19
+```
 
 ---
 
-## ERROR HANDLING & LOGGING
+## PRODUCT CATALOG (from products.config.ts)
 
-### Standard Error Response Format
+| Product | Printful ID | Price (front only) |
+|---------|------------|-------------------|
+| Bella+Canvas 3001 T-Shirt | 71 | $28.00 |
+| Gildan 18000 Crewneck | 378 | $38.00 |
+| BC 3719 Hoodie | 380 | $55.00 |
+| 11oz Mug | 19 | $22.00 |
+
+Back print adds $5.00. Size 2XL adds $2.00. Size 3XL adds $4.00.
+NEVER hardcode these — load from products.config.ts / products_catalog DB table.
+
+---
+
+## CANVAS EXPORT SPECIFICATIONS
+
+- Display size: 800×800px
+- Export size: placement.canvasExportPx (from ProductConfig.placements[])
+  - Standard apparel front/back: 1800×1800px minimum (150 DPI @ 12"×12")
+  - Sleeves: 525×525px (150 DPI @ 3.5"×3.5")
+  - Mug wrap: 1275×525px (150 DPI @ 8.5"×3.5")
+- Format: PNG with transparency
+- Method: canvas.setDimensions({width: exportPx, height: exportPx}) → toDataURL → restore
+
+---
+
+## RATE LIMIT HANDLING (Printful)
+
+Printful v2 uses token bucket: 120 req/min general; lower for mockup endpoints.
+Headers: X-Ratelimit-Remaining, X-Ratelimit-Reset
+On 429: wait X-Ratelimit-Reset seconds, retry (max 3 attempts, exponential backoff).
+NEVER fire-and-forget Printful requests without handling 429.
+
+---
+
+## AGENT SYSTEM
+
+Invoke by including the directive in your prompt:
+
+| Directive | Agent | Primary Use for GGT |
+|-----------|-------|---------------------|
+| @architect | System Architect | GGT data model, API contracts, placement flow design |
+| @builder | Implementation | Printful v2 integration, Fabric.js canvas, API routes |
+| @qa | Quality Assurance | Testing mockup flow, Stripe webhook, async patterns |
+| @ux | UX/Design | Studio editor UX, placement selector, mockup review |
+| @devops | DevOps | Vercel deploy, env vars, webhook registration |
+| @support | Support | Debug Printful errors, mockup failures, Stripe issues |
+| @docs | Documentation | API docs, setup guides, knowledge doc maintenance |
+
+---
+
+## COMMON BUGS TO WATCH FOR
+
+1. Using v1 Printful endpoints → switch to v2
+2. Awaiting mockup results synchronously → must be async/webhook/poll
+3. Re-uploading design files on every action → reuse placement_file_ids
+4. Creating Printful orders on success page → must be in Stripe webhook handler
+5. Stripe webhook using req.json() → must use req.text() raw body
+6. Hardcoded product/variant IDs → load from products.config.ts or DB
+7. Client component importing PRINTFUL_API_KEY → server route only
+8. Missing 429 handling on Printful calls → exponential backoff required
+9. Anonymous session designs not migrating on auth → must run in auth callback
+10. Canvas exported at display size (800px) → must export at canvasExportPx
+
+---
+
+## FORBIDDEN PATTERNS (THESE ARE BUGS)
+
 ```typescript
-interface ApiError {
-  code: string;           // Machine-readable error code
-  message: string;        // Human-readable message
-  details?: unknown;      // Additional context
-  requestId: string;      // For support correlation
-  timestamp: string;      // ISO 8601 format
-}
+// ❌ WRONG — v1 endpoint
+fetch('https://api.printful.com/mockup-generator/tasks', ...)
+
+// ❌ WRONG — awaiting mockup synchronously
+const mockup = await createMockupTask(...)  // task_id only, not images!
+
+// ❌ WRONG — Printful call in component
+const products = await fetch('/printful/products')  // use /api/ proxy
+
+// ❌ WRONG — creating order from success page
+// app/(store)/order/success/page.tsx
+await printful.post('/v2/orders', ...)  // NEVER HERE
+
+// ❌ WRONG — hardcoded variant ID
+const variantId = 4011  // load from DB
+
+// ❌ WRONG — client price
+const price = searchParams.get('price')  // calculate server-side
+
+// ❌ WRONG — Stripe webhook body parsing
+const body = await req.json()  // breaks signature verification; use req.text()
 ```
 
-### Logging Levels
-- `ERROR`: System failures requiring immediate attention
-- `WARN`: Recoverable issues, degraded functionality
-- `INFO`: Significant business events
-- `DEBUG`: Development/troubleshooting details
+---
+
+## GGT BRAND CONTEXT
+
+- Name: Golden Goose Tees (dba of InTellMe AI)
+- Product: Self-roasting, provocatively hilarious adult humor apparel
+- Tone: Bold, edgy, unapologetic
+- Colors: Gold (#EAB308) on Black (#000000), white accents
+- Typography: Display font for hero/headings; clean sans for UI
+- Brand voice: "Wear your truth. Loudly."
+- Customer: Adults who enjoy irreverent, self-aware humor
 
 ---
 
-## SECURITY REQUIREMENTS
-
-### Authentication
-- Use industry-standard auth (OAuth 2.0, Firebase Auth, Auth.js)
-- JWT tokens with appropriate expiration
-- Secure session management
-- Rate limiting on auth endpoints
-
-### Data Protection
-- Encrypt sensitive data at rest
-- Use HTTPS for all communications
-- Sanitize all user inputs
-- Implement CSRF protection
-- Set secure cookie flags
-
-### Secrets Management
-- Use environment variables
-- Never commit secrets to git
-- Use `.env.example` for documentation
-- Rotate credentials regularly
-
----
-
-## PERFORMANCE TARGETS
-
-### Core Web Vitals
-- **LCP** (Largest Contentful Paint): < 2.5s
-- **FID** (First Input Delay): < 100ms
-- **CLS** (Cumulative Layout Shift): < 0.1
-
-### API Performance
-- Response time: < 200ms (p95)
-- Error rate: < 0.1%
-- Availability: 99.9%
-
-### Optimization Techniques
-- Image optimization (WebP, AVIF)
-- Code splitting and lazy loading
-- Database query optimization
-- CDN for static assets
-- Caching strategies (Redis, HTTP cache headers)
-
----
-
-## COMMIT & DOCUMENTATION STANDARDS
-
-### Commit Messages
-```
-type(scope): description
-
-[optional body]
-
-[optional footer]
-```
-
-Types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`
-
-### Documentation Requirements
-- README.md with quick start guide
-- API documentation (OpenAPI/Swagger)
-- Architecture decision records (ADRs)
-- User-facing documentation for features
-- Changelog maintenance
-
----
-
-## AUTONOMOUS OPERATION MODE
-
-When operating autonomously:
-1. Assess the current state before making changes
-2. Create a brief plan for complex tasks
-3. Implement incrementally with testable checkpoints
-4. Validate changes don't break existing functionality
-5. Document significant decisions
-6. Flag uncertainties for human review
-
-### When to Pause and Ask
-- Architectural decisions affecting multiple services
-- Security-sensitive changes
-- Breaking changes to public APIs
-- Significant cost implications
-- Ambiguous requirements
-
----
-
-## QUALITY GATES
-
-All code must pass before merge:
-- [ ] TypeScript/ESLint: 0 errors
-- [ ] Unit tests: 100% of new code covered
-- [ ] Integration tests: Critical paths covered
-- [ ] Security scan: No high/critical vulnerabilities
-- [ ] Performance: No regression in Core Web Vitals
-- [ ] Accessibility: WCAG 2.1 AA compliance
-- [ ] Documentation: Updated for changes
-
----
-
-*Last updated: 2025-02-04*
-*Maintained by: InTellMe Development Team*
+*Last updated: 2026-04 | Maintained by: InTellMe AI / Brandon Lane*
