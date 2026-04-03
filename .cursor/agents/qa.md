@@ -1,319 +1,142 @@
-# @qa Agent
+# @qa Agent — GoldenGooseTees Quality Assurance
 
-## Role
-Quality Assurance specialist responsible for testing, code review, bug detection, and ensuring production readiness.
+## Activation: `@qa`
 
-## Activation
-Include `@qa` in your prompt to activate this agent.
+---
 
-## Capabilities
+## CRITICAL FLOWS TO TEST
 
-### Testing
-- Write and maintain test suites
-- Create test plans for features
-- Perform regression testing
-- Execute performance testing
-- Conduct security assessments
+Every PR that touches the following flows requires end-to-end verification:
 
-### Code Review
-- Review PRs for quality
-- Identify potential bugs
-- Check for security vulnerabilities
-- Verify coding standards compliance
-- Assess test coverage
-
-### Bug Detection
-- Analyze error logs
-- Reproduce reported issues
-- Root cause analysis
-- Regression identification
-
-## Test Templates
-
-### Unit Test (Jest/TypeScript)
+### 1. Mockup Generation Flow
 ```typescript
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { ResourceService } from './resource.service';
-import { db } from '@/lib/db';
-import { cache } from '@/lib/cache';
+// Test: POST /api/printful/mockup-task
+describe('mockup task creation', () => {
+  it('creates task for all selected placements', async () => {
+    const design = await createTestDesign({
+      selected_placements: ['front', 'back'],
+      placement_file_ids: { front: 'pf_abc', back: 'pf_xyz' },
+    })
+    const res = await POST('/api/printful/mockup-task', { designId: design.id })
+    expect(res.success).toBe(true)
+    expect(res.data.taskId).toBeTypeOf('number')
+    // Verify DB: mockup_status = 'pending', task ID stored
+    const updated = await getDesign(design.id)
+    expect(updated.mockup_status).toBe('pending')
+    expect(updated.mockup_task_ids.combined).toBe(res.data.taskId)
+  })
 
-vi.mock('@/lib/db');
-vi.mock('@/lib/cache');
-
-describe('ResourceService', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  describe('getById', () => {
-    it('should return cached resource if available', async () => {
-      const mockResource = { id: '123', name: 'Test' };
-      vi.mocked(cache.get).mockResolvedValue(mockResource);
-
-      const result = await ResourceService.getById('123');
-
-      expect(result).toEqual(mockResource);
-      expect(db.resource.findUnique).not.toHaveBeenCalled();
-    });
-
-    it('should fetch from db and cache if not cached', async () => {
-      const mockResource = { id: '123', name: 'Test' };
-      vi.mocked(cache.get).mockResolvedValue(null);
-      vi.mocked(db.resource.findUnique).mockResolvedValue(mockResource);
-
-      const result = await ResourceService.getById('123');
-
-      expect(result).toEqual(mockResource);
-      expect(cache.set).toHaveBeenCalledWith(
-        'resource:123',
-        mockResource,
-        expect.any(Number)
-      );
-    });
-
-    it('should throw NotFoundError if resource does not exist', async () => {
-      vi.mocked(cache.get).mockResolvedValue(null);
-      vi.mocked(db.resource.findUnique).mockResolvedValue(null);
-
-      await expect(ResourceService.getById('123'))
-        .rejects.toThrow('Resource not found');
-    });
-  });
-});
+  it('rejects if any placement missing file_id', async () => {
+    const design = await createTestDesign({
+      selected_placements: ['front', 'back'],
+      placement_file_ids: { front: 'pf_abc' },  // back missing
+    })
+    const res = await POST('/api/printful/mockup-task', { designId: design.id })
+    expect(res.success).toBe(false)
+    expect(res.code).toBe('MISSING_DESIGN_FILE')
+  })
+})
 ```
 
-### Integration Test (API)
+### 2. Stripe Webhook Handler
 ```typescript
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { createServer } from '@/server';
-import { db } from '@/lib/db';
+describe('Stripe webhook', () => {
+  it('requires valid signature', async () => {
+    const res = await POST('/api/webhooks/stripe', {
+      body: '{}',
+      headers: { 'stripe-signature': 'invalid' },
+    })
+    expect(res.status).toBe(400)
+  })
 
-describe('POST /api/resources', () => {
-  let app: ReturnType<typeof createServer>;
-  let authToken: string;
+  it('is idempotent — does not double-process', async () => {
+    const order = await createTestOrder({ status: 'paid' })
+    // Fire webhook again for same session
+    const res = await fireStripeWebhook('checkout.session.completed', { id: order.stripe_session_id })
+    expect(res.received).toBe(true)
+    // Verify printful was NOT called again
+    expect(mockPrintfulPost).not.toHaveBeenCalled()
+  })
 
-  beforeAll(async () => {
-    app = createServer();
-    // Setup test user and get auth token
-    authToken = await getTestAuthToken();
-  });
-
-  afterAll(async () => {
-    // Cleanup test data
-    await db.resource.deleteMany({ where: { name: { startsWith: 'TEST_' } } });
-  });
-
-  it('should create resource with valid data', async () => {
-    const response = await app.inject({
-      method: 'POST',
-      url: '/api/resources',
-      headers: { Authorization: `Bearer ${authToken}` },
-      payload: { name: 'TEST_Resource', type: 'example' },
-    });
-
-    expect(response.statusCode).toBe(201);
-    const body = JSON.parse(response.body);
-    expect(body.data).toHaveProperty('id');
-    expect(body.data.name).toBe('TEST_Resource');
-  });
-
-  it('should return 401 without authentication', async () => {
-    const response = await app.inject({
-      method: 'POST',
-      url: '/api/resources',
-      payload: { name: 'TEST_Resource' },
-    });
-
-    expect(response.statusCode).toBe(401);
-  });
-
-  it('should return 400 with invalid data', async () => {
-    const response = await app.inject({
-      method: 'POST',
-      url: '/api/resources',
-      headers: { Authorization: `Bearer ${authToken}` },
-      payload: { name: '' }, // Invalid: empty name
-    });
-
-    expect(response.statusCode).toBe(400);
-    const body = JSON.parse(response.body);
-    expect(body.code).toBe('VALIDATION_ERROR');
-  });
-});
+  it('creates Printful order with all placement files', async () => {
+    const design = await createTestDesign({
+      selected_placements: ['front', 'back'],
+      placement_file_ids: { front: 'pf_abc', back: 'pf_xyz' },
+    })
+    await fireStripeWebhook('checkout.session.completed', {
+      metadata: { designId: design.id, variantId: '4011', quantity: '1' },
+    })
+    expect(mockPrintfulPost).toHaveBeenCalledWith('/v2/orders', {
+      recipient: expect.any(Object),
+      items: [{
+        catalog_variant_id: 4011,
+        quantity: 1,
+        files: [
+          { placement: 'front', file_id: 'pf_abc' },
+          { placement: 'back', file_id: 'pf_xyz' },
+        ],
+      }],
+    })
+  })
+})
 ```
 
-### Component Test (React Testing Library)
+### 3. Price Calculation
 ```typescript
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
-import { SubscriptionForm } from './subscription-form';
-
-describe('SubscriptionForm', () => {
-  const mockOnSubmit = vi.fn();
-
-  beforeEach(() => {
-    mockOnSubmit.mockClear();
-  });
-
-  it('should render all form fields', () => {
-    render(<SubscriptionForm onSubmit={mockOnSubmit} />);
-
-    expect(screen.getByLabelText(/email/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/plan/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /subscribe/i })).toBeInTheDocument();
-  });
-
-  it('should show validation errors for empty fields', async () => {
-    render(<SubscriptionForm onSubmit={mockOnSubmit} />);
-
-    fireEvent.click(screen.getByRole('button', { name: /subscribe/i }));
-
-    await waitFor(() => {
-      expect(screen.getByText(/email is required/i)).toBeInTheDocument();
-    });
-    expect(mockOnSubmit).not.toHaveBeenCalled();
-  });
-
-  it('should submit with valid data', async () => {
-    const user = userEvent.setup();
-    render(<SubscriptionForm onSubmit={mockOnSubmit} />);
-
-    await user.type(screen.getByLabelText(/email/i), 'test@example.com');
-    await user.selectOptions(screen.getByLabelText(/plan/i), 'pro');
-    await user.click(screen.getByRole('button', { name: /subscribe/i }));
-
-    await waitFor(() => {
-      expect(mockOnSubmit).toHaveBeenCalledWith({
-        email: 'test@example.com',
-        plan: 'pro',
-      });
-    });
-  });
-});
+describe('calculateRetailPrice', () => {
+  it('returns base price for front only', () => {
+    expect(calculateRetailPrice(71, ['front'], 'M')).toBe(28.00)
+  })
+  it('adds back print price', () => {
+    expect(calculateRetailPrice(71, ['front', 'back'], 'M')).toBe(33.00)
+  })
+  it('adds size upcharge', () => {
+    expect(calculateRetailPrice(71, ['front'], '2XL')).toBe(30.00)
+  })
+  it('never trusts client-provided price', () => {
+    // Server always recalculates — this is enforcement by design
+  })
+})
 ```
 
-### E2E Test (Playwright)
-```typescript
-import { test, expect } from '@playwright/test';
+---
 
-test.describe('Subscription Flow', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.goto('/pricing');
-  });
+## SECURITY REVIEW CHECKLIST (every PR)
 
-  test('should complete subscription checkout', async ({ page }) => {
-    // Select plan
-    await page.click('[data-testid="plan-pro"]');
-    await page.click('[data-testid="select-plan-btn"]');
+- [ ] No `PRINTFUL_API_KEY` / `STRIPE_SECRET_KEY` / `SUPABASE_SERVICE_ROLE_KEY`
+      appears in any file under `/components/`, `/hooks/`, or `/app/(store)/` or `/app/(studio)/` (excluding api/)
+- [ ] Stripe webhook verifies signature before processing
+- [ ] Printful webhook verifies HMAC before processing
+- [ ] Checkout session price calculated server-side (not from client request body)
+- [ ] Order not created if design.mockup_status !== 'complete'
+- [ ] No SQL injection: all Supabase queries use parameterized calls
 
-    // Fill checkout form
-    await page.fill('[data-testid="email-input"]', 'test@example.com');
-    await page.fill('[data-testid="card-number"]', '4242424242424242');
-    await page.fill('[data-testid="card-expiry"]', '12/25');
-    await page.fill('[data-testid="card-cvc"]', '123');
+---
 
-    // Submit
-    await page.click('[data-testid="submit-payment"]');
+## ASYNC PATTERN VERIFICATION
 
-    // Verify success
-    await expect(page).toHaveURL('/subscription/success');
-    await expect(page.locator('[data-testid="success-message"]')).toBeVisible();
-  });
-
-  test('should handle payment failure gracefully', async ({ page }) => {
-    await page.click('[data-testid="plan-pro"]');
-    await page.click('[data-testid="select-plan-btn"]');
-
-    // Use test card that declines
-    await page.fill('[data-testid="email-input"]', 'test@example.com');
-    await page.fill('[data-testid="card-number"]', '4000000000000002');
-    await page.fill('[data-testid="card-expiry"]', '12/25');
-    await page.fill('[data-testid="card-cvc"]', '123');
-
-    await page.click('[data-testid="submit-payment"]');
-
-    // Verify error handling
-    await expect(page.locator('[data-testid="payment-error"]')).toBeVisible();
-    await expect(page.locator('[data-testid="retry-btn"]')).toBeVisible();
-  });
-});
+Any PR touching mockup generation must verify:
+```
+❌ const images = await createMockupTask(...)     // WRONG: task returns id, not images
+✅ const { taskId } = await createMockupTask(...) // RIGHT: store taskId, wait for webhook
 ```
 
-## Review Checklist
+---
 
-### Code Quality
-- [ ] Follows project coding standards
-- [ ] No code smells or anti-patterns
-- [ ] DRY principle respected
-- [ ] Functions/methods are focused (single responsibility)
-- [ ] Naming is clear and consistent
-
-### Error Handling
-- [ ] All async operations have try/catch
-- [ ] Errors are logged with context
-- [ ] User-facing errors are friendly
-- [ ] No silent failures
-
-### Security
-- [ ] No hardcoded secrets
-- [ ] Input validation present
-- [ ] SQL/NoSQL injection prevented
-- [ ] XSS vulnerabilities addressed
-- [ ] Auth/authz properly implemented
-
-### Performance
-- [ ] No N+1 query problems
-- [ ] Pagination implemented for lists
-- [ ] Heavy operations are async
-- [ ] Caching used appropriately
-
-### Testing
-- [ ] Unit tests for business logic
-- [ ] Integration tests for APIs
-- [ ] Edge cases covered
-- [ ] Error scenarios tested
-- [ ] Test coverage > 80%
-
-## Bug Report Template
+## BUG REPORT TEMPLATE (GGT)
 
 ```markdown
-## Bug Report
+## Bug: [title]
+**Severity**: P0 (checkout broken) | P1 (mockup broken) | P2 (UX issue) | P3 (cosmetic)
+**Flow affected**: Design Session | Mockup Generation | Checkout | Order Fulfillment
 
-**Severity**: Critical | High | Medium | Low
-**Component**: [area of codebase]
-
-### Description
-Clear description of the bug.
-
-### Steps to Reproduce
-1. Go to...
-2. Click on...
-3. Observe...
-
-### Expected Behavior
-What should happen.
-
-### Actual Behavior
-What actually happens.
-
-### Environment
-- Browser/Node version
-- OS
-- Relevant configuration
-
-### Logs/Screenshots
-[Include relevant error logs or screenshots]
-
-### Root Cause Analysis
-[If determined]
-
-### Suggested Fix
-[If identified]
+### Steps to reproduce
+### Expected behavior
+### Actual behavior
+### Printful task_id (if mockup-related):
+### Stripe session_id (if checkout-related):
+### Supabase design_id:
+### Error from Vercel Functions log:
 ```
 
-## Communication
-
-Receives implementations from: `@builder`
-Reports issues to: `@builder` for fixes
-Collaborates with: `@devops` for deployment verification
-Escalates to: `@architect` for design issues
+---
