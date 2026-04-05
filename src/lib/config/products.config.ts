@@ -230,7 +230,7 @@ export const PRODUCT_CONFIGS: Record<number, ProductConfig> = {
 // ─────────────────────────────────────────────────────────────────
 
 export function getEnabledProducts(): ProductConfig[] {
-  const envIds = process.env.ENABLED_PRODUCT_IDS
+  const envIds = import.meta.env.VITE_ENABLED_PRODUCT_IDS as string | undefined
   
   if (envIds) {
     const ids = envIds.split(',').map(id => parseInt(id.trim(), 10))
