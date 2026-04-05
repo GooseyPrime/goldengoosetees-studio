@@ -19,7 +19,7 @@ export function useInactivityTimeout({
   timeoutMs = DEFAULT_TIMEOUT_MS,
   enabled = true
 }: UseInactivityTimeoutOptions) {
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastActivityRef = useRef<number>(Date.now())
 
   const resetTimeout = useCallback(() => {

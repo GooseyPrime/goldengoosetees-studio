@@ -230,13 +230,13 @@ export const PRODUCT_CONFIGS: Record<number, ProductConfig> = {
 // ─────────────────────────────────────────────────────────────────
 
 export function getEnabledProducts(): ProductConfig[] {
-  const envIds = process.env.ENABLED_PRODUCT_IDS
+  const envIds = import.meta.env.VITE_ENABLED_PRODUCT_IDS as string | undefined
   
   if (envIds) {
-    const ids = envIds.split(',').map(id => parseInt(id.trim(), 10))
+    const ids = envIds.split(',').map((id: string) => parseInt(id.trim(), 10))
     return ids
-      .map(id => PRODUCT_CONFIGS[id])
-      .filter((p): p is ProductConfig => !!p && p.isActive)
+      .map((id: number) => PRODUCT_CONFIGS[id])
+      .filter((p: ProductConfig | undefined): p is ProductConfig => !!p && p.isActive)
   }
   
   return Object.values(PRODUCT_CONFIGS).filter(p => p.isActive)
