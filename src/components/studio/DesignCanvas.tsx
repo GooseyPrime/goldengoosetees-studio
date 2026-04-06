@@ -24,7 +24,7 @@ export function DesignCanvas({
     // but in Vite it's safe to just import normally, or load from CDN/npm.
     // For this boilerplate, we'll assume `window.fabric` is available or imported.
     import('fabric').then((fabricModule) => {
-      const fabric = (fabricModule as any).fabric || fabricModule.default || window.fabric;
+      const fabric = (fabricModule as any).fabric || fabricModule.default || (window as any).fabric;
       
       if (!canvasRef.current || !fabric) return;
 
@@ -43,7 +43,7 @@ export function DesignCanvas({
       setFabricCanvas(canvas);
 
       // Debounce saving
-      let saveTimeout: NodeJS.Timeout;
+      let saveTimeout: ReturnType<typeof setTimeout>;
       const saveState = () => {
         clearTimeout(saveTimeout);
         saveTimeout = setTimeout(() => {

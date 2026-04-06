@@ -1,3 +1,4 @@
+/// <reference types="node" />
 /**
  * AWS Bedrock Claude Client
  * 
