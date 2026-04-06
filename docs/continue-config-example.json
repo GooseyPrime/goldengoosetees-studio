@@ -1,0 +1,65 @@
+{
+  "models": [
+    {
+      "title": "Claude 3.5 Sonnet (Bedrock)",
+      "provider": "bedrock",
+      "model": "anthropic.claude-3-5-sonnet-20241022-v2:0",
+      "region": "us-east-1",
+      "profile": "default"
+    },
+    {
+      "title": "Claude 3 Opus (Bedrock)",
+      "provider": "bedrock",
+      "model": "anthropic.claude-3-opus-20240229",
+      "region": "us-east-1",
+      "profile": "default"
+    },
+    {
+      "title": "Claude 3 Haiku (Bedrock)",
+      "provider": "bedrock",
+      "model": "anthropic.claude-3-haiku-20240307",
+      "region": "us-east-1",
+      "profile": "default"
+    }
+  ],
+  "tabAutocompleteModel": {
+    "title": "Claude 3 Haiku Autocomplete",
+    "provider": "bedrock",
+    "model": "anthropic.claude-3-haiku-20240307",
+    "region": "us-east-1",
+    "profile": "default"
+  },
+  "customCommands": [
+    {
+      "name": "test",
+      "prompt": "Write a comprehensive set of unit tests for the highlighted code. Use the same testing framework as the rest of the codebase and maintain existing patterns."
+    },
+    {
+      "name": "docs",
+      "prompt": "Write comprehensive documentation for the highlighted code. Include docstrings, parameter descriptions, return values, and usage examples."
+    },
+    {
+      "name": "fix",
+      "prompt": "Analyze the highlighted code for bugs and issues. Explain what's wrong and provide a corrected version."
+    },
+    {
+      "name": "optimize",
+      "prompt": "Optimize the highlighted code for better performance and readability. Explain your changes."
+    },
+    {
+      "name": "refactor",
+      "prompt": "Refactor the highlighted code to improve readability, maintainability, and follow best practices. Explain the changes."
+    },
+    {
+      "name": "explain",
+      "prompt": "Provide a detailed explanation of what the highlighted code does, including any algorithms, patterns, or important details."
+    }
+  ],
+  "allowAnonymousTelemetry": false,
+  "embeddingsProvider": {
+    "provider": "bedrock",
+    "model": "amazon.titan-embed-text-v1",
+    "region": "us-east-1",
+    "profile": "default"
+  }
+}
