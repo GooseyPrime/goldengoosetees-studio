@@ -1,6 +1,14 @@
 # GoldenGooseTees - Product Requirements Document
 
-> **Iteration 9 Updates (Latest):**
+> **Iteration 10 Updates (Latest - Payment & Fulfillment):**
+> - ✅ Stripe Checkout API - create sessions with design validation and price calculation
+> - ✅ Design File Upload - upload designs to Supabase Storage and Printful API v2
+> - ✅ Printful Mockup Tasks - create and monitor mockup generation with Printful
+> - ✅ Mockup Status Polling - real-time sync of mockup completion status from Printful API
+> - ✅ Printful Webhook Handler - process mockup completion, shipping updates, and failure events
+> - ✅ Order Creation Flow - create pending orders in Supabase linked to Stripe sessions
+>
+> **Iteration 9 Updates:**
 > - ✅ Advanced Image Editor - comprehensive canvas-based editor with professional tools
 > - ✅ Crop Tool - drag-to-select crop area with visual overlay and live preview
 > - ✅ Background Removal - AI-powered background eraser with one-click removal
@@ -14,11 +22,12 @@
 > - ✅ Canvas Overlay System - separate canvas layers for non-destructive editing
 > - ✅ Tool Sidebar - vertical tool palette with icon-based selection
 >
-> **Previous Updates:**
+> **Earlier Updates:**
 > - ✅ Design Manager Page - comprehensive UI for viewing, selecting, and managing all design components
 > - ✅ Multi-agent AI system with content moderation, IP checking, and design assistance
 > - ✅ Product configuration system for multiple print location combinations
 > - ✅ Google OAuth and Stripe configuration panels in admin settings
+> - ✅ AWS Bedrock integration for AI design generation
 >
 > See `IMPLEMENTATION_NOTES.md` and `AI_SYSTEM_GUIDE.md` for technical details.
 
