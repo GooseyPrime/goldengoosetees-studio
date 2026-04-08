@@ -35,3 +35,6 @@ pids
 
 .env*.local
 .vercel
+
+# Next.js build output
+.next
