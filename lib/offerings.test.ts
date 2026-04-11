@@ -23,4 +23,11 @@ describe('getCuratedCatalogProductIds', () => {
     process.env.ENABLED_PRODUCT_IDS = '19'
     expect(getCuratedCatalogProductIds()).toEqual([19])
   })
+
+  it('defaults to full storefront lineup when env unset', () => {
+    const ids = getCuratedCatalogProductIds()
+    expect(ids).toContain(71)
+    expect(ids).toContain(294)
+    expect(ids.length).toBe(10)
+  })
 })

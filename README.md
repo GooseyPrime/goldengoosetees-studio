@@ -97,7 +97,7 @@ Create a **public** Storage bucket named **`design-uploads`** so the studio can 
 | `PRINTFUL_API_KEY` | `abc123...` | Printful API access token (server-only) |
 | `PRINTFUL_STORE_ID` | `12345` | Store ID (optional, server-only) |
 | `PRINTFUL_WEBHOOK_SECRET` | `...` | Webhook signing secret (`/api/webhooks/printful`) |
-| `PRINTFUL_CURATED_PRODUCT_IDS` | `71,378,19` | Catalog product IDs to show in the store |
+| `PRINTFUL_CURATED_PRODUCT_IDS` | `71,162,248,...` (10 apparel IDs) | Overrides repo default lineup; see `PRINTFUL_SETUP.md` |
 
 **Where to find:** [Printful Dashboard → Settings → API](https://www.printful.com/dashboard/settings)
 
