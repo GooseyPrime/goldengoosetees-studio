@@ -3,7 +3,7 @@
 ## Truth source (read first)
 
 - **Stack:** Next.js 14 App Router (`app/`), not Vite. The **DETAILED_AUDIT_REPORT.md** (2026-04-06) describes an older **Vite + `/api/*.ts` serverless** layout; that structure is **not** in this repo anymore.
-- **Studio flow:** `components/DesignStudio.tsx` — browse → variant → per-placement upload or AI → Printful mockups (poll) → Stripe Checkout link. Requires `PRINTFUL_API_KEY`, `OPENAI_API_KEY` (AI), Supabase + bucket `design-uploads` (uploads), `STRIPE_SECRET_KEY` (checkout).
+- **Studio flow:** `components/DesignStudio.tsx` + persistent `StudioChatPanel` — browse → variant → per-placement upload or AI → mockups → review → checkout. Chat calls `POST /api/ai/chat` (gpt-4o-mini + tools: select product/variant, navigate, placement focus, generate/edit via DALL·E, start mockups, prepare checkout). Requires `PRINTFUL_API_KEY`, `OPENAI_API_KEY`, Supabase bucket `design-uploads`, `STRIPE_SECRET_KEY`.
 - **Product curation:** `PRINTFUL_CURATED_PRODUCT_IDS` per `PRINTFUL_SETUP.md` and `.env.example`. Also `ENABLED_PRODUCT_IDS` / `NEXT_PUBLIC_ENABLED_PRODUCT_IDS` in `getEnabledProducts()`.
 
 ## Audit findings vs current repo

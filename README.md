@@ -116,7 +116,7 @@ Create a **public** Storage bucket named **`design-uploads`** so the studio can 
 - OpenAI: [platform.openai.com/api-keys](https://platform.openai.com/api-keys)
 - OpenRouter: [openrouter.ai/keys](https://openrouter.ai/keys)
 
-**Important**: AI keys are server-side only (no `VITE_` prefix). The design studio uses **`OPENAI_API_KEY`** for DALL·E 3 generation and DALL·E 2 edits (`/api/ai/*`). Gemini remains available for other flows when you add chat.
+**Important**: AI keys are server-side only (no `VITE_` prefix). The design studio uses **`OPENAI_API_KEY`** for DALL·E 3 / DALL·E 2 (`/api/ai/generate`, `/api/ai/edit`) and the **orchestrating assistant** at `POST /api/ai/chat` (OpenAI `gpt-4o-mini` with tools). Gemini can be added later as an alternate provider.
 
 #### App Configuration
 

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { resolveStudioPlacements } from '@/lib/design/placements'
 import { calculateRetailPrice } from '@/lib/config/products.config'
+import StudioChatPanel, { type AgentClientAction, type StudioContextPayload } from '@/components/StudioChatPanel'
 
 export type CatalogProduct = {
   id: number
@@ -57,7 +58,7 @@ const STEPS: { id: Step; label: string }[] = [
 
 const STEP_ORDER = STEPS.map((s) => s.id)
 const SESSION_KEY = 'ggt-studio-session'
-const SESSION_VERSION = 2
+const SESSION_VERSION = 3
 
 type PersistedSession = {
   v: number
@@ -65,6 +66,7 @@ type PersistedSession = {
   selectedProductId: number | null
   selectedVariantId: number | null
   placements: PlacementRow[]
+  activePlacementId: string | null
   artByPlacement: Record<string, PlacementArt>
   mockupTaskId: string | number | null
   mockupUrls: string[]
@@ -113,6 +115,7 @@ export default function DesignStudio() {
       selectedProductId: selectedProduct?.id ?? null,
       selectedVariantId,
       placements,
+      activePlacementId,
       artByPlacement,
       mockupTaskId,
       mockupUrls,
@@ -129,6 +132,7 @@ export default function DesignStudio() {
     selectedProduct,
     selectedVariantId,
     placements,
+    activePlacementId,
     artByPlacement,
     mockupTaskId,
     mockupUrls,
@@ -161,7 +165,7 @@ export default function DesignStudio() {
             const raw = sessionStorage.getItem(SESSION_KEY)
             if (raw) {
               const p = JSON.parse(raw) as PersistedSession
-              if (p.v === SESSION_VERSION && p.selectedProductId) {
+              if ((p.v === SESSION_VERSION || p.v === 2) && p.selectedProductId) {
                 const prod = list.find((x) => x.id === p.selectedProductId)
                 if (prod) {
                   setSelectedProduct(prod)
@@ -176,7 +180,12 @@ export default function DesignStudio() {
                     }
                   }
                   setArtByPlacement(merged)
-                  setActivePlacementId(rows[0]?.id ?? null)
+                  const legacy = p as PersistedSession & { activePlacementId?: string | null }
+                  const ap =
+                    legacy.activePlacementId && rows.some((r) => r.id === legacy.activePlacementId)
+                      ? legacy.activePlacementId
+                      : rows[0]?.id ?? null
+                  setActivePlacementId(ap)
                   setSelectedVariantId(p.selectedVariantId)
                   setMockupTaskId(p.mockupTaskId)
                   setMockupUrls(p.mockupUrls ?? [])
@@ -260,11 +269,14 @@ export default function DesignStudio() {
     ]
   )
 
-  const goToStep = (target: Step) => {
-    if (!canNavigateTo(target)) return
-    setStep(target)
-    setStatusMessage(null)
-  }
+  const goToStep = useCallback(
+    (target: Step) => {
+      if (!canNavigateTo(target)) return
+      setStep(target)
+      setStatusMessage(null)
+    },
+    [canNavigateTo]
+  )
 
   const resetSession = useCallback(() => {
     setStep('browse')
@@ -287,7 +299,7 @@ export default function DesignStudio() {
     }
   }, [])
 
-  const selectProduct = (p: CatalogProduct) => {
+  const selectProduct = useCallback((p: CatalogProduct) => {
     setSelectedProduct(p)
     const rows = resolveStudioPlacements(p.id, p.printfulPlacementsRaw ?? null)
     setPlacements(rows)
@@ -303,7 +315,7 @@ export default function DesignStudio() {
     setMockupStatus(null)
     setCheckoutUrl(null)
     setStep('configure')
-  }
+  }, [])
 
   const goDesign = () => {
     if (!selectedVariantId) {
@@ -325,12 +337,12 @@ export default function DesignStudio() {
     return json.fileId as string
   }
 
-  const setPlacementArt = (placementId: string, patch: Partial<PlacementArt>) => {
+  const setPlacementArt = useCallback((placementId: string, patch: Partial<PlacementArt>) => {
     setArtByPlacement((prev) => ({
       ...prev,
       [placementId]: { ...prev[placementId], ...patch },
     }))
-  }
+  }, [])
 
   const handleUpload = async (placementId: string, file: File) => {
     if (!selectedProduct) return
@@ -424,7 +436,34 @@ export default function DesignStudio() {
     }
   }
 
-  const runMockups = async () => {
+  const pollMockup = useCallback(async (taskId: string | number) => {
+    const max = 40
+    for (let i = 0; i < max; i++) {
+      await new Promise((r) => setTimeout(r, 3000))
+      const res = await fetch(`/api/printful/mockup-task?id=${encodeURIComponent(String(taskId))}`, {
+        cache: 'no-store',
+      })
+      const json = await res.json()
+      if (!json.success) {
+        setStatusMessage(json.error || 'Poll failed')
+        return
+      }
+      setMockupStatus(json.status)
+      if (json.status === 'completed' && json.mockupUrls?.length) {
+        setMockupUrls(json.mockupUrls)
+        setStatusMessage('Mockups are ready — review your order below.')
+        setStep('review')
+        return
+      }
+      if (json.status === 'failed') {
+        setStatusMessage((json.failureReasons || []).join('; ') || 'Mockup generation failed')
+        return
+      }
+    }
+    setStatusMessage('Mockups are taking longer than expected — stay on this page or try again.')
+  }, [])
+
+  const runMockups = useCallback(async () => {
     if (!selectedProduct || !selectedVariantId || !allPlacementsReady) return
     setBusy('mockup')
     setStatusMessage(null)
@@ -455,34 +494,14 @@ export default function DesignStudio() {
     } finally {
       setBusy(null)
     }
-  }
-
-  const pollMockup = async (taskId: string | number) => {
-    const max = 40
-    for (let i = 0; i < max; i++) {
-      await new Promise((r) => setTimeout(r, 3000))
-      const res = await fetch(`/api/printful/mockup-task?id=${encodeURIComponent(String(taskId))}`, {
-        cache: 'no-store',
-      })
-      const json = await res.json()
-      if (!json.success) {
-        setStatusMessage(json.error || 'Poll failed')
-        return
-      }
-      setMockupStatus(json.status)
-      if (json.status === 'completed' && json.mockupUrls?.length) {
-        setMockupUrls(json.mockupUrls)
-        setStatusMessage('Mockups are ready — review your order below.')
-        setStep('review')
-        return
-      }
-      if (json.status === 'failed') {
-        setStatusMessage((json.failureReasons || []).join('; ') || 'Mockup generation failed')
-        return
-      }
-    }
-    setStatusMessage('Mockups are taking longer than expected — stay on this page or try again.')
-  }
+  }, [
+    selectedProduct,
+    selectedVariantId,
+    allPlacementsReady,
+    placements,
+    artByPlacement,
+    pollMockup,
+  ])
 
   const reviewChecklist = useMemo(() => {
     const items: { ok: boolean; label: string }[] = [
@@ -509,12 +528,14 @@ export default function DesignStudio() {
 
   const reviewReady = reviewChecklist.every((x) => x.ok)
 
-  const startCheckout = async () => {
-    if (!reviewReady) {
+  const startCheckout = useCallback(async () => {
+    const placementsReady =
+      placements.length > 0 && placements.every((p) => artByPlacement[p.id]?.printfulFileId)
+    const mockDone = mockupUrls.length > 0 && mockupStatus === 'completed'
+    if (!selectedProduct || selectedVariantId == null || !placementsReady || !mockDone) {
       setStatusMessage('Complete every item in the checklist before paying.')
       return
     }
-    if (!selectedProduct || !selectedVariantId) return
     setBusy('checkout')
     setStatusMessage(null)
     try {
@@ -550,7 +571,97 @@ export default function DesignStudio() {
     } finally {
       setBusy(null)
     }
-  }
+  }, [
+    selectedProduct,
+    selectedVariantId,
+    placements,
+    artByPlacement,
+    mockupTaskId,
+    mockupUrls,
+    mockupStatus,
+    selectedVariant,
+  ])
+
+  const chatContext = useMemo((): StudioContextPayload => {
+    const artSummary: StudioContextPayload['artByPlacement'] = {}
+    for (const p of placements) {
+      const a = artByPlacement[p.id]
+      artSummary[p.id] = {
+        hasImage: !!a?.imageUrl,
+        hasPrintfulFile: !!a?.printfulFileId,
+        source: a?.source ?? null,
+      }
+    }
+    return {
+      step,
+      catalogProducts: products.map((p) => ({ id: p.id, name: p.name })),
+      currentProductVariants:
+        selectedProduct?.variants.map((v) => ({ id: v.id, label: v.name })) ?? [],
+      selectedProductId: selectedProduct?.id ?? null,
+      selectedProductName: selectedProduct?.name ?? null,
+      selectedVariantId,
+      selectedVariantLabel: selectedVariant?.name ?? null,
+      placements: placements.map((p) => ({ id: p.id, displayName: p.displayName })),
+      activePlacementId,
+      artByPlacement: artSummary,
+      allPlacementsReady,
+      mockupStatus,
+      mockupCount: mockupUrls.length,
+      checkoutReady: !!checkoutUrl && mockupUrls.length > 0,
+    }
+  }, [
+    step,
+    products,
+    selectedProduct,
+    selectedVariantId,
+    selectedVariant,
+    placements,
+    activePlacementId,
+    artByPlacement,
+    allPlacementsReady,
+    mockupStatus,
+    mockupUrls.length,
+    checkoutUrl,
+  ])
+
+  const chatArtUrls = useMemo(() => {
+    const m: Record<string, string | null> = {}
+    for (const p of placements) {
+      m[p.id] = artByPlacement[p.id]?.imageUrl ?? null
+    }
+    return m
+  }, [placements, artByPlacement])
+
+  const handleAgentActions = useCallback(
+    (actions: AgentClientAction[]) => {
+      for (const a of actions) {
+        if (a.type === 'SELECT_PRODUCT') {
+          const p = products.find((x) => x.id === a.catalogProductId)
+          if (p) selectProduct(p)
+        } else if (a.type === 'SELECT_VARIANT') {
+          setSelectedVariantId(a.catalogVariantId)
+        } else if (a.type === 'SET_STEP') {
+          goToStep(a.step as Step)
+        } else if (a.type === 'SET_ACTIVE_PLACEMENT') {
+          setActivePlacementId(a.placementId)
+        } else if (a.type === 'SET_PLACEMENT_ART') {
+          setArtByPlacement((prev) => ({
+            ...prev,
+            [a.placementId]: {
+              source: a.source,
+              imageUrl: a.imageUrl,
+              printfulFileId: a.printfulFileId,
+            },
+          }))
+        } else if (a.type === 'START_MOCKUPS') {
+          void runMockups()
+        } else if (a.type === 'PREPARE_CHECKOUT') {
+          void startCheckout()
+        }
+      }
+    },
+    [products, selectProduct, goToStep, runMockups, startCheckout]
+  )
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
@@ -577,7 +688,8 @@ export default function DesignStudio() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 py-8">
+      <div className="max-w-[1680px] mx-auto flex flex-col lg:flex-row lg:items-stretch w-full">
+        <main className="flex-1 min-w-0 px-4 py-8 w-full">
         <nav className="flex flex-wrap gap-2 mb-8" aria-label="Steps">
           {STEPS.map((s, i) => {
             const allowed = canNavigateTo(s.id)
@@ -979,7 +1091,13 @@ export default function DesignStudio() {
             </button>
           </div>
         )}
-      </main>
+        </main>
+        <StudioChatPanel
+          context={chatContext}
+          artUrls={chatArtUrls}
+          onAgentActions={handleAgentActions}
+        />
+      </div>
     </div>
   )
 }
