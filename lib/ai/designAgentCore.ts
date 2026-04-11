@@ -1,6 +1,11 @@
 import OpenAI from 'openai'
 import { printfulPost } from '@/lib/printful/client'
-import { generateImageNanoBanana, editImageNanoBanana, isNanoBananaConfigured } from '@/lib/ai/nanoBananaClient'
+import {
+  editImageNanoBanana,
+  generateImageNanoBanana,
+  isNanoBananaConfigured,
+  shouldFallbackFromNanoBananaError,
+} from '@/lib/ai/nanoBananaClient'
 import { validateImageUrlForPlacement } from '@/lib/design/validateArt'
 
 export async function registerPrintfulFileFromUrl(url: string, filename: string): Promise<{ fileId: string }> {
@@ -15,14 +20,7 @@ export async function registerPrintfulFileFromUrl(url: string, filename: string)
   return { fileId: res.data.id }
 }
 
-export async function generateImageStudio(
-  prompt: string,
-  options?: { aspectRatio?: string; resolution?: string }
-): Promise<{ imageUrl: string; revisedPrompt?: string }> {
-  if (isNanoBananaConfigured()) {
-    const { imageUrl } = await generateImageNanoBanana(prompt, options)
-    return { imageUrl }
-  }
+async function generateImageOpenAI(prompt: string): Promise<{ imageUrl: string; revisedPrompt?: string }> {
   const key = process.env.OPENAI_API_KEY?.trim()
   if (!key) throw new Error('Configure NANO_BANANA_API_* or OPENAI_API_KEY for image generation')
   const client = new OpenAI({ apiKey: key })
@@ -38,6 +36,25 @@ export async function generateImageStudio(
   return { imageUrl: url, revisedPrompt: result.data?.[0]?.revised_prompt }
 }
 
+export async function generateImageStudio(
+  prompt: string,
+  options?: { aspectRatio?: string; resolution?: string }
+): Promise<{ imageUrl: string; revisedPrompt?: string }> {
+  if (isNanoBananaConfigured()) {
+    try {
+      const { imageUrl } = await generateImageNanoBanana(prompt, options)
+      return { imageUrl }
+    } catch (e) {
+      if (shouldFallbackFromNanoBananaError(e) && process.env.OPENAI_API_KEY?.trim()) {
+        console.warn('[generateImageStudio] Nano Banana failed; falling back to OpenAI:', e)
+        return generateImageOpenAI(prompt)
+      }
+      throw e
+    }
+  }
+  return generateImageOpenAI(prompt)
+}
+
 export async function editImageStudio(imageUrl: string, prompt: string): Promise<{ imageUrl: string }> {
   const imgRes = await fetch(imageUrl)
   if (!imgRes.ok) throw new Error('Could not fetch source image for edit')
@@ -46,8 +63,17 @@ export async function editImageStudio(imageUrl: string, prompt: string): Promise
   const mime = imgRes.headers.get('content-type') || 'image/png'
 
   if (isNanoBananaConfigured()) {
-    const b64 = buf.toString('base64')
-    return editImageNanoBanana(prompt, b64, mime)
+    try {
+      const b64 = buf.toString('base64')
+      return await editImageNanoBanana(prompt, b64, mime)
+    } catch (e) {
+      if (shouldFallbackFromNanoBananaError(e) && process.env.OPENAI_API_KEY?.trim()) {
+        console.warn('[editImageStudio] Nano Banana failed; falling back to OpenAI:', e)
+        // fall through to DALL·E below
+      } else {
+        throw e
+      }
+    }
   }
 
   const key = process.env.OPENAI_API_KEY?.trim()

@@ -2,7 +2,7 @@
 
 import Image from 'next/image'
 import Link from 'next/link'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { resolveStudioPlacements } from '@/lib/design/placements'
 import { calculateRetailPrice, getProductConfig, type PrintPlacement } from '@/lib/config/products.config'
 import {
@@ -15,6 +15,14 @@ import {
 } from '@/lib/design/variantSelection'
 import StudioChatPanel, { type AgentClientAction, type StudioContextPayload } from '@/components/StudioChatPanel'
 import { createClient as createSupabaseBrowser } from '@/lib/supabase/client'
+import {
+  COMPOSITION_OPTIONS,
+  COLOR_THEME_OPTIONS,
+  defaultImagePromptParts,
+  MOOD_OPTIONS,
+  STYLE_OPTIONS,
+  type ImagePromptParts,
+} from '@/lib/ai/imagePromptParts'
 
 export type CatalogProduct = {
   id: number
@@ -71,7 +79,7 @@ const STEPS: { id: Step; label: string }[] = [
 
 const STEP_ORDER = STEPS.map((s) => s.id)
 const SESSION_KEY = 'ggt-studio-session'
-const SESSION_VERSION = 4
+const SESSION_VERSION = 5
 
 const LOGO_URL =
   'https://res.cloudinary.com/dksj2niho/image/upload/v1770648639/GoldenGooseTeesNOBG_Custom_dlr3dr.png'
@@ -92,6 +100,30 @@ type PersistedSession = {
   mockupStatus: string | null
   checkoutUrl: string | null
   chatMessages: ChatMsg[]
+  /** v5: structured image generation */
+  imageGenCustomOnly?: boolean
+  imagePromptParts?: ImagePromptParts
+  aiPrompt?: string
+}
+
+function swatchBackground(c: { colorCode: string; sampleImage: string }): CSSProperties {
+  const code = (c.colorCode || '').trim()
+  const hex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(code)
+  const img = (c.sampleImage || '').trim()
+  if (hex) {
+    return { backgroundColor: code }
+  }
+  if (img) {
+    return {
+      backgroundImage: `url(${img})`,
+      backgroundSize: 'cover',
+      backgroundPosition: 'center',
+    }
+  }
+  return {
+    backgroundImage:
+      'linear-gradient(135deg, #3f3f46 0%, #52525b 35%, #71717a 50%, #52525b 65%, #3f3f46 100%)',
+  }
 }
 
 function defaultPlacementIds(catalogProductId: number, pool: PlacementRow[]): string[] {
@@ -145,6 +177,8 @@ export default function DesignStudio() {
   const [artByPlacement, setArtByPlacement] = useState<Record<string, PlacementArt>>({})
 
   const [aiPrompt, setAiPrompt] = useState('')
+  const [imagePromptParts, setImagePromptParts] = useState<ImagePromptParts>(() => defaultImagePromptParts())
+  const [imageGenCustomOnly, setImageGenCustomOnly] = useState(false)
   const [editPrompt, setEditPrompt] = useState('')
   const [busy, setBusy] = useState<string | null>(null)
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
@@ -214,6 +248,9 @@ export default function DesignStudio() {
     setSelectedSize(p.selectedSize ?? null)
     setSelectedColorKey(p.selectedColorKey ?? null)
     setSelectedVariantId(p.selectedVariantId)
+    setImagePromptParts({ ...defaultImagePromptParts(), ...p.imagePromptParts })
+    setImageGenCustomOnly(Boolean(p.imageGenCustomOnly))
+    setAiPrompt(typeof p.aiPrompt === 'string' ? p.aiPrompt : '')
     setActivePlacementId(p.activePlacementId)
     const mergedArt: Record<string, PlacementArt> = {}
     for (const r of pool) {
@@ -308,6 +345,9 @@ export default function DesignStudio() {
       mockupStatus,
       checkoutUrl,
       chatMessages,
+      imageGenCustomOnly,
+      imagePromptParts,
+      aiPrompt,
     }
   }, [
     step,
@@ -324,6 +364,9 @@ export default function DesignStudio() {
     mockupStatus,
     checkoutUrl,
     chatMessages,
+    imageGenCustomOnly,
+    imagePromptParts,
+    aiPrompt,
   ])
 
   useEffect(() => {
@@ -461,6 +504,8 @@ export default function DesignStudio() {
     setActivePlacementId(null)
     setArtByPlacement({})
     setAiPrompt('')
+    setImagePromptParts(defaultImagePromptParts())
+    setImageGenCustomOnly(false)
     setEditPrompt('')
     setMockupTaskId(null)
     setMockupUrls([])
@@ -573,8 +618,13 @@ export default function DesignStudio() {
   }
 
   const handleAiGenerate = async (placementId: string) => {
-    if (!aiPrompt.trim()) {
-      setStatusMessage('Enter a prompt for the AI.')
+    if (imageGenCustomOnly) {
+      if (!aiPrompt.trim()) {
+        setStatusMessage('Enter a custom prompt or turn off “custom prompt only”.')
+        return
+      }
+    } else if (!imagePromptParts.subject.trim()) {
+      setStatusMessage('Describe the main subject or idea for your graphic.')
       return
     }
     if (!selectedProduct) return
@@ -585,7 +635,9 @@ export default function DesignStudio() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          prompt: aiPrompt,
+          prompt: imageGenCustomOnly ? aiPrompt : undefined,
+          promptParts: imageGenCustomOnly ? undefined : imagePromptParts,
+          imageGenCustomOnly,
           catalogProductId: selectedProduct.id,
           placementId,
         }),
@@ -1150,12 +1202,8 @@ export default function DesignStudio() {
                         }`}
                       >
                         <span
-                          className="w-6 h-6 rounded-full border border-zinc-600 shrink-0"
-                          style={{
-                            backgroundColor: c.colorCode?.startsWith('#') ? c.colorCode : undefined,
-                            backgroundImage: !c.colorCode?.startsWith('#') && c.sampleImage ? `url(${c.sampleImage})` : undefined,
-                            backgroundSize: 'cover',
-                          }}
+                          className="w-7 h-7 rounded-md border border-zinc-500 shrink-0 shadow-inner"
+                          style={swatchBackground(c)}
                           aria-hidden
                         />
                         <span className="font-medium">{c.label}</span>
@@ -1289,15 +1337,138 @@ export default function DesignStudio() {
                         className="text-sm text-zinc-400 file:mr-3 file:rounded-lg file:border-0 file:bg-zinc-800 file:px-3 file:py-1.5 file:text-sm file:text-zinc-200"
                       />
                     </div>
-                    <div className="space-y-2 border-t border-zinc-800 pt-4">
-                      <label className="block text-sm font-medium text-zinc-300">AI generate</label>
-                      <textarea
-                        value={aiPrompt}
-                        onChange={(e) => setAiPrompt(e.target.value)}
-                        rows={3}
-                        className="w-full border border-zinc-700 rounded-lg px-3 py-2 text-sm bg-zinc-950 text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-amber-500/30"
-                        placeholder="Describe the graphic for this print area…"
-                      />
+                    <div className="space-y-4 border-t border-zinc-800 pt-4">
+                      <div>
+                        <label className="block text-sm font-medium text-zinc-300">AI generate</label>
+                        <p className="text-xs text-zinc-500 mt-1">
+                          Answer a few prompts — we combine them into one image brief for the generator.
+                        </p>
+                      </div>
+                      <label className="flex items-start gap-2 cursor-pointer text-sm text-zinc-400">
+                        <input
+                          type="checkbox"
+                          checked={imageGenCustomOnly}
+                          onChange={(e) => setImageGenCustomOnly(e.target.checked)}
+                          className="mt-1 rounded border-zinc-600 text-amber-500 focus:ring-amber-500/40"
+                        />
+                        <span>Use custom prompt only (single text field; skips the builder)</span>
+                      </label>
+                      {imageGenCustomOnly ? (
+                        <textarea
+                          value={aiPrompt}
+                          onChange={(e) => setAiPrompt(e.target.value)}
+                          rows={4}
+                          className="w-full border border-zinc-700 rounded-lg px-3 py-2 text-sm bg-zinc-950 text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-amber-500/30"
+                          placeholder="Full prompt for the image model…"
+                        />
+                      ) : (
+                        <div className="space-y-4">
+                          <div className="space-y-1">
+                            <label className="text-xs font-medium text-zinc-400 uppercase tracking-wide">
+                              Main subject
+                            </label>
+                            <textarea
+                              value={imagePromptParts.subject}
+                              onChange={(e) =>
+                                setImagePromptParts((prev) => ({ ...prev, subject: e.target.value }))
+                              }
+                              rows={3}
+                              className="w-full border border-zinc-700 rounded-lg px-3 py-2 text-sm bg-zinc-950 text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-amber-500/30"
+                              placeholder="What should the graphic show? (e.g. a geometric goose, a mountain sunset logo…)"
+                            />
+                          </div>
+                          <div className="grid sm:grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                              <label className="text-xs text-zinc-500">Style</label>
+                              <select
+                                value={imagePromptParts.styleKey}
+                                onChange={(e) =>
+                                  setImagePromptParts((prev) => ({ ...prev, styleKey: e.target.value }))
+                                }
+                                className="w-full border border-zinc-700 rounded-lg px-3 py-2 text-sm bg-zinc-950 text-zinc-100"
+                              >
+                                {STYLE_OPTIONS.map((o) => (
+                                  <option key={o.id} value={o.id}>
+                                    {o.label}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-xs text-zinc-500">Color theme</label>
+                              <select
+                                value={imagePromptParts.colorThemeKey}
+                                onChange={(e) =>
+                                  setImagePromptParts((prev) => ({ ...prev, colorThemeKey: e.target.value }))
+                                }
+                                className="w-full border border-zinc-700 rounded-lg px-3 py-2 text-sm bg-zinc-950 text-zinc-100"
+                              >
+                                {COLOR_THEME_OPTIONS.map((o) => (
+                                  <option key={o.id} value={o.id}>
+                                    {o.label}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-xs text-zinc-500">Mood</label>
+                              <select
+                                value={imagePromptParts.moodKey}
+                                onChange={(e) =>
+                                  setImagePromptParts((prev) => ({ ...prev, moodKey: e.target.value }))
+                                }
+                                className="w-full border border-zinc-700 rounded-lg px-3 py-2 text-sm bg-zinc-950 text-zinc-100"
+                              >
+                                {MOOD_OPTIONS.map((o) => (
+                                  <option key={o.id} value={o.id}>
+                                    {o.label}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-xs text-zinc-500">Layout</label>
+                              <select
+                                value={imagePromptParts.compositionKey}
+                                onChange={(e) =>
+                                  setImagePromptParts((prev) => ({ ...prev, compositionKey: e.target.value }))
+                                }
+                                className="w-full border border-zinc-700 rounded-lg px-3 py-2 text-sm bg-zinc-950 text-zinc-100"
+                              >
+                                {COMPOSITION_OPTIONS.map((o) => (
+                                  <option key={o.id} value={o.id}>
+                                    {o.label}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-xs text-zinc-500">Extra details (optional)</label>
+                            <textarea
+                              value={imagePromptParts.extraDetails}
+                              onChange={(e) =>
+                                setImagePromptParts((prev) => ({ ...prev, extraDetails: e.target.value }))
+                              }
+                              rows={2}
+                              className="w-full border border-zinc-700 rounded-lg px-3 py-2 text-sm bg-zinc-950 text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-amber-500/30"
+                              placeholder="Textures, symbols, text to include, references…"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-xs text-zinc-500">Avoid (optional)</label>
+                            <input
+                              type="text"
+                              value={imagePromptParts.avoid}
+                              onChange={(e) =>
+                                setImagePromptParts((prev) => ({ ...prev, avoid: e.target.value }))
+                              }
+                              className="w-full border border-zinc-700 rounded-lg px-3 py-2 text-sm bg-zinc-950 text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-amber-500/30"
+                              placeholder="e.g. photorealistic faces, busy backgrounds"
+                            />
+                          </div>
+                        </div>
+                      )}
                       <button
                         type="button"
                         disabled={!!busy}

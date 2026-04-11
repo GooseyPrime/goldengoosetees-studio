@@ -3,6 +3,27 @@
  * Set NANO_BANANA_API_BASE_URL (no trailing slash), NANO_BANANA_API_KEY, optional NANO_BANANA_MODEL.
  */
 
+const CONFIG_HINT =
+  'Check NANO_BANANA_API_BASE_URL (origin only, no path), NANO_BANANA_GENERATE_PATH (default /v1/images/generations), and that the gateway accepts JSON body: model, prompt, n.'
+
+export class NanoBananaGatewayError extends Error {
+  readonly statusCode: number
+  readonly isNonJsonResponse: boolean
+
+  constructor(message: string, statusCode: number, isNonJsonResponse: boolean) {
+    super(message)
+    this.name = 'NanoBananaGatewayError'
+    this.statusCode = statusCode
+    this.isNonJsonResponse = isNonJsonResponse
+  }
+}
+
+export function shouldFallbackFromNanoBananaError(e: unknown): boolean {
+  if (!(e instanceof NanoBananaGatewayError)) return false
+  if (e.isNonJsonResponse) return true
+  return e.statusCode === 404 || e.statusCode === 401 || e.statusCode === 403
+}
+
 function getConfig() {
   const baseUrl =
     process.env.NANO_BANANA_API_BASE_URL?.trim() ||
@@ -81,7 +102,12 @@ async function postJson(path: string, body: Record<string, unknown>): Promise<{ 
   try {
     json = text ? JSON.parse(text) : null
   } catch {
-    throw new Error(`Nano Banana API returned non-JSON (${res.status})`)
+    const preview = text.replace(/\s+/g, ' ').trim().slice(0, 120)
+    throw new NanoBananaGatewayError(
+      `Nano Banana API returned non-JSON (HTTP ${res.status}). ${preview ? `Body starts with: ${preview}` : 'Empty body'}. ${CONFIG_HINT}`,
+      res.status,
+      true
+    )
   }
 
   if (!res.ok) {
@@ -89,12 +115,20 @@ async function postJson(path: string, body: Record<string, unknown>): Promise<{ 
       json && typeof json === 'object' && 'error' in json
         ? String((json as { error?: { message?: string } }).error?.message || JSON.stringify(json))
         : text.slice(0, 200)
-    throw new Error(`Nano Banana API error ${res.status}: ${errMsg}`)
+    throw new NanoBananaGatewayError(
+      `Nano Banana API error ${res.status}: ${errMsg}. ${CONFIG_HINT}`,
+      res.status,
+      false
+    )
   }
 
   const imageUrl = extractImageUrl(json)
   if (!imageUrl) {
-    throw new Error('Nano Banana API response did not include an image URL')
+    throw new NanoBananaGatewayError(
+      `Nano Banana API response did not include an image URL. ${CONFIG_HINT}`,
+      res.status,
+      false
+    )
   }
 
   return { imageUrl, raw: json }

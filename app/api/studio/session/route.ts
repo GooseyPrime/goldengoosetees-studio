@@ -19,6 +19,9 @@ type StudioSnapshot = {
   mockupStatus: string | null
   checkoutUrl: string | null
   chatMessages: Array<{ role: 'user' | 'assistant'; content: string }>
+  imageGenCustomOnly?: boolean
+  imagePromptParts?: Record<string, unknown>
+  aiPrompt?: string
 }
 
 export async function GET() {
