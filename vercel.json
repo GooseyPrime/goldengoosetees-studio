@@ -1,3 +1,11 @@
 {
-  "framework": "nextjs"
+  "framework": "nextjs",
+  "functions": {
+    "app/api/webhooks/stripe/route.ts": {
+      "maxDuration": 30
+    },
+    "app/api/webhooks/printful/route.ts": {
+      "maxDuration": 30
+    }
+  }
 }

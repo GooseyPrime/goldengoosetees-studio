@@ -1,0 +1,14 @@
+---
+description: GoldenGooseTees — Printful v2, Next.js App Router, server-only secrets
+globs: app/**/*.{ts,tsx}, lib/**/*.{ts,tsx}, components/**/*.tsx
+alwaysApply: false
+---
+
+# Project rules
+
+- Use **Next.js 14 App Router** route handlers under `app/api/**/route.ts`. Do not add Vercel root `/api/*.ts` functions; this repo is Next-native.
+- **Printful:** Only call from server code via `lib/printful/client.ts` (`printfulGet` / `printfulPost`). Base URL is `https://api.printful.com/v2`. Never import the Printful client in `'use client'` components.
+- **Curated catalog:** Product IDs come from `PRINTFUL_CURATED_PRODUCT_IDS` or `ENABLED_PRODUCT_IDS` (see `lib/offerings.ts` and `lib/config/products.config.ts`). Do not ship the full Printful catalog without explicit product-owner approval.
+- **Multi-placement:** Each placement may use user **upload** or **AI-generated** art independently; store per-placement file URLs / Printful file IDs (see `supabase/migrations/002_multi_placement_schema.sql` when applied).
+- **Checkout:** Do not trust client-supplied prices. Authoritative totals belong on the server (Stripe + Printful estimate when pricing v2 is enabled).
+- **Webhooks:** Stripe requires **raw body** for signature verification. Set adequate `maxDuration` in `vercel.json` for webhook routes when implemented.

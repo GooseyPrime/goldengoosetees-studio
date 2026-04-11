@@ -225,12 +225,15 @@ export const PRODUCT_CONFIGS: Record<number, ProductConfig> = {
 
 // ─────────────────────────────────────────────────────────────────
 // RUNTIME: get active products from env variable filter
-// ENABLED_PRODUCT_IDS=71,378,380,19  (in .env / Vercel)
+// PRINTFUL_CURATED_PRODUCT_IDS=71,378,380,19  or ENABLED_PRODUCT_IDS=...  (Vercel / .env)
 // If not set, all isActive products are enabled.
 // ─────────────────────────────────────────────────────────────────
 
 export function getEnabledProducts(): ProductConfig[] {
-  const envIds = process.env.ENABLED_PRODUCT_IDS || process.env.NEXT_PUBLIC_ENABLED_PRODUCT_IDS
+  const envIds =
+    process.env.PRINTFUL_CURATED_PRODUCT_IDS ||
+    process.env.ENABLED_PRODUCT_IDS ||
+    process.env.NEXT_PUBLIC_ENABLED_PRODUCT_IDS
   
   if (envIds) {
     const ids = envIds.split(',').map(id => parseInt(id.trim(), 10))
