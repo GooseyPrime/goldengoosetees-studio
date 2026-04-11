@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { randomUUID } from 'crypto'
+import imageSize from 'image-size'
 import { getSupabaseAdmin, isSupabaseConfigured } from '@/lib/supabase/admin'
+import { getPlacementConfig } from '@/lib/config/products.config'
 
 export const dynamic = 'force-dynamic'
 
@@ -32,9 +34,44 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const catalogProductIdRaw = form.get('catalogProductId')
+    const placementIdRaw = form.get('placementId')
+    const buf = Buffer.from(await file.arrayBuffer())
+
+    if (catalogProductIdRaw && placementIdRaw) {
+      const catalogProductId = parseInt(String(catalogProductIdRaw), 10)
+      const placementId = String(placementIdRaw).trim()
+      if (Number.isFinite(catalogProductId) && placementId) {
+        const pc = getPlacementConfig(catalogProductId, placementId)
+        if (pc) {
+          let w = 0
+          let h = 0
+          try {
+            const dim = imageSize(buf)
+            w = dim.width ?? 0
+            h = dim.height ?? 0
+          } catch {
+            return NextResponse.json(
+              { success: false, error: 'Could not read image dimensions' },
+              { status: 400 }
+            )
+          }
+          const minSide = Math.max(300, Math.floor(pc.canvasExportPx * 0.25))
+          if (w > 0 && h > 0 && Math.min(w, h) < minSide) {
+            return NextResponse.json(
+              {
+                success: false,
+                error: `Image is too small for this print area. Minimum ~${minSide}px on the shorter side (got ${w}×${h}px). Target about ${pc.canvasExportPx}px for best print quality.`,
+              },
+              { status: 400 }
+            )
+          }
+        }
+      }
+    }
+
     const ext = mime === 'image/png' ? 'png' : mime === 'image/webp' ? 'webp' : 'jpg'
     const path = `sessions/${randomUUID()}.${ext}`
-    const buf = Buffer.from(await file.arrayBuffer())
 
     const admin = getSupabaseAdmin()
     const { data, error } = await admin.storage.from(BUCKET).upload(path, buf, {
@@ -44,7 +81,12 @@ export async function POST(request: NextRequest) {
     if (error) {
       console.error('Supabase upload:', error)
       return NextResponse.json(
-        { success: false, error: error.message || 'Upload failed (check bucket design-uploads exists and is public or use signed URL flow)' },
+        {
+          success: false,
+          error:
+            error.message ||
+            'Upload failed (check bucket design-uploads exists and is public or use signed URL flow)',
+        },
         { status: 500 }
       )
     }

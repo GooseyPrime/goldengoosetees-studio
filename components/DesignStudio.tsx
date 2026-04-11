@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { resolveStudioPlacements } from '@/lib/design/placements'
+import { calculateRetailPrice } from '@/lib/config/products.config'
 
 export type CatalogProduct = {
   id: number
@@ -35,7 +36,7 @@ type CatalogResponse = {
   message?: string
 }
 
-type Step = 'browse' | 'configure' | 'design' | 'mockups' | 'checkout'
+type Step = 'browse' | 'configure' | 'design' | 'mockups' | 'review' | 'checkout'
 
 type PlacementRow = { id: string; displayName: string; technique: string }
 
@@ -50,8 +51,35 @@ const STEPS: { id: Step; label: string }[] = [
   { id: 'configure', label: 'Size & color' },
   { id: 'design', label: 'Your art' },
   { id: 'mockups', label: 'Mockups' },
+  { id: 'review', label: 'Review' },
   { id: 'checkout', label: 'Checkout' },
 ]
+
+const STEP_ORDER = STEPS.map((s) => s.id)
+const SESSION_KEY = 'ggt-studio-session'
+const SESSION_VERSION = 2
+
+type PersistedSession = {
+  v: number
+  step: Step
+  selectedProductId: number | null
+  selectedVariantId: number | null
+  placements: PlacementRow[]
+  artByPlacement: Record<string, PlacementArt>
+  mockupTaskId: string | number | null
+  mockupUrls: string[]
+  mockupStatus: string | null
+  checkoutUrl: string | null
+}
+
+function parseSizeFromVariantName(name: string): string {
+  const m = name.match(/\b(XXS|XS|S|M|L|XL|2XL|3XL|4XL|2X|3X)\b/i)
+  if (!m) return 'M'
+  const s = m[1].toUpperCase()
+  if (s === '2X') return '2XL'
+  if (s === '3X') return '3XL'
+  return s
+}
 
 export default function DesignStudio() {
   const [products, setProducts] = useState<CatalogProduct[]>([])
@@ -75,6 +103,42 @@ export default function DesignStudio() {
   const [mockupStatus, setMockupStatus] = useState<string | null>(null)
 
   const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null)
+  const [sessionRestored, setSessionRestored] = useState(false)
+
+  const persistSession = useCallback(() => {
+    if (typeof window === 'undefined') return
+    const payload: PersistedSession = {
+      v: SESSION_VERSION,
+      step,
+      selectedProductId: selectedProduct?.id ?? null,
+      selectedVariantId,
+      placements,
+      artByPlacement,
+      mockupTaskId,
+      mockupUrls,
+      mockupStatus,
+      checkoutUrl,
+    }
+    try {
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify(payload))
+    } catch {
+      /* ignore quota */
+    }
+  }, [
+    step,
+    selectedProduct,
+    selectedVariantId,
+    placements,
+    artByPlacement,
+    mockupTaskId,
+    mockupUrls,
+    mockupStatus,
+    checkoutUrl,
+  ])
+
+  useEffect(() => {
+    persistSession()
+  }, [persistSession])
 
   useEffect(() => {
     let cancelled = false
@@ -88,8 +152,52 @@ export default function DesignStudio() {
           setProducts([])
           return
         }
-        setProducts(json.data ?? [])
+        const list = json.data ?? []
+        setProducts(list)
         setCatalogError(null)
+
+        if (!sessionRestored && typeof window !== 'undefined') {
+          try {
+            const raw = sessionStorage.getItem(SESSION_KEY)
+            if (raw) {
+              const p = JSON.parse(raw) as PersistedSession
+              if (p.v === SESSION_VERSION && p.selectedProductId) {
+                const prod = list.find((x) => x.id === p.selectedProductId)
+                if (prod) {
+                  setSelectedProduct(prod)
+                  const rows = resolveStudioPlacements(prod.id, prod.printfulPlacementsRaw ?? null)
+                  setPlacements(rows)
+                  const merged: Record<string, PlacementArt> = {}
+                  for (const r of rows) {
+                    merged[r.id] = p.artByPlacement[r.id] ?? {
+                      source: null,
+                      imageUrl: null,
+                      printfulFileId: null,
+                    }
+                  }
+                  setArtByPlacement(merged)
+                  setActivePlacementId(rows[0]?.id ?? null)
+                  setSelectedVariantId(p.selectedVariantId)
+                  setMockupTaskId(p.mockupTaskId)
+                  setMockupUrls(p.mockupUrls ?? [])
+                  setMockupStatus(p.mockupStatus)
+                  setCheckoutUrl(p.checkoutUrl)
+
+                  let restoreStep = p.step
+                  if (restoreStep === 'checkout' && !p.checkoutUrl) restoreStep = 'review'
+                  if (restoreStep === 'review' && !(p.mockupUrls?.length) && p.mockupStatus !== 'completed')
+                    restoreStep = 'mockups'
+                  if (['mockups', 'review', 'checkout'].includes(restoreStep) && !p.selectedVariantId)
+                    restoreStep = 'configure'
+                  setStep(restoreStep)
+                }
+              }
+            }
+          } catch {
+            /* ignore */
+          }
+          setSessionRestored(true)
+        }
       } catch (e) {
         if (!cancelled) {
           setCatalogError(e instanceof Error ? e.message : 'Network error')
@@ -102,12 +210,61 @@ export default function DesignStudio() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [sessionRestored])
 
   const selectedVariant = useMemo(
     () => selectedProduct?.variants.find((v) => v.id === selectedVariantId) ?? null,
     [selectedProduct, selectedVariantId]
   )
+
+  const estimatedTotal = useMemo(() => {
+    if (!selectedProduct || !selectedVariant) return null
+    const size = parseSizeFromVariantName(selectedVariant.name)
+    try {
+      const placementIds = placements.map((p) => p.id)
+      return calculateRetailPrice(selectedProduct.id, placementIds, size)
+    } catch {
+      return selectedProduct.basePrice
+    }
+  }, [selectedProduct, selectedVariant, placements])
+
+  const allPlacementsReady = useMemo(() => {
+    if (placements.length === 0) return false
+    return placements.every((p) => artByPlacement[p.id]?.printfulFileId)
+  }, [placements, artByPlacement])
+
+  const canNavigateTo = useCallback(
+    (target: Step): boolean => {
+      if (target === 'browse') return true
+      if (target === 'configure') return !!selectedProduct
+      if (target === 'design') return !!selectedProduct && selectedVariantId != null
+      if (target === 'mockups')
+        return (
+          !!selectedProduct &&
+          selectedVariantId != null &&
+          (allPlacementsReady || mockupTaskId != null)
+        )
+      if (target === 'review')
+        return mockupUrls.length > 0 && mockupStatus === 'completed'
+      if (target === 'checkout') return !!checkoutUrl && mockupUrls.length > 0
+      return false
+    },
+    [
+      selectedProduct,
+      selectedVariantId,
+      allPlacementsReady,
+      mockupUrls.length,
+      mockupStatus,
+      checkoutUrl,
+      mockupTaskId,
+    ]
+  )
+
+  const goToStep = (target: Step) => {
+    if (!canNavigateTo(target)) return
+    setStep(target)
+    setStatusMessage(null)
+  }
 
   const resetSession = useCallback(() => {
     setStep('browse')
@@ -123,6 +280,11 @@ export default function DesignStudio() {
     setMockupStatus(null)
     setCheckoutUrl(null)
     setStatusMessage(null)
+    try {
+      sessionStorage.removeItem(SESSION_KEY)
+    } catch {
+      /* ignore */
+    }
   }, [])
 
   const selectProduct = (p: CatalogProduct) => {
@@ -140,11 +302,6 @@ export default function DesignStudio() {
     setMockupUrls([])
     setMockupStatus(null)
     setCheckoutUrl(null)
-    setStep('configure')
-  }
-
-  const goConfigure = () => {
-    if (!selectedProduct) return
     setStep('configure')
   }
 
@@ -176,11 +333,14 @@ export default function DesignStudio() {
   }
 
   const handleUpload = async (placementId: string, file: File) => {
+    if (!selectedProduct) return
     setBusy(`upload-${placementId}`)
     setStatusMessage(null)
     try {
       const fd = new FormData()
       fd.append('file', file)
+      fd.append('catalogProductId', String(selectedProduct.id))
+      fd.append('placementId', placementId)
       const up = await fetch('/api/designs/upload', { method: 'POST', body: fd })
       const upJson = await up.json()
       if (!upJson.success) throw new Error(upJson.error || 'Upload failed')
@@ -264,11 +424,6 @@ export default function DesignStudio() {
     }
   }
 
-  const allPlacementsReady = useMemo(() => {
-    if (placements.length === 0) return false
-    return placements.every((p) => artByPlacement[p.id]?.printfulFileId)
-  }, [placements, artByPlacement])
-
   const runMockups = async () => {
     if (!selectedProduct || !selectedVariantId || !allPlacementsReady) return
     setBusy('mockup')
@@ -317,7 +472,8 @@ export default function DesignStudio() {
       setMockupStatus(json.status)
       if (json.status === 'completed' && json.mockupUrls?.length) {
         setMockupUrls(json.mockupUrls)
-        setStatusMessage('Mockups are ready.')
+        setStatusMessage('Mockups are ready — review your order below.')
+        setStep('review')
         return
       }
       if (json.status === 'failed') {
@@ -325,15 +481,40 @@ export default function DesignStudio() {
         return
       }
     }
-    setStatusMessage('Mockups are taking longer than expected — refresh or check back.')
+    setStatusMessage('Mockups are taking longer than expected — stay on this page or try again.')
   }
 
+  const reviewChecklist = useMemo(() => {
+    const items: { ok: boolean; label: string }[] = [
+      { ok: !!selectedProduct, label: 'Product selected' },
+      { ok: selectedVariantId != null, label: 'Size and color (variant) selected' },
+      {
+        ok: allPlacementsReady,
+        label: `Art added for all ${placements.length} print area(s)`,
+      },
+      {
+        ok: mockupUrls.length > 0 && mockupStatus === 'completed',
+        label: 'Printful mockups completed',
+      },
+    ]
+    return items
+  }, [
+    selectedProduct,
+    selectedVariantId,
+    allPlacementsReady,
+    placements.length,
+    mockupUrls.length,
+    mockupStatus,
+  ])
+
+  const reviewReady = reviewChecklist.every((x) => x.ok)
+
   const startCheckout = async () => {
-    if (!selectedProduct || !selectedVariantId || !allPlacementsReady) return
-    if (!mockupUrls.length) {
-      setStatusMessage('Wait for mockups to finish before checkout.')
+    if (!reviewReady) {
+      setStatusMessage('Complete every item in the checklist before paying.')
       return
     }
+    if (!selectedProduct || !selectedVariantId) return
     setBusy('checkout')
     setStatusMessage(null)
     try {
@@ -371,8 +552,6 @@ export default function DesignStudio() {
     }
   }
 
-  const stepIndex = STEPS.findIndex((s) => s.id === step)
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
       <header className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-50">
@@ -400,16 +579,28 @@ export default function DesignStudio() {
 
       <main className="max-w-7xl mx-auto px-4 py-8">
         <nav className="flex flex-wrap gap-2 mb-8" aria-label="Steps">
-          {STEPS.map((s, i) => (
-            <div
-              key={s.id}
-              className={`px-3 py-1.5 rounded-full text-sm font-medium ${
-                i <= stepIndex ? 'bg-slate-900 text-white' : 'bg-slate-200 text-slate-600'
-              }`}
-            >
-              {i + 1}. {s.label}
-            </div>
-          ))}
+          {STEPS.map((s, i) => {
+            const allowed = canNavigateTo(s.id)
+            const active = s.id === step
+            return (
+              <button
+                key={s.id}
+                type="button"
+                disabled={!allowed}
+                onClick={() => goToStep(s.id)}
+                title={!allowed ? 'Complete previous steps first' : undefined}
+                className={`px-3 py-1.5 rounded-full text-sm font-medium transition ${
+                  active
+                    ? 'bg-slate-900 text-white ring-2 ring-offset-2 ring-slate-900'
+                    : allowed
+                      ? 'bg-slate-200 text-slate-800 hover:bg-slate-300'
+                      : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                }`}
+              >
+                {i + 1}. {s.label}
+              </button>
+            )
+          })}
         </nav>
 
         {catalogLoading && <p className="text-center text-gray-500">Loading products…</p>}
@@ -427,12 +618,13 @@ export default function DesignStudio() {
           </div>
         )}
 
-        {/* Browse */}
         {step === 'browse' && !catalogLoading && !catalogError && (
           <>
             <div className="text-center space-y-2 mb-10">
               <h2 className="text-3xl font-bold">Choose your product</h2>
-              <p className="text-slate-600">Then pick size and color, add art to each print area, preview mockups, and pay.</p>
+              <p className="text-slate-600">
+                Pick size and color, add art to each print area, review mockups, then pay.
+              </p>
             </div>
             {products.length === 0 ? (
               <p className="text-center text-gray-500">No products configured.</p>
@@ -450,7 +642,9 @@ export default function DesignStudio() {
                           // eslint-disable-next-line @next/next/no-img-element
                           <img src={product.imageUrl} alt="" className="w-full h-full object-contain p-4" />
                         ) : (
-                          <div className="w-full h-full flex items-center justify-center text-slate-400 text-sm">No image</div>
+                          <div className="w-full h-full flex items-center justify-center text-slate-400 text-sm">
+                            No image
+                          </div>
                         )}
                       </div>
                       <div className="p-5 flex-1 flex flex-col">
@@ -467,11 +661,16 @@ export default function DesignStudio() {
           </>
         )}
 
-        {/* Configure */}
         {step === 'configure' && selectedProduct && (
           <div className="max-w-3xl mx-auto">
             <h2 className="text-2xl font-bold mb-2">Size & color</h2>
-            <p className="text-slate-600 mb-6">{selectedProduct.name}</p>
+            <p className="text-slate-600 mb-2">{selectedProduct.name}</p>
+            {estimatedTotal != null && (
+              <p className="text-sm text-slate-700 mb-4">
+                Estimated total (all print areas, before tax/shipping):{' '}
+                <strong>${estimatedTotal.toFixed(2)} USD</strong>
+              </p>
+            )}
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-[480px] overflow-y-auto">
               {selectedProduct.variants.map((v) => (
                 <button
@@ -479,7 +678,9 @@ export default function DesignStudio() {
                   type="button"
                   onClick={() => setSelectedVariantId(v.id)}
                   className={`p-3 rounded-xl border text-left text-sm ${
-                    selectedVariantId === v.id ? 'border-slate-900 ring-2 ring-slate-900 bg-white' : 'border-slate-200 bg-white'
+                    selectedVariantId === v.id
+                      ? 'border-slate-900 ring-2 ring-slate-900 bg-white'
+                      : 'border-slate-200 bg-white'
                   }`}
                 >
                   <div className="font-medium line-clamp-2">{v.name}</div>
@@ -492,7 +693,7 @@ export default function DesignStudio() {
             <div className="flex gap-3 mt-8">
               <button
                 type="button"
-                onClick={() => setStep('browse')}
+                onClick={() => goToStep('browse')}
                 className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50"
               >
                 Back
@@ -501,15 +702,17 @@ export default function DesignStudio() {
                 type="button"
                 onClick={goDesign}
                 disabled={!selectedVariantId}
-                className="px-4 py-2 rounded-lg bg-slate-900 text-white disabled:opacity-40"
+                className="px-4 py-2 rounded-lg bg-slate-900 text-white disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Continue to art
               </button>
             </div>
+            {!selectedVariantId && (
+              <p className="text-sm text-amber-800 mt-3">Select a variant to continue.</p>
+            )}
           </div>
         )}
 
-        {/* Design */}
         {step === 'design' && selectedProduct && (
           <div className="max-w-4xl mx-auto grid lg:grid-cols-3 gap-8">
             <div className="lg:col-span-1 space-y-1">
@@ -535,9 +738,11 @@ export default function DesignStudio() {
             <div className="lg:col-span-2 space-y-6 bg-white rounded-2xl border border-slate-200 p-6">
               {activePlacementId && (
                 <>
-                  <h2 className="text-xl font-bold">{placements.find((x) => x.id === activePlacementId)?.displayName}</h2>
+                  <h2 className="text-xl font-bold">
+                    {placements.find((x) => x.id === activePlacementId)?.displayName}
+                  </h2>
                   <p className="text-sm text-slate-600">
-                    Use AI or upload a PNG/JPEG for this area. Repeat for each print area before generating mockups.
+                    Upload PNG/JPEG/WebP or use AI. Images below the minimum size for this area will be rejected.
                   </p>
                   {artByPlacement[activePlacementId]?.imageUrl && (
                     <div className="rounded-xl overflow-hidden border border-slate-200 bg-slate-50 max-w-sm">
@@ -603,35 +808,36 @@ export default function DesignStudio() {
               )}
             </div>
             <div className="lg:col-span-3 flex flex-wrap gap-3 justify-between items-center">
-              <button type="button" onClick={goConfigure} className="px-4 py-2 rounded-lg border border-slate-300">
+              <button
+                type="button"
+                onClick={() => goToStep('configure')}
+                className="px-4 py-2 rounded-lg border border-slate-300"
+              >
                 Back
               </button>
               <button
                 type="button"
                 onClick={() => void runMockups()}
                 disabled={!allPlacementsReady || !!busy}
-                className="px-4 py-2 rounded-lg bg-slate-900 text-white disabled:opacity-40"
+                className="px-4 py-2 rounded-lg bg-slate-900 text-white disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {busy === 'mockup' ? 'Starting mockups…' : 'Generate mockups'}
               </button>
             </div>
             {!allPlacementsReady && (
               <p className="lg:col-span-3 text-sm text-amber-800">
-                Add art for every print area above before generating mockups.
+                Add art for every print area before generating mockups.
               </p>
             )}
           </div>
         )}
 
-        {/* Mockups */}
         {step === 'mockups' && (
           <div className="max-w-3xl mx-auto space-y-6">
             <h2 className="text-2xl font-bold">Mockup preview</h2>
             <p className="text-slate-600 text-sm">
               Status: <strong>{mockupStatus ?? '—'}</strong>
-              {mockupTaskId != null && (
-                <span className="text-slate-400 ml-2">Task {String(mockupTaskId)}</span>
-              )}
+              {mockupTaskId != null && <span className="text-slate-400 ml-2">Task {String(mockupTaskId)}</span>}
             </p>
             {mockupUrls.length > 0 ? (
               <div className="grid gap-4 sm:grid-cols-2">
@@ -646,27 +852,117 @@ export default function DesignStudio() {
               <p className="text-slate-500">Waiting for Printful mockups…</p>
             )}
             <div className="flex flex-wrap gap-3">
-              <button type="button" onClick={() => setStep('design')} className="px-4 py-2 rounded-lg border border-slate-300">
+              <button type="button" onClick={() => goToStep('design')} className="px-4 py-2 rounded-lg border border-slate-300">
                 Back to art
               </button>
               <button
                 type="button"
-                onClick={() => void startCheckout()}
-                disabled={!mockupUrls.length || !!busy}
+                onClick={() => goToStep('review')}
+                disabled={!canNavigateTo('review')}
                 className="px-4 py-2 rounded-lg bg-emerald-600 text-white disabled:opacity-40"
               >
-                Continue to checkout
+                Continue to review
+              </button>
+              <button
+                type="button"
+                onClick={() => mockupTaskId && void pollMockup(mockupTaskId)}
+                disabled={!mockupTaskId || !!busy}
+                className="px-4 py-2 rounded-lg border border-slate-400 text-sm disabled:opacity-40"
+              >
+                Refresh status
               </button>
             </div>
           </div>
         )}
 
-        {/* Checkout */}
+        {step === 'review' && selectedProduct && (
+          <div className="max-w-2xl mx-auto space-y-8">
+            <h2 className="text-2xl font-bold">Review your order</h2>
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4">
+              <h3 className="font-semibold text-slate-900">Checklist</h3>
+              <ul className="space-y-2">
+                {reviewChecklist.map((item, idx) => (
+                  <li key={idx} className="flex items-start gap-2 text-sm">
+                    <span className={item.ok ? 'text-emerald-600' : 'text-amber-600'} aria-hidden>
+                      {item.ok ? '✓' : '○'}
+                    </span>
+                    <span className={item.ok ? 'text-slate-700' : 'text-slate-600'}>{item.label}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-3 text-sm">
+              <p>
+                <span className="text-slate-500">Product</span>
+                <br />
+                <span className="font-medium">{selectedProduct.name}</span>
+              </p>
+              <p>
+                <span className="text-slate-500">Variant</span>
+                <br />
+                <span className="font-medium">{selectedVariant?.name ?? '—'}</span>
+              </p>
+              {estimatedTotal != null && (
+                <p>
+                  <span className="text-slate-500">Estimated item total (USD)</span>
+                  <br />
+                  <span className="font-medium text-lg">${estimatedTotal.toFixed(2)}</span>
+                  <span className="text-slate-500"> — tax and shipping at Stripe</span>
+                </p>
+              )}
+              <div className="flex flex-wrap gap-2 pt-2">
+                {placements.map((p) => {
+                  const art = artByPlacement[p.id]
+                  return (
+                    <div key={p.id} className="text-xs border border-slate-200 rounded-lg p-2 w-24">
+                      <div className="text-slate-500 truncate">{p.displayName}</div>
+                      {art?.imageUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={art.imageUrl} alt="" className="w-full h-16 object-cover rounded mt-1" />
+                      ) : (
+                        <div className="h-16 bg-slate-100 rounded mt-1" />
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+            {mockupUrls.length > 0 && (
+              <div className="grid gap-3 sm:grid-cols-2">
+                {mockupUrls.slice(0, 4).map((url, i) => (
+                  <div key={i} className="rounded-xl overflow-hidden border border-slate-200 bg-white">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={url} alt={`Mockup ${i + 1}`} className="w-full h-auto object-contain" />
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="flex flex-wrap gap-3">
+              <button type="button" onClick={() => goToStep('mockups')} className="px-4 py-2 rounded-lg border border-slate-300">
+                Back to mockups
+              </button>
+              <button
+                type="button"
+                onClick={() => void startCheckout()}
+                disabled={!reviewReady || !!busy}
+                className="px-6 py-3 rounded-xl bg-slate-900 text-white font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {busy === 'checkout' ? 'Preparing checkout…' : 'Continue to payment'}
+              </button>
+            </div>
+            {!reviewReady && (
+              <p className="text-sm text-amber-800">
+                Complete all checklist items above. If mockups failed, go back and try &quot;Generate mockups&quot; again.
+              </p>
+            )}
+          </div>
+        )}
+
         {step === 'checkout' && (
           <div className="max-w-lg mx-auto text-center space-y-6">
             <h2 className="text-2xl font-bold">Pay securely</h2>
             <p className="text-slate-600 text-sm">
-              You will complete payment on Stripe. After payment, we submit your order to Printful for fulfillment.
+              Complete payment on Stripe. We will submit your order to Printful after payment.
             </p>
             {checkoutUrl ? (
               <a
@@ -676,10 +972,10 @@ export default function DesignStudio() {
                 Pay with Stripe
               </a>
             ) : (
-              <p className="text-red-600 text-sm">No checkout link — go back and try again.</p>
+              <p className="text-red-600 text-sm">No checkout link — return to review and try again.</p>
             )}
-            <button type="button" onClick={() => setStep('mockups')} className="block mx-auto text-sm text-slate-600 underline">
-              Back to mockups
+            <button type="button" onClick={() => goToStep('review')} className="block mx-auto text-sm text-slate-600 underline">
+              Back to review
             </button>
           </div>
         )}

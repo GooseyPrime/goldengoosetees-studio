@@ -59,6 +59,7 @@
         "embla-carousel-react": "^8.5.2",
         "fabric": "^7.2.0",
         "framer-motion": "^12.38.0",
+        "image-size": "^2.0.2",
         "input-otp": "^1.4.2",
         "lucide-react": "^0.563.0",
         "marked": "^17.0.5",
