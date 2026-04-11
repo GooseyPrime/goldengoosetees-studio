@@ -32,9 +32,23 @@ describe('variantSelection', () => {
 
   it('parseSizeFromVariantName parses embedded size', () => {
     expect(parseSizeFromVariantName('Cool Tee / 2XL')).toBe('2XL')
+    expect(parseSizeFromVariantName('Tee (5XL)')).toBe('5XL')
+    expect(parseSizeFromVariantName('Youth Tee / YM')).toBe('YM')
+    expect(parseSizeFromVariantName('Long name / 3X')).toBe('3XL')
   })
 
   it('effectiveSize uses size field when set', () => {
     expect(effectiveSize(variants[0])).toBe('M')
+  })
+
+  it('effectiveSize normalizes 5X and 6X from size field', () => {
+    const v: CatalogVariantLite = {
+      id: 9,
+      name: 'X',
+      size: '5X',
+      color: 'Black',
+      colorCode: '#000',
+    }
+    expect(effectiveSize(v)).toBe('5XL')
   })
 })

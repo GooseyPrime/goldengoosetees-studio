@@ -11,13 +11,14 @@ export type CatalogVariantLite = {
   image?: string
 }
 
+/** Size token as it appears in UI / Printful (longest tokens first for correct matching). */
+const SIZE_IN_NAME_PATTERN =
+  /\b(6XL|5XL|4XL|3XL|2XL|YXL|YL|YM|YS|YXS|XXS|XS|XL|2X|3X|4X|5X|6X|S|M|L)\b/i
+
 export function parseSizeFromVariantName(name: string): string {
-  const m = name.match(/\b(XXS|XS|S|M|L|XL|2XL|3XL|4XL|2X|3X)\b/i)
+  const m = name.match(SIZE_IN_NAME_PATTERN)
   if (!m) return 'M'
-  const s = m[1].toUpperCase()
-  if (s === '2X') return '2XL'
-  if (s === '3X') return '3XL'
-  return s
+  return normalizeSizeToken(m[1])
 }
 
 export function effectiveSize(v: CatalogVariantLite): string {
@@ -30,6 +31,9 @@ function normalizeSizeToken(s: string): string {
   const u = s.toUpperCase()
   if (u === '2X') return '2XL'
   if (u === '3X') return '3XL'
+  if (u === '4X') return '4XL'
+  if (u === '5X') return '5XL'
+  if (u === '6X') return '6XL'
   return u
 }
 
@@ -45,7 +49,24 @@ export function uniqueSizes(variants: CatalogVariantLite[]): string[] {
   return [...set].sort(compareSizes)
 }
 
-const SIZE_ORDER = ['XXS', 'XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL']
+const SIZE_ORDER = [
+  'YXS',
+  'YS',
+  'YM',
+  'YL',
+  'YXL',
+  'XXS',
+  'XS',
+  'S',
+  'M',
+  'L',
+  'XL',
+  '2XL',
+  '3XL',
+  '4XL',
+  '5XL',
+  '6XL',
+]
 
 function compareSizes(a: string, b: string): number {
   const ia = SIZE_ORDER.indexOf(a)

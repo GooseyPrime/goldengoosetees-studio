@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { printfulGet } from '@/lib/printful/client'
+import { fetchAllCatalogVariants, type CatalogVariantRow } from '@/lib/printful/catalogVariants'
 import { getProductConfig } from '@/lib/config/products.config'
 import { getCuratedCatalogProductIds } from '@/lib/offerings'
 
@@ -20,22 +21,11 @@ type PrintfulCatalogProductV2 = {
   placements?: unknown[]
 }
 
-type PrintfulCatalogVariantV2 = {
-  id: number
-  catalog_product_id?: number
-  name: string
-  size?: string
-  color?: string
-  color_code?: string
-  color_code2?: string | null
-  image?: string
-}
-
-function asVariantArray(payload: unknown): PrintfulCatalogVariantV2[] {
-  if (Array.isArray(payload)) return payload as PrintfulCatalogVariantV2[]
+function asVariantArray(payload: unknown): CatalogVariantRow[] {
+  if (Array.isArray(payload)) return payload as CatalogVariantRow[]
   if (payload && typeof payload === 'object' && 'data' in payload) {
     const d = (payload as { data: unknown }).data
-    if (Array.isArray(d)) return d as PrintfulCatalogVariantV2[]
+    if (Array.isArray(d)) return d as CatalogVariantRow[]
   }
   return []
 }
@@ -74,10 +64,7 @@ export async function GET() {
   const products: unknown[] = []
 
   for (const productId of ids) {
-    const [productRes, variantsRes] = await Promise.all([
-      printfulGet<unknown>(`/catalog-products/${productId}`),
-      printfulGet<unknown>(`/catalog-products/${productId}/catalog-variants`),
-    ])
+    const productRes = await printfulGet<unknown>(`/catalog-products/${productId}`)
 
     if (!productRes.success) {
       console.error(`Printful catalog-products/${productId}:`, productRes.error)
@@ -90,7 +77,17 @@ export async function GET() {
       continue
     }
 
-    const variants = variantsRes.success ? asVariantArray(variantsRes.data) : []
+    const variantsResult = await fetchAllCatalogVariants(productId)
+    if (!variantsResult.success) {
+      console.error(`Printful catalog-variants ${productId}:`, variantsResult.error)
+    }
+    let variants: CatalogVariantRow[] = variantsResult.variants
+    if (variants.length === 0) {
+      const legacy = await printfulGet<unknown>(`/catalog-products/${productId}/catalog-variants`)
+      if (legacy.success) {
+        variants = asVariantArray(legacy.data)
+      }
+    }
     const localConfig = getProductConfig(productId)
     const name = p.name ?? p.title ?? localConfig?.displayName ?? `Product ${productId}`
 
@@ -110,7 +107,7 @@ export async function GET() {
         name: v.name,
         size: v.size ?? '',
         color: v.color ?? '',
-        colorCode: v.color_code ?? '',
+        colorCode: (v.color_code || v.color_code2 || '').trim(),
         image: v.image ?? '',
         catalogProductId: v.catalog_product_id ?? productId,
       })),
