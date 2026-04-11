@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { randomUUID } from 'crypto'
-import imageSize from 'image-size'
 import { getSupabaseAdmin, isSupabaseConfigured } from '@/lib/supabase/admin'
 import { getPlacementConfig } from '@/lib/config/products.config'
+import { validateImageBufferForPlacement } from '@/lib/design/validateArt'
 
 export const dynamic = 'force-dynamic'
 
@@ -42,29 +42,10 @@ export async function POST(request: NextRequest) {
       const catalogProductId = parseInt(String(catalogProductIdRaw), 10)
       const placementId = String(placementIdRaw).trim()
       if (Number.isFinite(catalogProductId) && placementId) {
-        const pc = getPlacementConfig(catalogProductId, placementId)
-        if (pc) {
-          let w = 0
-          let h = 0
-          try {
-            const dim = imageSize(buf)
-            w = dim.width ?? 0
-            h = dim.height ?? 0
-          } catch {
-            return NextResponse.json(
-              { success: false, error: 'Could not read image dimensions' },
-              { status: 400 }
-            )
-          }
-          const minSide = Math.max(300, Math.floor(pc.canvasExportPx * 0.25))
-          if (w > 0 && h > 0 && Math.min(w, h) < minSide) {
-            return NextResponse.json(
-              {
-                success: false,
-                error: `Image is too small for this print area. Minimum ~${minSide}px on the shorter side (got ${w}×${h}px). Target about ${pc.canvasExportPx}px for best print quality.`,
-              },
-              { status: 400 }
-            )
+        if (getPlacementConfig(catalogProductId, placementId)) {
+          const v = validateImageBufferForPlacement(buf, catalogProductId, placementId)
+          if (!v.ok) {
+            return NextResponse.json({ success: false, error: v.error }, { status: 400 })
           }
         }
       }

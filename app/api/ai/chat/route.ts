@@ -1,11 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
-import OpenAI from 'openai'
+import type OpenAI from 'openai'
 import {
   DESIGN_AGENT_TOOLS,
   executeDesignAgentTool,
   type ClientAction,
   type StudioContextPayload,
 } from '@/lib/ai/designAgentCore'
+import {
+  chatCompletionWithFallback,
+  createOpenRouterClient,
+  getChatModelChain,
+  getOnlineModelChain,
+  shouldUseOnlineModel,
+} from '@/lib/ai/openrouterChat'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,15 +20,24 @@ const MAX_ROUNDS = 6
 
 type ChatMessage = { role: 'user' | 'assistant' | 'system'; content: string }
 
-export async function POST(request: NextRequest) {
-  const key = process.env.OPENAI_API_KEY?.trim()
-  if (!key) {
-    return NextResponse.json(
-      { success: false, error: 'OPENAI_API_KEY is not configured' },
-      { status: 503 }
-    )
-  }
+function buildSystemPrompt(ctx: StudioContextPayload, artUrls: Record<string, string | null>): string {
+  return `You are the senior print-shop administrator for Golden Goose Tees. You guide customers through ordering custom printed apparel: product type → size, color, and print locations → artwork that meets Printful technical requirements → mockups → review → Stripe checkout.
 
+Persona and rules:
+- Be warm, concise, and authoritative about print constraints (resolution, placement). Never invent prices; the app shows estimates and Stripe shows tax/shipping.
+- Refuse hateful, violent, or illegal content. Keep prompts print-safe.
+- Use tools when the customer wants to change the studio (product, size, color, placements, navigation, generate/edit art, mockups, checkout). Prefer set_size + set_color + set_print_locations over raw variant ids when helping humans choose.
+- For questions needing current web information (news, trends, live facts), answer accurately; if your model has browsing/search capability, use it. If unsure, say so.
+- After tools run, summarize what changed in plain language.
+
+Current studio context (JSON):
+${JSON.stringify(ctx, null, 2)}
+
+Per-placement image URLs (for reasoning; server uses these for edits):
+${JSON.stringify(artUrls)}`
+}
+
+export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const message = typeof body.message === 'string' ? body.message.trim() : ''
@@ -41,27 +57,19 @@ export async function POST(request: NextRequest) {
         ? (body.artUrls as Record<string, string | null>)
         : {}
 
-    const system = `You are the Golden Goose Tees design assistant. You help customers use the custom apparel studio: pick products and variants, add art to each print placement (front, back, sleeves, etc.), run mockups, review, and checkout.
+    const client = createOpenRouterClient()
+    const useOnline = shouldUseOnlineModel(message)
+    const models = useOnline ? getOnlineModelChain() : getChatModelChain()
 
-Rules:
-- Be concise and actionable. Use tools when the user wants to navigate, change placement focus, generate art, or edit art.
-- For generate_design: use clear printable-safe prompts (no hateful/violent content; refuse if asked).
-- If the user must do something in the UI first (e.g. pick a product), say so clearly.
-- After tools run, summarize what changed in plain language.
-
-Current studio context (JSON):
-${JSON.stringify(ctx, null, 2)}
-
-Per-placement image URLs (for your reasoning only; edit_design uses server-side URLs):
-${JSON.stringify(artUrls)}`
-
-    const client = new OpenAI({ apiKey: key })
+    const system = buildSystemPrompt(ctx, artUrls)
     const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
       { role: 'system', content: system },
-      ...history.slice(-16).map((m): OpenAI.Chat.ChatCompletionUserMessageParam | OpenAI.Chat.ChatCompletionAssistantMessageParam => ({
-        role: m.role === 'assistant' ? 'assistant' : 'user',
-        content: m.content,
-      })),
+      ...history.slice(-16).map(
+        (m): OpenAI.Chat.ChatCompletionUserMessageParam | OpenAI.Chat.ChatCompletionAssistantMessageParam => ({
+          role: m.role === 'assistant' ? 'assistant' : 'user',
+          content: m.content,
+        })
+      ),
       { role: 'user', content: message },
     ]
 
@@ -69,13 +77,12 @@ ${JSON.stringify(artUrls)}`
     let assistantText = ''
 
     for (let round = 0; round < MAX_ROUNDS; round++) {
-      const completion = await client.chat.completions.create({
-        model: 'gpt-4o-mini',
+      const completion = await chatCompletionWithFallback(client, models, {
         messages,
         tools: DESIGN_AGENT_TOOLS,
         tool_choice: 'auto',
-        temperature: 0.7,
-        max_tokens: 1200,
+        temperature: 0.65,
+        max_tokens: 1400,
       })
 
       const choice = completion.choices[0]

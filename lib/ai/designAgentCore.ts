@@ -1,5 +1,7 @@
 import OpenAI from 'openai'
 import { printfulPost } from '@/lib/printful/client'
+import { generateImageNanoBanana, editImageNanoBanana, isNanoBananaConfigured } from '@/lib/ai/nanoBananaClient'
+import { validateImageUrlForPlacement } from '@/lib/design/validateArt'
 
 export async function registerPrintfulFileFromUrl(url: string, filename: string): Promise<{ fileId: string }> {
   const res = await printfulPost<{ id: string }>('/files', {
@@ -13,9 +15,16 @@ export async function registerPrintfulFileFromUrl(url: string, filename: string)
   return { fileId: res.data.id }
 }
 
-export async function generateImageDalle3(prompt: string): Promise<{ imageUrl: string; revisedPrompt?: string }> {
+export async function generateImageStudio(
+  prompt: string,
+  options?: { aspectRatio?: string; resolution?: string }
+): Promise<{ imageUrl: string; revisedPrompt?: string }> {
+  if (isNanoBananaConfigured()) {
+    const { imageUrl } = await generateImageNanoBanana(prompt, options)
+    return { imageUrl }
+  }
   const key = process.env.OPENAI_API_KEY?.trim()
-  if (!key) throw new Error('OPENAI_API_KEY is not configured')
+  if (!key) throw new Error('Configure NANO_BANANA_API_* or OPENAI_API_KEY for image generation')
   const client = new OpenAI({ apiKey: key })
   const result = await client.images.generate({
     model: 'dall-e-3',
@@ -29,13 +38,21 @@ export async function generateImageDalle3(prompt: string): Promise<{ imageUrl: s
   return { imageUrl: url, revisedPrompt: result.data?.[0]?.revised_prompt }
 }
 
-export async function editImageDalle2(imageUrl: string, prompt: string): Promise<{ imageUrl: string }> {
-  const key = process.env.OPENAI_API_KEY?.trim()
-  if (!key) throw new Error('OPENAI_API_KEY is not configured')
+export async function editImageStudio(imageUrl: string, prompt: string): Promise<{ imageUrl: string }> {
   const imgRes = await fetch(imageUrl)
   if (!imgRes.ok) throw new Error('Could not fetch source image for edit')
   const buf = Buffer.from(await imgRes.arrayBuffer())
-  if (buf.length > 4 * 1024 * 1024) throw new Error('Image too large for edit (max 4MB)')
+  if (buf.length > 12 * 1024 * 1024) throw new Error('Image too large for edit (max 12MB)')
+  const mime = imgRes.headers.get('content-type') || 'image/png'
+
+  if (isNanoBananaConfigured()) {
+    const b64 = buf.toString('base64')
+    return editImageNanoBanana(prompt, b64, mime)
+  }
+
+  const key = process.env.OPENAI_API_KEY?.trim()
+  if (!key) throw new Error('Configure NANO_BANANA_API_* or OPENAI_API_KEY for image editing')
+  if (buf.length > 4 * 1024 * 1024) throw new Error('Image too large for DALL·E edit (max 4MB)')
   const client = new OpenAI({ apiKey: key })
   const file = await OpenAI.toFile(buf, 'source.png', { type: 'image/png' })
   const result = await client.images.edit({
@@ -58,12 +75,22 @@ export type StudioContextPayload = {
   selectedProductName: string | null
   selectedVariantId: number | null
   selectedVariantLabel: string | null
+  /** All placement ids supported for this product (from Printful + local config) */
+  resolvedPlacementIds: string[]
+  /** Subset the customer is printing on */
+  selectedPlacementIds: string[]
+  selectedSize: string | null
+  selectedColorKey: string | null
+  availableSizes: string[]
+  availableColorOptions: Array<{ key: string; label: string }>
+  placementSpecs: Record<string, { targetPx: number; widthIn: number; heightIn: number; dpi: number }>
   placements: Array<{ id: string; displayName: string }>
   activePlacementId: string | null
   artByPlacement: Record<
     string,
     { hasImage: boolean; hasPrintfulFile: boolean; source: 'ai' | 'upload' | null }
   >
+  /** True when every selected placement has a Printful file */
   allPlacementsReady: boolean
   mockupStatus: string | null
   mockupCount: number
@@ -92,13 +119,61 @@ export const DESIGN_AGENT_TOOLS: OpenAI.Chat.ChatCompletionTool[] = [
     function: {
       name: 'select_variant',
       description:
-        'Select size/color by catalog_variant_id after a product is chosen. Use when on Size & color step.',
+        'Select the exact Printful catalog_variant_id when you know the id. Prefer set_size + set_color when helping the customer choose.',
       parameters: {
         type: 'object',
         properties: {
           catalog_variant_id: { type: 'integer' },
         },
         required: ['catalog_variant_id'],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'set_size',
+      description:
+        'Set garment size on the Size & color step (e.g. M, L, 2XL). Must match an entry in context.available_sizes.',
+      parameters: {
+        type: 'object',
+        properties: { size: { type: 'string' } },
+        required: ['size'],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'set_color',
+      description:
+        'Set garment color using the color key from context.available_color_options (after size is chosen).',
+      parameters: {
+        type: 'object',
+        properties: { color_key: { type: 'string' } },
+        required: ['color_key'],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'set_print_locations',
+      description:
+        'Choose which print areas the order uses (subset of context.resolved_placement_ids). Always include default placements the customer wants.',
+      parameters: {
+        type: 'object',
+        properties: {
+          placement_ids: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Print placement ids e.g. front, back, sleeve_left',
+          },
+        },
+        required: ['placement_ids'],
         additionalProperties: false,
       },
     },
@@ -148,7 +223,7 @@ export const DESIGN_AGENT_TOOLS: OpenAI.Chat.ChatCompletionTool[] = [
     function: {
       name: 'generate_design',
       description:
-        'Generate a new image with DALL·E 3 and register it with Printful for a print placement. Requires product selected.',
+        'Generate a new image (Nano Banana / configured image API) and register it with Printful for a print placement. Requires product selected.',
       parameters: {
         type: 'object',
         properties: {
@@ -165,7 +240,7 @@ export const DESIGN_AGENT_TOOLS: OpenAI.Chat.ChatCompletionTool[] = [
     function: {
       name: 'start_mockups',
       description:
-        'Submit the current designs to Printful to generate product mockups. Requires all placements filled and a variant selected.',
+        'Submit the current designs to Printful to generate product mockups. Requires art on every selected print area and a variant selected.',
       parameters: { type: 'object', properties: {}, additionalProperties: false },
     },
   },
@@ -183,7 +258,7 @@ export const DESIGN_AGENT_TOOLS: OpenAI.Chat.ChatCompletionTool[] = [
     function: {
       name: 'edit_design',
       description:
-        'Edit existing placement artwork with DALL·E 2. Requires image already on that placement.',
+        'Edit existing placement artwork (image-to-image via configured API). Requires image already on that placement.',
       parameters: {
         type: 'object',
         properties: {
@@ -200,6 +275,9 @@ export const DESIGN_AGENT_TOOLS: OpenAI.Chat.ChatCompletionTool[] = [
 export type ClientAction =
   | { type: 'SELECT_PRODUCT'; catalogProductId: number }
   | { type: 'SELECT_VARIANT'; catalogVariantId: number }
+  | { type: 'SET_SIZE'; size: string }
+  | { type: 'SET_COLOR'; colorKey: string }
+  | { type: 'SET_PRINT_LOCATIONS'; placementIds: string[] }
   | { type: 'SET_STEP'; step: string }
   | { type: 'SET_ACTIVE_PLACEMENT'; placementId: string }
   | { type: 'START_MOCKUPS' }
@@ -241,7 +319,7 @@ function canNavigateToStep(target: string, ctx: StudioContextPayload): { ok: boo
     if (!ok)
       return {
         ok: false,
-        reason: 'Need product, variant, and art on all placements (or an active mockup task)',
+        reason: 'Need product, variant, and art on every selected print area (or an active mockup task)',
       }
     return { ok: true }
   }
@@ -293,17 +371,62 @@ export async function executeDesignAgentTool(
       if (!ctx.selectedProductId) {
         return JSON.stringify({ success: false, error: 'Select a product first' })
       }
-      if (ctx.step !== 'configure') {
-        return JSON.stringify({
-          success: false,
-          error: 'Variant selection works on the Size & color step — navigate to configure.',
-        })
-      }
       if (!ctx.currentProductVariants.some((v) => v.id === vid)) {
         return JSON.stringify({ success: false, error: `Variant ${vid} not available for this product.` })
       }
       actions.push({ type: 'SELECT_VARIANT', catalogVariantId: vid })
       return JSON.stringify({ success: true, selected_variant_id: vid })
+    }
+    case 'set_size': {
+      const size = String(args.size || '').trim().toUpperCase()
+      if (!size) return JSON.stringify({ success: false, error: 'Missing size' })
+      if (!ctx.selectedProductId) {
+        return JSON.stringify({ success: false, error: 'Select a product first' })
+      }
+      if (!ctx.availableSizes.map((s) => s.toUpperCase()).includes(size)) {
+        return JSON.stringify({
+          success: false,
+          error: `Size "${size}" not available. Options: ${ctx.availableSizes.join(', ')}`,
+        })
+      }
+      actions.push({ type: 'SET_SIZE', size })
+      return JSON.stringify({ success: true, size })
+    }
+    case 'set_color': {
+      const colorKey = String(args.color_key || '').trim().toLowerCase()
+      if (!colorKey) return JSON.stringify({ success: false, error: 'Missing color_key' })
+      if (!ctx.selectedProductId) {
+        return JSON.stringify({ success: false, error: 'Select a product first' })
+      }
+      if (!ctx.selectedSize) {
+        return JSON.stringify({ success: false, error: 'Pick a size first' })
+      }
+      if (!ctx.availableColorOptions.some((c) => c.key === colorKey)) {
+        return JSON.stringify({
+          success: false,
+          error: `Unknown color key. Valid: ${ctx.availableColorOptions.map((c) => c.key).join(', ')}`,
+        })
+      }
+      actions.push({ type: 'SET_COLOR', colorKey })
+      return JSON.stringify({ success: true, color_key: colorKey })
+    }
+    case 'set_print_locations': {
+      const raw = args.placement_ids
+      if (!Array.isArray(raw) || raw.length === 0) {
+        return JSON.stringify({ success: false, error: 'placement_ids must be a non-empty array' })
+      }
+      const ids = raw.map((x) => String(x).trim()).filter(Boolean)
+      const allowed = new Set(ctx.resolvedPlacementIds)
+      for (const id of ids) {
+        if (!allowed.has(id)) {
+          return JSON.stringify({
+            success: false,
+            error: `Invalid placement "${id}". Valid: ${ctx.resolvedPlacementIds.join(', ')}`,
+          })
+        }
+      }
+      actions.push({ type: 'SET_PRINT_LOCATIONS', placementIds: ids })
+      return JSON.stringify({ success: true, placement_ids: ids })
     }
     case 'get_studio_status':
       return JSON.stringify(ctx, null, 2)
@@ -360,7 +483,17 @@ export async function executeDesignAgentTool(
         return JSON.stringify({ success: false, error: 'No print placements available' })
       }
       try {
-        const { imageUrl } = await generateImageDalle3(prompt)
+        const { imageUrl } = await generateImageStudio(prompt)
+        if (ctx.selectedProductId) {
+          const v = await validateImageUrlForPlacement(imageUrl, ctx.selectedProductId, placementId)
+          if (!v.ok) {
+            return JSON.stringify({
+              success: false,
+              error: v.error,
+              hint: 'Ask the user to adjust the prompt for higher resolution or simpler layout, then retry.',
+            })
+          }
+        }
         const { fileId } = await registerPrintfulFileFromUrl(
           imageUrl,
           `agent-${placementId}-${Date.now()}.png`
@@ -410,7 +543,17 @@ export async function executeDesignAgentTool(
         })
       }
       try {
-        const { imageUrl: out } = await editImageDalle2(imageUrl, instructions)
+        const { imageUrl: out } = await editImageStudio(imageUrl, instructions)
+        if (ctx.selectedProductId) {
+          const v = await validateImageUrlForPlacement(out, ctx.selectedProductId, placementId)
+          if (!v.ok) {
+            return JSON.stringify({
+              success: false,
+              error: v.error,
+              hint: 'Suggest uploading a larger source or changing the edit instructions.',
+            })
+          }
+        }
         const { fileId } = await registerPrintfulFileFromUrl(
           out,
           `agent-edit-${placementId}-${Date.now()}.png`

@@ -14,6 +14,10 @@ const nextConfig = {
         protocol: 'https',
         hostname: 'printful-upload.s3.amazonaws.com',
       },
+      {
+        protocol: 'https',
+        hostname: 'res.cloudinary.com',
+      },
     ],
   },
   experimental: {

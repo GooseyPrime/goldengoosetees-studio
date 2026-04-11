@@ -1,17 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import OpenAI from 'openai'
+import { editImageStudio } from '@/lib/ai/designAgentCore'
+import { validateImageUrlForPlacement } from '@/lib/design/validateArt'
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest) {
-  const key = process.env.OPENAI_API_KEY?.trim()
-  if (!key) {
-    return NextResponse.json(
-      { success: false, error: 'OPENAI_API_KEY is not configured' },
-      { status: 503 }
-    )
-  }
-
   try {
     const body = await request.json()
     const prompt = typeof body.prompt === 'string' ? body.prompt.trim() : ''
@@ -24,32 +17,27 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const imgRes = await fetch(imageUrl)
-    if (!imgRes.ok) {
-      return NextResponse.json({ success: false, error: 'Could not fetch source image' }, { status: 400 })
-    }
-    const buf = Buffer.from(await imgRes.arrayBuffer())
-    if (buf.length > 4 * 1024 * 1024) {
-      return NextResponse.json({ success: false, error: 'Image too large for edit (max 4MB)' }, { status: 400 })
-    }
+    const catalogProductId = body.catalogProductId != null ? Number(body.catalogProductId) : NaN
+    const placementId = typeof body.placementId === 'string' ? body.placementId.trim() : ''
 
-    const client = new OpenAI({ apiKey: key })
-    const file = await OpenAI.toFile(buf, 'source.png', { type: 'image/png' })
+    const { imageUrl: out } = await editImageStudio(imageUrl, prompt)
 
-    const result = await client.images.edit({
-      model: 'dall-e-2',
-      image: file,
-      prompt,
-      n: 1,
-      size: '1024x1024',
-    })
-
-    const url = result.data?.[0]?.url
-    if (url) {
-      return NextResponse.json({ success: true, imageUrl: url })
+    if (Number.isFinite(catalogProductId) && placementId) {
+      const v = await validateImageUrlForPlacement(out, catalogProductId, placementId)
+      if (!v.ok) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: v.error,
+            imageUrl: out,
+            needsRevision: true,
+          },
+          { status: 422 }
+        )
+      }
     }
 
-    return NextResponse.json({ success: false, error: 'No edited image returned' }, { status: 502 })
+    return NextResponse.json({ success: true, imageUrl: out })
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : 'Edit failed'
     console.error('AI edit:', e)
