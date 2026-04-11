@@ -18,24 +18,29 @@ The Printful integration enables:
 The live kiosk/catalog list is **not** the full Printful catalog. It only shows **catalog product** IDs you allow.
 
 - **Production source of truth:** set **`PRINTFUL_CURATED_PRODUCT_IDS`** in Vercel (**Settings → Environment Variables**) to a comma-separated list of Printful **catalog** `product_id` values (no spaces, or trim them). Redeploy after changing. When this env var is set, it **replaces** the in-repo defaults entirely.
-- **Repo defaults:** [`api/_lib/offerings.ts`](./api/_lib/offerings.ts) lists fallback IDs for local dev and previews without that env var.
+- **Repo defaults:** [`lib/offerings.ts`](./lib/offerings.ts) + [`lib/config/products.config.ts`](./lib/config/products.config.ts) (`DEFAULT_STOREFRONT_CATALOG_IDS`) when no env var is set.
 - **Discover / verify IDs:** with `PRINTFUL_API_KEY` set, run `npm run printful-resolve-launch` to print a keyword-matched table and a suggested `PRINTFUL_CURATED_PRODUCT_IDS=...` line (see [`Printful_Pricing_GoldenGooseTees.md`](./Printful_Pricing_GoldenGooseTees.md) launch offer set).
 
-### Default launch lineup (catalog `product_id`)
+### Default storefront lineup (catalog `product_id`)
 
-Aligned with the pricing spec (apparel → headwear → drinkware → wall art):
+Ten apparel blanks (sizes/colors = Printful variants; print areas follow each product in the API / local config):
 
-| ID | Product (short) |
-|----|-----------------|
-| **71** | Bella + Canvas 3001 — staple tee |
-| **12** | Gildan 64000 — value tee |
-| **145** | Gildan 18000 — crewneck sweatshirt |
-| **146** | Gildan 18500 — hoodie |
-| **206** | Classic Dad Hat (Yupoong 6245CM) |
-| **100** | 5 Panel Trucker Cap (Yupoong 6006) |
-| **81** | Knit Beanie (Otto Cap 82-480) |
-| **19** | White Glossy Mug (11 oz ceramic) |
-| **1** | Enhanced Matte Paper Poster |
+| ID | Product |
+|----|---------|
+| **71** | Unisex Staple T-Shirt \| Bella + Canvas 3001 |
+| **162** | Unisex Tri-Blend T-Shirt \| Bella + Canvas 3413 |
+| **248** | Men's Staple Tank Top \| Bella + Canvas 3480 |
+| **271** | Women's Muscle Tank \| Bella + Canvas 8803 |
+| **294** | Unisex Pullover Hoodie \| Bella + Canvas 3719 |
+| **356** | Unisex Long Sleeve Tee \| Bella + Canvas 3501 |
+| **365** | Unisex Muscle Shirt \| Bella + Canvas 3483 |
+| **537** | Men's Premium Tank Top \| Cotton Heritage MC1790 |
+| **108** | Men's Fitted T-Shirt \| Next Level 3600 |
+| **688** | Unisex Hooded Long Sleeve Tee \| Bella Canvas 3512 |
+
+Suggested env line:
+
+`PRINTFUL_CURATED_PRODUCT_IDS=71,162,248,271,294,356,365,537,108,688`
 
 ## Prerequisites
 
