@@ -128,6 +128,8 @@ export async function GET() {
             defaultColors: localConfig.defaultColors,
           }
         : null,
+      /** Raw Printful placements when no local config — client can resolve techniques */
+      printfulPlacementsRaw: p.placements ?? null,
     })
   }
 

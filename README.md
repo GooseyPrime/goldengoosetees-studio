@@ -70,9 +70,12 @@ In your Vercel project settings (Settings → Environment Variables), add:
 
 | Variable | Example | Description |
 |----------|---------|-------------|
-| `VITE_SUPABASE_URL` | `https://abc123.supabase.co` | Your Supabase project URL |
-| `VITE_SUPABASE_ANON_KEY` | `eyJ...` | Supabase anonymous/public key |
-| `SUPABASE_SERVICE_ROLE_KEY` | `eyJ...` | Service role key (server-side only) |
+| `NEXT_PUBLIC_SUPABASE_URL` | `https://abc123.supabase.co` | Project URL (Next.js; preferred) |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `eyJ...` | Anon key (browser) |
+| `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` | (same) | Legacy aliases still supported |
+| `SUPABASE_SERVICE_ROLE_KEY` | `eyJ...` | Service role key (server-side only; required for `/api/designs/upload`) |
+
+Create a **public** Storage bucket named **`design-uploads`** so the studio can store user artwork before Printful ingests it.
 
 **Where to find:** Supabase Dashboard → Your Project → Settings → API
 
@@ -93,6 +96,8 @@ In your Vercel project settings (Settings → Environment Variables), add:
 |----------|---------|-------------|
 | `PRINTFUL_API_KEY` | `abc123...` | Printful API access token (server-only) |
 | `PRINTFUL_STORE_ID` | `12345` | Store ID (optional, server-only) |
+| `PRINTFUL_WEBHOOK_SECRET` | `...` | Webhook signing secret (`/api/webhooks/printful`) |
+| `PRINTFUL_CURATED_PRODUCT_IDS` | `71,378,19` | Catalog product IDs to show in the store |
 
 **Where to find:** [Printful Dashboard → Settings → API](https://www.printful.com/dashboard/settings)
 
@@ -111,13 +116,14 @@ In your Vercel project settings (Settings → Environment Variables), add:
 - OpenAI: [platform.openai.com/api-keys](https://platform.openai.com/api-keys)
 - OpenRouter: [openrouter.ai/keys](https://openrouter.ai/keys)
 
-**Important**: AI keys are server-side only (no `VITE_` prefix). The app uses Gemini as the primary provider for both chat and image generation, with automatic fallback to OpenAI when configured.
+**Important**: AI keys are server-side only (no `VITE_` prefix). The design studio uses **`OPENAI_API_KEY`** for DALL·E 3 generation and DALL·E 2 edits (`/api/ai/*`). Gemini remains available for other flows when you add chat.
 
 #### App Configuration
 
 | Variable | Example | Description |
 |----------|---------|-------------|
-| `VITE_APP_URL` | `https://your-app.vercel.app` | Your deployed app URL (e.g. https://www.goldengoosetees.com) |
+| `NEXT_PUBLIC_APP_URL` | `https://your-app.vercel.app` | Canonical site URL for Stripe success/cancel redirects |
+| `VITE_APP_URL` | (legacy) | Still read as fallback for redirects |
 
 ### Step 3: Set Up Supabase Database
 

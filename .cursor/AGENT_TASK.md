@@ -3,38 +3,32 @@
 ## Truth source (read first)
 
 - **Stack:** Next.js 14 App Router (`app/`), not Vite. The **DETAILED_AUDIT_REPORT.md** (2026-04-06) describes an older **Vite + `/api/*.ts` serverless** layout; that structure is **not** in this repo anymore.
-- **What exists:** `lib/printful/client.ts` (v2), `lib/config/products.config.ts`, `GET /api/printful/catalog`, `components/DesignStudio.tsx` fetches catalog; other `app/api/*` routes still stubs.
-- **Product curation:** `PRINTFUL_CURATED_PRODUCT_IDS` (comma-separated catalog product IDs) per `PRINTFUL_SETUP.md` and `.env.example`. Code also accepts `ENABLED_PRODUCT_IDS` / `NEXT_PUBLIC_ENABLED_PRODUCT_IDS` in `getEnabledProducts()`.
+- **Studio flow:** `components/DesignStudio.tsx` — browse → variant → per-placement upload or AI → Printful mockups (poll) → Stripe Checkout link. Requires `PRINTFUL_API_KEY`, `OPENAI_API_KEY` (AI), Supabase + bucket `design-uploads` (uploads), `STRIPE_SECRET_KEY` (checkout).
+- **Product curation:** `PRINTFUL_CURATED_PRODUCT_IDS` per `PRINTFUL_SETUP.md` and `.env.example`. Also `ENABLED_PRODUCT_IDS` / `NEXT_PUBLIC_ENABLED_PRODUCT_IDS` in `getEnabledProducts()`.
 
 ## Audit findings vs current repo
 
 | Audit item | Status in this repo |
 |------------|---------------------|
-| Next.js App Router + `app/api/*/route.ts` | **Done** (audit was wrong for current tree) |
-| `lib/printful/client.ts` at repo root | **Done** |
-| `lib/config/products.config.ts` | **Done** |
-| Vite / `import.meta.env.VITE_ENABLED_PRODUCT_IDS` | **N/A** — use `process.env` / `NEXT_PUBLIC_*` |
-| Wrong `/api/printful/catalog` vs `/list` duplicate | **Was Vite-era** — implement **one** canonical `GET /api/printful/catalog` (Next route) |
-| Catalog calls Printful v2 + returns variants | **Implemented in** `app/api/printful/catalog/route.ts` (agent: keep in sync) |
-| `products_catalog` DB cache + 24h TTL | **Outstanding** — optional perf layer; not required for first working catalog |
-| Multi-placement schema migration `002_multi_placement_schema.sql` | **Exists** — verify applied on prod Supabase; base `designs` table in `schema.sql` may need alignment |
-| Stripe webhook raw body + signature | **Outstanding** — `app/api/webhooks/stripe/route.ts` is still TODO |
-| Printful webhook verify + mockup_task_finished | **Outstanding** — `app/api/webhooks/printful/route.ts` is still TODO |
-| Real mockup: Printful upload + mockup-tasks | **Outstanding** — `app/api/mockup/generate/route.ts` is placeholder |
-| Real AI generate/edit | **Outstanding** — `app/api/ai/*` are placeholders |
-| Scripts: `printful-resolve-launch`, `seed-products` | **Partial** — `scripts/printful-resolve-launch-products.ts` added; expand as needed |
-| `vercel.json` webhook `maxDuration` | **Partial** — `maxDuration` set for Stripe/Printful routes; tune as needed |
-| `middleware.ts` auth | **Outstanding** |
-| Per-placement AI **or** upload (any mix) | **Outstanding** — UX + API; see plan in prior conversation |
+| Next.js App Router + `app/api/*/route.ts` | **Done** |
+| Catalog `GET /api/printful/catalog` | **Done** |
+| Stripe webhook raw body + signature | **Done** — `app/api/webhooks/stripe/route.ts` |
+| Printful webhook verify | **Partial** — HMAC if `PRINTFUL_WEBHOOK_SECRET` set; confirm header name vs Printful dashboard |
+| Mockup: `POST /api/printful/mockup-task` + `GET ?id=` poll | **Done** |
+| AI generate/edit | **Done** — `/api/ai/generate`, `/api/ai/edit` (OpenAI) |
+| Supabase upload | **Done** — `/api/designs/upload` → bucket `design-uploads` |
+| Printful file library | **Done** — `POST /api/printful/files` |
+| Checkout | **Done** — `POST /api/checkout` Stripe session; metadata for fulfillment |
+| Printful order after payment | **Partial** — webhook creates draft order; confirm v2 payload + confirm step for production |
+| `products_catalog` DB cache | **Optional** |
+| `middleware.ts` auth | **Outstanding** if accounts required |
+| Pricing v2 / estimate-costs | **Outstanding** — see `docs/pricing.md` |
 
-## Priority order for the next agent
+## Next hardening (suggested)
 
-1. **Catalog path:** Ensure `GET /api/printful/catalog` works with `PRINTFUL_API_KEY` + curated IDs; UI lists products.
-2. **Design session:** Per-placement state (upload + AI slots), variant/color selection, align with `lib/config/products.config.ts` placements.
-3. **Printful file upload + mockup-tasks** + poll or webhook; replace placeholder mockup route.
-4. **Stripe:** Checkout session creation + webhook with **raw body** verification; server-side totals (see `Printful_Pricing_GoldenGooseTees.md`, `docs/pricing.md`).
-5. **Printful order** after payment; webhook handlers.
-6. **Optional:** `printful_variant_price_cache` cron, `products_catalog` cache, comprehensive migrations bundle.
+1. Validate Printful webhook signature header against live docs; persist orders in Supabase from webhooks.
+2. Replace retail heuristic with `POST /orders/estimate-costs` when pricing v2 ships.
+3. Add automated tests for `computeRetailCents` and mockup payload shape.
 
 ## Commands
 
@@ -45,12 +39,4 @@ npm test
 npm run printful-resolve-launch   # needs PRINTFUL_API_KEY
 ```
 
-## Files the implementing agent owns
-
-- `app/api/printful/**` — Printful proxy routes
-- `components/DesignStudio.tsx` — main UX (grow incrementally)
-- `lib/offerings.ts` — curated ID resolution
-- `app/api/webhooks/*` — payment + Printful
-- `scripts/*` — CLI helpers
-
-Do not expose `PRINTFUL_API_KEY` to the client. Prefer server routes for all Printful calls.
+Do not expose `PRINTFUL_API_KEY` to the client.
