@@ -23,6 +23,7 @@ import {
   STYLE_OPTIONS,
   type ImagePromptParts,
 } from '@/lib/ai/imagePromptParts'
+import { parseApiJson } from '@/lib/http/parseApiJson'
 
 export type CatalogProduct = {
   id: number
@@ -592,21 +593,60 @@ export default function DesignStudio() {
 
   const handleUpload = async (placementId: string, file: File) => {
     if (!selectedProduct) return
+    const mime = file.type || 'application/octet-stream'
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(mime)) {
+      setStatusMessage('Only PNG, JPEG, or WebP are supported.')
+      return
+    }
+    if (file.size > 12 * 1024 * 1024) {
+      setStatusMessage('File too large (max 12MB).')
+      return
+    }
     setBusy(`upload-${placementId}`)
     setStatusMessage(null)
     try {
-      const fd = new FormData()
-      fd.append('file', file)
-      fd.append('catalogProductId', String(selectedProduct.id))
-      fd.append('placementId', placementId)
-      const up = await fetch('/api/designs/upload', { method: 'POST', body: fd })
-      const upJson = await up.json()
-      if (!upJson.success) throw new Error(upJson.error || 'Upload failed')
+      const initRes = await fetch('/api/designs/upload-init', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contentType: mime, fileSize: file.size }),
+      })
+      const init = await parseApiJson(initRes)
+      if (!initRes.ok || init.success !== true) {
+        throw new Error(String(init.error || 'Could not start upload'))
+      }
+      const signedUrl = String(init.signedUrl)
+      const path = String(init.path)
+      const publicUrlHint = String(init.publicUrl)
 
-      const fileId = await registerPrintfulFile(upJson.publicUrl, file.name || `design-${placementId}.png`)
+      const putBody = new FormData()
+      putBody.append('cacheControl', '3600')
+      putBody.append('', file)
+
+      const putRes = await fetch(signedUrl, { method: 'PUT', body: putBody })
+      if (!putRes.ok) {
+        const errText = await putRes.text()
+        throw new Error((errText || `Upload failed (${putRes.status})`).slice(0, 240))
+      }
+
+      const finRes = await fetch('/api/designs/upload-finalize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          path,
+          catalogProductId: selectedProduct.id,
+          placementId,
+        }),
+      })
+      const fin = await parseApiJson(finRes)
+      if (!finRes.ok || fin.success !== true) {
+        throw new Error(String(fin.error || 'Upload validation failed'))
+      }
+      const publicUrl = String(fin.publicUrl || publicUrlHint)
+
+      const fileId = await registerPrintfulFile(publicUrl, file.name || `design-${placementId}.png`)
       setPlacementArt(placementId, {
         source: 'upload',
-        imageUrl: upJson.publicUrl,
+        imageUrl: publicUrl,
         printfulFileId: fileId,
       })
       setStatusMessage('Image uploaded and linked to Printful.')
@@ -642,19 +682,21 @@ export default function DesignStudio() {
           placementId,
         }),
       })
-      const json = await res.json()
+      const json = await parseApiJson(res)
       if (!json.success) {
         if (json.imageUrl && json.needsRevision) {
-          setStatusMessage(json.error || 'Image needs adjustment for print quality.')
+          setStatusMessage(String(json.error || 'Image needs adjustment for print quality.'))
           return
         }
-        throw new Error(json.error || 'Generation failed')
+        throw new Error(String(json.error || 'Generation failed'))
       }
 
-      const fileId = await registerPrintfulFile(json.imageUrl, `ai-${placementId}-${Date.now()}.png`)
+      const genUrl = typeof json.imageUrl === 'string' ? json.imageUrl : ''
+      if (!genUrl) throw new Error('No image URL in response')
+      const fileId = await registerPrintfulFile(genUrl, `ai-${placementId}-${Date.now()}.png`)
       setPlacementArt(placementId, {
         source: 'ai',
-        imageUrl: json.imageUrl,
+        imageUrl: genUrl,
         printfulFileId: fileId,
       })
       setStatusMessage('Art generated and linked to Printful.')
@@ -689,19 +731,21 @@ export default function DesignStudio() {
           placementId,
         }),
       })
-      const json = await res.json()
+      const json = await parseApiJson(res)
       if (!json.success) {
         if (json.imageUrl && json.needsRevision) {
-          setStatusMessage(json.error || 'Edited image still needs adjustment for print.')
+          setStatusMessage(String(json.error || 'Edited image still needs adjustment for print.'))
           return
         }
-        throw new Error(json.error || 'Edit failed')
+        throw new Error(String(json.error || 'Edit failed'))
       }
 
-      const fileId = await registerPrintfulFile(json.imageUrl, `edit-${placementId}-${Date.now()}.png`)
+      const editUrl = typeof json.imageUrl === 'string' ? json.imageUrl : ''
+      if (!editUrl) throw new Error('No image URL in response')
+      const fileId = await registerPrintfulFile(editUrl, `edit-${placementId}-${Date.now()}.png`)
       setPlacementArt(placementId, {
         source: 'ai',
-        imageUrl: json.imageUrl,
+        imageUrl: editUrl,
         printfulFileId: fileId,
       })
       setStatusMessage('Edited image saved.')

@@ -16,8 +16,9 @@ describe('openaiImageErrors', () => {
     expect(isOpenAIBillingOrQuotaError(e)).toBe(true)
   })
 
-  it('OpenAIImageServiceUnavailableError has httpStatus 503', () => {
+  it('OpenAIImageServiceUnavailableError has httpStatus 503 and code', () => {
     const err = new OpenAIImageServiceUnavailableError('test')
     expect(err.httpStatus).toBe(503)
+    expect(err.errorCode).toBe('openai_billing_or_quota')
   })
 })

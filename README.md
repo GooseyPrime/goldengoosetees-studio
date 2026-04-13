@@ -79,6 +79,21 @@ Create a **public** Storage bucket named **`design-uploads`** so the studio can 
 
 **Where to find:** Supabase Dashboard → Your Project → Settings → API
 
+**Critical:** `NEXT_PUBLIC_SUPABASE_URL` must be `https://<project-ref>.supabase.co`, not your Vercel or custom domain. If it is wrong, auth calls hit your site (`/auth/v1/...` 404) and the browser shows JSON parse errors.
+
+**Auth URLs (replace `https://YOUR_PRODUCTION_DOMAIN` with your live site, e.g. `https://www.goldengoosetees.com`):**
+
+- Supabase → Authentication → URL configuration → **Site URL:** `https://YOUR_PRODUCTION_DOMAIN`
+- **Redirect URLs** (allow list), add at minimum:
+  - `https://YOUR_PRODUCTION_DOMAIN/auth/callback`
+  - `http://localhost:3000/auth/callback` (local dev)
+- Authentication → Providers → **Google**: enable and paste OAuth Client ID/secret from Google Cloud Console. In Google Cloud → Credentials → your OAuth 2.0 Client → **Authorized redirect URIs**, add Supabase’s redirect (shown in the Google provider settings on Supabase), typically  
+  `https://<project-ref>.supabase.co/auth/v1/callback`
+
+**Design uploads:** Large files use signed URLs (`POST /api/designs/upload-init` then direct upload to Supabase) to avoid Vercel’s ~4.5MB request body limit. Legacy `POST /api/designs/upload` remains for small files.
+
+**Image generation debugging:** `GET /api/ai/image-status` returns `{ openaiConfigured, nanoBananaConfigured }` (no secrets).
+
 #### Stripe (Required)
 
 | Variable | Example | Description |
@@ -89,6 +104,9 @@ Create a **public** Storage bucket named **`design-uploads`** so the studio can 
 | `VITE_STRIPE_TEST_MODE` | `true` or `false` | Enable test mode |
 
 **Where to find:** [Stripe Dashboard → API Keys](https://dashboard.stripe.com/apikeys)
+
+**Stripe webhook URL (replace domain):** `https://YOUR_PRODUCTION_DOMAIN/api/webhooks/stripe`  
+Create it in [Stripe Dashboard → Developers → Webhooks](https://dashboard.stripe.com/webhooks), select events your app handles, then set `STRIPE_WEBHOOK_SECRET` to the signing secret for that endpoint.
 
 #### Printful (Required)
 
