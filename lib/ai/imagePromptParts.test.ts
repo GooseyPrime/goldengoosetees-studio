@@ -21,4 +21,16 @@ describe('imagePromptParts', () => {
     }
     expect(buildImagePromptFromParts(p).length).toBeLessThanOrEqual(MAX_IMAGE_PROMPT_LENGTH)
   })
+
+  it('includes print-clarity options when subject is empty', () => {
+    const p = {
+      ...defaultImagePromptParts(),
+      subject: '',
+      backgroundKey: 'solid_dark' as const,
+      detailLevelKey: 'simple' as const,
+    }
+    const out = buildImagePromptFromParts(p)
+    expect(out).toContain('solid dark')
+    expect(out).toContain('simple bold')
+  })
 })

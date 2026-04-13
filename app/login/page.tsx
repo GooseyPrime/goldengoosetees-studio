@@ -5,7 +5,7 @@ import LoginForm from './LoginForm'
 export default function LoginPage() {
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col items-center justify-center px-4">
-      <Link href="/" className="mb-8 text-amber-400/90 hover:text-amber-300 text-sm">
+      <Link href="/studio" className="mb-8 text-amber-400/90 hover:text-amber-300 text-sm">
         ← Back to studio
       </Link>
       <Suspense

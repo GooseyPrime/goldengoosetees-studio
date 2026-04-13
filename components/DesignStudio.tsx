@@ -16,9 +16,13 @@ import {
 import StudioChatPanel, { type AgentClientAction, type StudioContextPayload } from '@/components/StudioChatPanel'
 import { createClient as createSupabaseBrowser } from '@/lib/supabase/client'
 import {
+  BACKGROUND_OPTIONS,
   COMPOSITION_OPTIONS,
   COLOR_THEME_OPTIONS,
+  DETAIL_LEVEL_OPTIONS,
   defaultImagePromptParts,
+  imagePromptBuilderLooksFilled,
+  LINE_WEIGHT_OPTIONS,
   MOOD_OPTIONS,
   STYLE_OPTIONS,
   type ImagePromptParts,
@@ -663,8 +667,8 @@ export default function DesignStudio() {
         setStatusMessage('Enter a custom prompt or turn off “custom prompt only”.')
         return
       }
-    } else if (!imagePromptParts.subject.trim()) {
-      setStatusMessage('Describe the main subject or idea for your graphic.')
+    } else if (!imagePromptBuilderLooksFilled(imagePromptParts)) {
+      setStatusMessage('Describe the main subject, or change at least one option below so we can build a prompt.')
       return
     }
     if (!selectedProduct) return
@@ -1408,11 +1412,14 @@ export default function DesignStudio() {
                           placeholder="Full prompt for the image model…"
                         />
                       ) : (
-                        <div className="space-y-4">
-                          <div className="space-y-1">
-                            <label className="text-xs font-medium text-zinc-400 uppercase tracking-wide">
-                              Main subject
-                            </label>
+                        <div className="space-y-5">
+                          <fieldset className="space-y-2 rounded-xl border border-zinc-800 bg-zinc-950/40 p-4">
+                            <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-zinc-400">
+                              Idea
+                            </legend>
+                            <p className="text-xs text-zinc-500 -mt-1 mb-2">
+                              What the print should depict. You can leave this short if the options below carry the design.
+                            </p>
                             <textarea
                               value={imagePromptParts.subject}
                               onChange={(e) =>
@@ -1420,99 +1427,176 @@ export default function DesignStudio() {
                               }
                               rows={3}
                               className="w-full border border-zinc-700 rounded-lg px-3 py-2 text-sm bg-zinc-950 text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-amber-500/30"
-                              placeholder="What should the graphic show? (e.g. a geometric goose, a mountain sunset logo…)"
+                              placeholder="e.g. geometric goose mascot, retro sunset over mountains, minimalist wordmark…"
                             />
-                          </div>
-                          <div className="grid sm:grid-cols-2 gap-3">
+                          </fieldset>
+
+                          <fieldset className="space-y-3 rounded-xl border border-zinc-800 bg-zinc-950/40 p-4">
+                            <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-zinc-400">
+                              Look &amp; feel
+                            </legend>
+                            <div className="grid sm:grid-cols-2 gap-3">
+                              <div className="space-y-1">
+                                <label className="text-xs font-medium text-zinc-300">Art style</label>
+                                <p className="text-[11px] text-zinc-600 leading-snug">Overall technique (vector, vintage, type-heavy…).</p>
+                                <select
+                                  value={imagePromptParts.styleKey}
+                                  onChange={(e) =>
+                                    setImagePromptParts((prev) => ({ ...prev, styleKey: e.target.value }))
+                                  }
+                                  className="w-full border border-zinc-700 rounded-lg px-3 py-2 text-sm bg-zinc-950 text-zinc-100"
+                                >
+                                  {STYLE_OPTIONS.map((o) => (
+                                    <option key={o.id} value={o.id}>
+                                      {o.label}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                              <div className="space-y-1">
+                                <label className="text-xs font-medium text-zinc-300">Color palette</label>
+                                <p className="text-[11px] text-zinc-600 leading-snug">Saturation and hue direction for ink on fabric.</p>
+                                <select
+                                  value={imagePromptParts.colorThemeKey}
+                                  onChange={(e) =>
+                                    setImagePromptParts((prev) => ({ ...prev, colorThemeKey: e.target.value }))
+                                  }
+                                  className="w-full border border-zinc-700 rounded-lg px-3 py-2 text-sm bg-zinc-950 text-zinc-100"
+                                >
+                                  {COLOR_THEME_OPTIONS.map((o) => (
+                                    <option key={o.id} value={o.id}>
+                                      {o.label}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                              <div className="space-y-1">
+                                <label className="text-xs font-medium text-zinc-300">Mood</label>
+                                <p className="text-[11px] text-zinc-600 leading-snug">Emotional tone of the graphic.</p>
+                                <select
+                                  value={imagePromptParts.moodKey}
+                                  onChange={(e) =>
+                                    setImagePromptParts((prev) => ({ ...prev, moodKey: e.target.value }))
+                                  }
+                                  className="w-full border border-zinc-700 rounded-lg px-3 py-2 text-sm bg-zinc-950 text-zinc-100"
+                                >
+                                  {MOOD_OPTIONS.map((o) => (
+                                    <option key={o.id} value={o.id}>
+                                      {o.label}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                              <div className="space-y-1">
+                                <label className="text-xs font-medium text-zinc-300">Layout on garment</label>
+                                <p className="text-[11px] text-zinc-600 leading-snug">How the art sits in the print area.</p>
+                                <select
+                                  value={imagePromptParts.compositionKey}
+                                  onChange={(e) =>
+                                    setImagePromptParts((prev) => ({ ...prev, compositionKey: e.target.value }))
+                                  }
+                                  className="w-full border border-zinc-700 rounded-lg px-3 py-2 text-sm bg-zinc-950 text-zinc-100"
+                                >
+                                  {COMPOSITION_OPTIONS.map((o) => (
+                                    <option key={o.id} value={o.id}>
+                                      {o.label}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                            </div>
+                          </fieldset>
+
+                          <fieldset className="space-y-3 rounded-xl border border-zinc-800 bg-zinc-950/40 p-4">
+                            <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-zinc-400">
+                              Print clarity
+                            </legend>
+                            <div className="grid sm:grid-cols-2 gap-3">
+                              <div className="space-y-1">
+                                <label className="text-xs font-medium text-zinc-300">Detail level</label>
+                                <p className="text-[11px] text-zinc-600 leading-snug">Simpler art reads better on small chest prints.</p>
+                                <select
+                                  value={imagePromptParts.detailLevelKey}
+                                  onChange={(e) =>
+                                    setImagePromptParts((prev) => ({ ...prev, detailLevelKey: e.target.value }))
+                                  }
+                                  className="w-full border border-zinc-700 rounded-lg px-3 py-2 text-sm bg-zinc-950 text-zinc-100"
+                                >
+                                  {DETAIL_LEVEL_OPTIONS.map((o) => (
+                                    <option key={o.id} value={o.id}>
+                                      {o.label}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                              <div className="space-y-1">
+                                <label className="text-xs font-medium text-zinc-300">Background</label>
+                                <p className="text-[11px] text-zinc-600 leading-snug">Transparent is best for overlays on shirt colors.</p>
+                                <select
+                                  value={imagePromptParts.backgroundKey}
+                                  onChange={(e) =>
+                                    setImagePromptParts((prev) => ({ ...prev, backgroundKey: e.target.value }))
+                                  }
+                                  className="w-full border border-zinc-700 rounded-lg px-3 py-2 text-sm bg-zinc-950 text-zinc-100"
+                                >
+                                  {BACKGROUND_OPTIONS.map((o) => (
+                                    <option key={o.id} value={o.id}>
+                                      {o.label}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                              <div className="space-y-1 sm:col-span-2">
+                                <label className="text-xs font-medium text-zinc-300">Line weight</label>
+                                <p className="text-[11px] text-zinc-600 leading-snug">Stroke thickness for line-based or vector looks.</p>
+                                <select
+                                  value={imagePromptParts.lineWeightKey}
+                                  onChange={(e) =>
+                                    setImagePromptParts((prev) => ({ ...prev, lineWeightKey: e.target.value }))
+                                  }
+                                  className="w-full border border-zinc-700 rounded-lg px-3 py-2 text-sm bg-zinc-950 text-zinc-100"
+                                >
+                                  {LINE_WEIGHT_OPTIONS.map((o) => (
+                                    <option key={o.id} value={o.id}>
+                                      {o.label}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                            </div>
+                          </fieldset>
+
+                          <fieldset className="space-y-3 rounded-xl border border-zinc-800 bg-zinc-950/40 p-4">
+                            <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-zinc-400">
+                              Fine-tuning
+                            </legend>
                             <div className="space-y-1">
-                              <label className="text-xs text-zinc-500">Style</label>
-                              <select
-                                value={imagePromptParts.styleKey}
+                              <label className="text-xs font-medium text-zinc-300">Extra details (optional)</label>
+                              <p className="text-[11px] text-zinc-600">Specific symbols, text, textures, or references.</p>
+                              <textarea
+                                value={imagePromptParts.extraDetails}
                                 onChange={(e) =>
-                                  setImagePromptParts((prev) => ({ ...prev, styleKey: e.target.value }))
+                                  setImagePromptParts((prev) => ({ ...prev, extraDetails: e.target.value }))
                                 }
-                                className="w-full border border-zinc-700 rounded-lg px-3 py-2 text-sm bg-zinc-950 text-zinc-100"
-                              >
-                                {STYLE_OPTIONS.map((o) => (
-                                  <option key={o.id} value={o.id}>
-                                    {o.label}
-                                  </option>
-                                ))}
-                              </select>
+                                rows={2}
+                                className="w-full border border-zinc-700 rounded-lg px-3 py-2 text-sm bg-zinc-950 text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-amber-500/30"
+                                placeholder="e.g. include EST. 2024, halftone shading, single mountain peak…"
+                              />
                             </div>
                             <div className="space-y-1">
-                              <label className="text-xs text-zinc-500">Color theme</label>
-                              <select
-                                value={imagePromptParts.colorThemeKey}
+                              <label className="text-xs font-medium text-zinc-300">Avoid (optional)</label>
+                              <p className="text-[11px] text-zinc-600">Things the generator should skip.</p>
+                              <input
+                                type="text"
+                                value={imagePromptParts.avoid}
                                 onChange={(e) =>
-                                  setImagePromptParts((prev) => ({ ...prev, colorThemeKey: e.target.value }))
+                                  setImagePromptParts((prev) => ({ ...prev, avoid: e.target.value }))
                                 }
-                                className="w-full border border-zinc-700 rounded-lg px-3 py-2 text-sm bg-zinc-950 text-zinc-100"
-                              >
-                                {COLOR_THEME_OPTIONS.map((o) => (
-                                  <option key={o.id} value={o.id}>
-                                    {o.label}
-                                  </option>
-                                ))}
-                              </select>
+                                className="w-full border border-zinc-700 rounded-lg px-3 py-2 text-sm bg-zinc-950 text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-amber-500/30"
+                                placeholder="e.g. tiny text, photorealistic faces, busy backgrounds"
+                              />
                             </div>
-                            <div className="space-y-1">
-                              <label className="text-xs text-zinc-500">Mood</label>
-                              <select
-                                value={imagePromptParts.moodKey}
-                                onChange={(e) =>
-                                  setImagePromptParts((prev) => ({ ...prev, moodKey: e.target.value }))
-                                }
-                                className="w-full border border-zinc-700 rounded-lg px-3 py-2 text-sm bg-zinc-950 text-zinc-100"
-                              >
-                                {MOOD_OPTIONS.map((o) => (
-                                  <option key={o.id} value={o.id}>
-                                    {o.label}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-                            <div className="space-y-1">
-                              <label className="text-xs text-zinc-500">Layout</label>
-                              <select
-                                value={imagePromptParts.compositionKey}
-                                onChange={(e) =>
-                                  setImagePromptParts((prev) => ({ ...prev, compositionKey: e.target.value }))
-                                }
-                                className="w-full border border-zinc-700 rounded-lg px-3 py-2 text-sm bg-zinc-950 text-zinc-100"
-                              >
-                                {COMPOSITION_OPTIONS.map((o) => (
-                                  <option key={o.id} value={o.id}>
-                                    {o.label}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-                          </div>
-                          <div className="space-y-1">
-                            <label className="text-xs text-zinc-500">Extra details (optional)</label>
-                            <textarea
-                              value={imagePromptParts.extraDetails}
-                              onChange={(e) =>
-                                setImagePromptParts((prev) => ({ ...prev, extraDetails: e.target.value }))
-                              }
-                              rows={2}
-                              className="w-full border border-zinc-700 rounded-lg px-3 py-2 text-sm bg-zinc-950 text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-amber-500/30"
-                              placeholder="Textures, symbols, text to include, references…"
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <label className="text-xs text-zinc-500">Avoid (optional)</label>
-                            <input
-                              type="text"
-                              value={imagePromptParts.avoid}
-                              onChange={(e) =>
-                                setImagePromptParts((prev) => ({ ...prev, avoid: e.target.value }))
-                              }
-                              className="w-full border border-zinc-700 rounded-lg px-3 py-2 text-sm bg-zinc-950 text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-amber-500/30"
-                              placeholder="e.g. photorealistic faces, busy backgrounds"
-                            />
-                          </div>
+                          </fieldset>
                         </div>
                       )}
                       <button

@@ -1,13 +1,24 @@
 import OpenAI from 'openai'
 import { printfulPost } from '@/lib/printful/client'
 import {
+  editImageGemini,
+  generateImageGemini,
+  isGeminiNativeConfigured,
+  shouldFallbackFromGeminiError,
+} from '@/lib/ai/geminiImageClient'
+import { GeminiImageError } from '@/lib/ai/geminiImageClient'
+import {
   editImageNanoBanana,
   generateImageNanoBanana,
   isNanoBananaConfigured,
+  NanoBananaGatewayError,
   shouldFallbackFromNanoBananaError,
 } from '@/lib/ai/nanoBananaClient'
 import { validateImageUrlForPlacement } from '@/lib/design/validateArt'
-import { rethrowIfOpenAIBillingLimit } from '@/lib/ai/openaiImageErrors'
+import {
+  OpenAIImageServiceUnavailableError,
+  rethrowIfOpenAIBillingLimit,
+} from '@/lib/ai/openaiImageErrors'
 
 export async function registerPrintfulFileFromUrl(url: string, filename: string): Promise<{ fileId: string }> {
   const res = await printfulPost<{ id: string }>('/files', {
@@ -45,6 +56,15 @@ export async function generateImageStudio(
   prompt: string,
   options?: { aspectRatio?: string; resolution?: string }
 ): Promise<{ imageUrl: string; revisedPrompt?: string }> {
+  if (isGeminiNativeConfigured()) {
+    try {
+      return await generateImageGemini(prompt)
+    } catch (e) {
+      if (!shouldFallbackFromGeminiError(e)) throw e
+      console.warn('[generateImageStudio] Gemini failed; trying other providers:', e)
+    }
+  }
+
   if (isNanoBananaConfigured()) {
     try {
       const { imageUrl } = await generateImageNanoBanana(prompt, options)
@@ -66,6 +86,15 @@ export async function editImageStudio(imageUrl: string, prompt: string): Promise
   const buf = Buffer.from(await imgRes.arrayBuffer())
   if (buf.length > 12 * 1024 * 1024) throw new Error('Image too large for edit (max 12MB)')
   const mime = imgRes.headers.get('content-type') || 'image/png'
+
+  if (isGeminiNativeConfigured()) {
+    try {
+      return await editImageGemini(buf, mime, prompt)
+    } catch (e) {
+      if (!shouldFallbackFromGeminiError(e)) throw e
+      console.warn('[editImageStudio] Gemini failed; trying other providers:', e)
+    }
+  }
 
   if (isNanoBananaConfigured()) {
     try {
@@ -546,10 +575,20 @@ export async function executeDesignAgentTool(
           message: 'Generated and linked to Printful.',
         })
       } catch (e) {
-        return JSON.stringify({
-          success: false,
-          error: e instanceof Error ? e.message : 'Generation failed',
-        })
+        const errMsg = e instanceof Error ? e.message : 'Generation failed'
+        let hint =
+          'Verify GEMINI_API_KEY, Supabase design-uploads bucket, and Printful API. Ask the user to retry from the Generate panel after configuration is fixed.'
+        if (e instanceof OpenAIImageServiceUnavailableError) {
+          hint =
+            'OpenAI quota or billing blocked images. Set GEMINI_API_KEY as the primary image provider, or fix OpenAI billing. Tell the user to use Generate in the studio.'
+        } else if (e instanceof GeminiImageError) {
+          hint =
+            'Gemini did not return an image. Check GEMINI_API_KEY, try GEMINI_IMAGE_MODEL / GEMINI_IMAGE_MODEL_FALLBACK, and confirm the design-uploads bucket exists for publishing URLs.'
+        } else if (e instanceof NanoBananaGatewayError) {
+          hint =
+            'Nano Banana gateway failed. Set GEMINI_API_KEY for native Gemini, or fix NANO_BANANA_API_BASE_URL and NANO_BANANA_API_KEY.'
+        }
+        return JSON.stringify({ success: false, error: errMsg, hint })
       }
     }
     case 'edit_design': {
@@ -606,10 +645,19 @@ export async function executeDesignAgentTool(
           message: 'Edited and new file registered with Printful.',
         })
       } catch (e) {
-        return JSON.stringify({
-          success: false,
-          error: e instanceof Error ? e.message : 'Edit failed',
-        })
+        const errMsg = e instanceof Error ? e.message : 'Edit failed'
+        let hint =
+          'Same backends as generate: GEMINI_API_KEY + design-uploads bucket, or NANO_BANANA_*, or OpenAI. Ask the user to edit in the image UI if the service keeps failing.'
+        if (e instanceof OpenAIImageServiceUnavailableError) {
+          hint =
+            'OpenAI blocked the edit. Prefer GEMINI_API_KEY for edits, or fix OpenAI billing.'
+        } else if (e instanceof GeminiImageError) {
+          hint =
+            'Gemini edit failed. Confirm GEMINI_API_KEY and image model support multimodal edit output.'
+        } else if (e instanceof NanoBananaGatewayError) {
+          hint = 'Nano Banana edit failed. Set GEMINI_API_KEY or fix NANO_BANANA_* gateway.'
+        }
+        return JSON.stringify({ success: false, error: errMsg, hint })
       }
     }
     default:

@@ -40,8 +40,17 @@ export async function POST(request: NextRequest) {
     const { data, error } = await admin.storage.from(BUCKET).createSignedUploadUrl(path, { upsert: false })
     if (error || !data) {
       console.error('createSignedUploadUrl:', error)
+      const raw = (error?.message || '').toLowerCase()
+      let hint =
+        'Check that the Supabase Storage bucket "design-uploads" exists, is reachable, and that SUPABASE_SERVICE_ROLE_KEY is set on the server.'
+      if (raw.includes('bucket not found') || raw.includes('not found') || raw.includes('does not exist')) {
+        hint =
+          'The Storage bucket "design-uploads" is missing or misnamed. Create a public bucket named design-uploads in the Supabase dashboard (see README).'
+      } else if (raw.includes('jwt') || raw.includes('key')) {
+        hint = 'Invalid or missing SUPABASE_SERVICE_ROLE_KEY — signed uploads require the service role.'
+      }
       return NextResponse.json(
-        { success: false, error: error?.message || 'Could not create upload URL' },
+        { success: false, error: error?.message || 'Could not create upload URL', hint },
         { status: 500 }
       )
     }

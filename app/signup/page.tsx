@@ -5,6 +5,26 @@ import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
+type LookupCode = 'USE_GOOGLE' | 'USE_PASSWORD' | 'NO_ACCOUNT'
+
+async function fetchSignInHint(email: string): Promise<LookupCode | null> {
+  const trimmed = email.trim().toLowerCase()
+  if (!trimmed) return null
+  try {
+    const res = await fetch('/api/auth/lookup-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: trimmed }),
+    })
+    if (!res.ok) return null
+    const data = (await res.json()) as { success?: boolean; code?: LookupCode }
+    if (data.success && data.code) return data.code
+  } catch {
+    /* ignore */
+  }
+  return null
+}
+
 export default function SignupPage() {
   const router = useRouter()
   const [email, setEmail] = useState('')
@@ -14,6 +34,7 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false)
   const [oauthLoading, setOauthLoading] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
+  const [showPassword, setShowPassword] = useState(false)
 
   async function signInWithGoogle() {
     setError(null)
@@ -39,6 +60,17 @@ export default function SignupPage() {
     setLoading(true)
     try {
       const supabase = createClient()
+      const hint = await fetchSignInHint(email)
+      if (hint === 'USE_GOOGLE') {
+        setError(
+          'An account with this email already uses Google. Sign in with “Continue with Google” instead of creating a new password.'
+        )
+        return
+      }
+      if (hint === 'USE_PASSWORD') {
+        setError('An account with this email already exists. Sign in with your email and password.')
+        return
+      }
       const origin = typeof window !== 'undefined' ? window.location.origin : ''
       const { error: signErr } = await supabase.auth.signUp({
         email,
@@ -61,7 +93,7 @@ export default function SignupPage() {
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col items-center justify-center px-4">
-      <Link href="/" className="mb-8 text-amber-400/90 hover:text-amber-300 text-sm">
+      <Link href="/studio" className="mb-8 text-amber-400/90 hover:text-amber-300 text-sm">
         ← Back to studio
       </Link>
       <div className="w-full max-w-md rounded-2xl border border-zinc-800 bg-zinc-900/80 p-8 shadow-xl">
@@ -103,7 +135,7 @@ export default function SignupPage() {
             </label>
             <input
               id="password"
-              type="password"
+              type={showPassword ? 'text' : 'password'}
               autoComplete="new-password"
               required
               minLength={6}
@@ -111,6 +143,15 @@ export default function SignupPage() {
               onChange={(e) => setPassword(e.target.value)}
               className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:ring-2 focus:ring-amber-500/50"
             />
+            <label className="mt-2 flex items-center gap-2 text-xs text-zinc-500 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={showPassword}
+                onChange={(e) => setShowPassword(e.target.checked)}
+                className="rounded border-zinc-600 text-amber-500 focus:ring-amber-500/40"
+              />
+              Show password
+            </label>
           </div>
           <button
             type="submit"

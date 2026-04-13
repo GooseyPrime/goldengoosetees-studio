@@ -5,15 +5,36 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
+type LookupCode = 'USE_GOOGLE' | 'USE_PASSWORD' | 'NO_ACCOUNT'
+
+async function fetchSignInHint(email: string): Promise<LookupCode | null> {
+  const trimmed = email.trim().toLowerCase()
+  if (!trimmed) return null
+  try {
+    const res = await fetch('/api/auth/lookup-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: trimmed }),
+    })
+    if (!res.ok) return null
+    const data = (await res.json()) as { success?: boolean; code?: LookupCode }
+    if (data.success && data.code) return data.code
+  } catch {
+    /* ignore */
+  }
+  return null
+}
+
 export default function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const next = searchParams.get('next') || '/'
+  const next = searchParams.get('next') || '/studio'
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [oauthLoading, setOauthLoading] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
 
   async function signInWithGoogle() {
     setError(null)
@@ -39,6 +60,17 @@ export default function LoginForm() {
       const supabase = createClient()
       const { error: signErr } = await supabase.auth.signInWithPassword({ email, password })
       if (signErr) {
+        const hint = await fetchSignInHint(email)
+        if (hint === 'USE_GOOGLE') {
+          setError(
+            'This email is linked to Google. Use “Continue with Google” to sign in — password sign-in is not set up for this account.'
+          )
+          return
+        }
+        if (hint === 'NO_ACCOUNT') {
+          setError(`${signErr.message} If you have not created an account yet, sign up first.`)
+          return
+        }
         setError(signErr.message)
         return
       }
@@ -78,13 +110,22 @@ export default function LoginForm() {
           </label>
           <input
             id="password"
-            type="password"
+            type={showPassword ? 'text' : 'password'}
             autoComplete="current-password"
             required
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:ring-2 focus:ring-amber-500/50"
           />
+          <label className="mt-2 flex items-center gap-2 text-xs text-zinc-500 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={showPassword}
+              onChange={(e) => setShowPassword(e.target.checked)}
+              className="rounded border-zinc-600 text-amber-500 focus:ring-amber-500/40"
+            />
+            Show password
+          </label>
         </div>
         <button
           type="submit"

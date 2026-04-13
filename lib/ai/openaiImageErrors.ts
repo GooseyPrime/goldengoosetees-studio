@@ -3,7 +3,7 @@
  */
 
 export const OPENAI_BILLING_LIMIT_USER_MESSAGE =
-  'Image generation is unavailable: your OpenAI account billing or usage limit was reached. Check billing and limits in the OpenAI dashboard, or configure a working image provider (for example NANO_BANANA_API_BASE_URL and NANO_BANANA_API_KEY).'
+  'Image generation is unavailable: your OpenAI account billing or usage limit was reached. Prefer Google Gemini for images: set GEMINI_API_KEY (and optional GEMINI_IMAGE_MODEL). Alternatively configure NANO_BANANA_API_BASE_URL and NANO_BANANA_API_KEY, or fix OpenAI billing in the dashboard.'
 
 export class OpenAIImageServiceUnavailableError extends Error {
   readonly httpStatus = 503 as const

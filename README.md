@@ -92,7 +92,7 @@ Create a **public** Storage bucket named **`design-uploads`** so the studio can 
 
 **Design uploads:** Large files use signed URLs (`POST /api/designs/upload-init` then direct upload to Supabase) to avoid Vercel’s ~4.5MB request body limit. Legacy `POST /api/designs/upload` remains for small files.
 
-**Image generation debugging:** `GET /api/ai/image-status` returns `{ openaiConfigured, nanoBananaConfigured }` (no secrets).
+**Image generation debugging:** `GET /api/ai/image-status` returns `{ geminiConfigured, nanoBananaConfigured, openaiConfigured }` (no secrets).
 
 #### Stripe (Required)
 
