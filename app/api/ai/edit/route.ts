@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { editImageStudio } from '@/lib/ai/designAgentCore'
 import { validateImageUrlForPlacement } from '@/lib/design/validateArt'
+import { OpenAIImageServiceUnavailableError } from '@/lib/ai/openaiImageErrors'
 
 export const dynamic = 'force-dynamic'
 
@@ -39,6 +40,10 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, imageUrl: out })
   } catch (e: unknown) {
+    if (e instanceof OpenAIImageServiceUnavailableError) {
+      console.error('AI edit:', e)
+      return NextResponse.json({ success: false, error: e.message }, { status: e.httpStatus })
+    }
     const msg = e instanceof Error ? e.message : 'Edit failed'
     console.error('AI edit:', e)
     return NextResponse.json({ success: false, error: msg }, { status: 500 })
