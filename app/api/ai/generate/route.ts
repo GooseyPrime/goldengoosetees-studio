@@ -8,6 +8,7 @@ import {
   type ImagePromptParts,
 } from '@/lib/ai/imagePromptParts'
 import { getProductConfig } from '@/lib/config/products.config'
+import { OpenAIImageServiceUnavailableError } from '@/lib/ai/openaiImageErrors'
 
 export const dynamic = 'force-dynamic'
 
@@ -107,6 +108,10 @@ export async function POST(request: NextRequest) {
       revisedPrompt,
     })
   } catch (e: unknown) {
+    if (e instanceof OpenAIImageServiceUnavailableError) {
+      console.error('AI generate:', e)
+      return NextResponse.json({ success: false, error: e.message }, { status: e.httpStatus })
+    }
     const msg = e instanceof Error ? e.message : 'Generation failed'
     console.error('AI generate:', e)
     return NextResponse.json({ success: false, error: msg }, { status: 500 })

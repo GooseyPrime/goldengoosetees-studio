@@ -7,6 +7,7 @@ import {
   shouldFallbackFromNanoBananaError,
 } from '@/lib/ai/nanoBananaClient'
 import { validateImageUrlForPlacement } from '@/lib/design/validateArt'
+import { rethrowIfOpenAIBillingLimit } from '@/lib/ai/openaiImageErrors'
 
 export async function registerPrintfulFileFromUrl(url: string, filename: string): Promise<{ fileId: string }> {
   const res = await printfulPost<{ id: string }>('/files', {
@@ -24,16 +25,20 @@ async function generateImageOpenAI(prompt: string): Promise<{ imageUrl: string; 
   const key = process.env.OPENAI_API_KEY?.trim()
   if (!key) throw new Error('Configure NANO_BANANA_API_* or OPENAI_API_KEY for image generation')
   const client = new OpenAI({ apiKey: key })
-  const result = await client.images.generate({
-    model: 'dall-e-3',
-    prompt,
-    n: 1,
-    size: '1024x1024',
-    response_format: 'url',
-  })
-  const url = result.data?.[0]?.url
-  if (!url) throw new Error('No image returned from generator')
-  return { imageUrl: url, revisedPrompt: result.data?.[0]?.revised_prompt }
+  try {
+    const result = await client.images.generate({
+      model: 'dall-e-3',
+      prompt,
+      n: 1,
+      size: '1024x1024',
+      response_format: 'url',
+    })
+    const url = result.data?.[0]?.url
+    if (!url) throw new Error('No image returned from generator')
+    return { imageUrl: url, revisedPrompt: result.data?.[0]?.revised_prompt }
+  } catch (e) {
+    rethrowIfOpenAIBillingLimit(e)
+  }
 }
 
 export async function generateImageStudio(
@@ -80,17 +85,21 @@ export async function editImageStudio(imageUrl: string, prompt: string): Promise
   if (!key) throw new Error('Configure NANO_BANANA_API_* or OPENAI_API_KEY for image editing')
   if (buf.length > 4 * 1024 * 1024) throw new Error('Image too large for DALL·E edit (max 4MB)')
   const client = new OpenAI({ apiKey: key })
-  const file = await OpenAI.toFile(buf, 'source.png', { type: 'image/png' })
-  const result = await client.images.edit({
-    model: 'dall-e-2',
-    image: file,
-    prompt,
-    n: 1,
-    size: '1024x1024',
-  })
-  const url = result.data?.[0]?.url
-  if (!url) throw new Error('No edited image returned')
-  return { imageUrl: url }
+  try {
+    const file = await OpenAI.toFile(buf, 'source.png', { type: 'image/png' })
+    const result = await client.images.edit({
+      model: 'dall-e-2',
+      image: file,
+      prompt,
+      n: 1,
+      size: '1024x1024',
+    })
+    const url = result.data?.[0]?.url
+    if (!url) throw new Error('No edited image returned')
+    return { imageUrl: url }
+  } catch (e) {
+    rethrowIfOpenAIBillingLimit(e)
+  }
 }
 
 export type StudioContextPayload = {

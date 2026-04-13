@@ -555,7 +555,7 @@ export default function DesignStudio() {
         return copy
       })
       setActivePlacementId((cur) => (cur === id ? next[0] ?? null : cur))
-      return next.length > 0 ? next : prev
+      return next
     })
   }, [])
 
@@ -1217,7 +1217,9 @@ export default function DesignStudio() {
                 <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-3">
                   Print locations
                 </h3>
-                <p className="text-sm text-zinc-500 mb-3">Add or remove areas; each may add to your total.</p>
+                <p className="text-sm text-zinc-500 mb-3">
+                  Add or remove areas independently; each may add to your total. Choose at least one to continue to art.
+                </p>
                 <ul className="space-y-2">
                   {placementPool.map((p) => {
                     const checked = selectedPlacementIds.includes(p.id)
@@ -1227,7 +1229,6 @@ export default function DesignStudio() {
                           <input
                             type="checkbox"
                             checked={checked}
-                            disabled={checked && selectedPlacementIds.length <= 1}
                             onChange={(e) => togglePlacement(p.id, e.target.checked)}
                             className="rounded border-zinc-600 text-amber-500 focus:ring-amber-500/40"
                           />
@@ -1258,7 +1259,8 @@ export default function DesignStudio() {
               </div>
               {(!selectedVariantId || selectedPlacementIds.length === 0) && (
                 <p className="text-sm text-amber-200/80">
-                  Select size, color, and at least one print location to continue.
+                  Select size, color, and at least one print location to continue (you can change locations anytime
+                  before continuing).
                 </p>
               )}
             </div>
