@@ -7,6 +7,7 @@ export const OPENAI_BILLING_LIMIT_USER_MESSAGE =
 
 export class OpenAIImageServiceUnavailableError extends Error {
   readonly httpStatus = 503 as const
+  readonly errorCode = 'openai_billing_or_quota' as const
 
   constructor(message: string, options?: { cause?: unknown }) {
     super(message)

@@ -1,12 +1,13 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { isLikelySupabaseProjectUrl } from '@/lib/supabase/url'
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request })
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim()
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim()
-  if (!url || !key) {
+  if (!url || !key || !isLikelySupabaseProjectUrl(url)) {
     return response
   }
 

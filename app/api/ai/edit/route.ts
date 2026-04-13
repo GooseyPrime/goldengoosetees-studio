@@ -42,7 +42,10 @@ export async function POST(request: NextRequest) {
   } catch (e: unknown) {
     if (e instanceof OpenAIImageServiceUnavailableError) {
       console.error('AI edit:', e)
-      return NextResponse.json({ success: false, error: e.message }, { status: e.httpStatus })
+      return NextResponse.json(
+      { success: false, error: e.message, code: e.errorCode },
+      { status: e.httpStatus }
+    )
     }
     const msg = e instanceof Error ? e.message : 'Edit failed'
     console.error('AI edit:', e)
