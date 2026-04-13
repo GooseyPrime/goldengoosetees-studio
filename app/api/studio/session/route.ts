@@ -43,7 +43,15 @@ export async function GET() {
 
   if (error) {
     console.error('design_sessions load:', error)
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 })
+    const msg = error.message || ''
+    const hint =
+      msg.toLowerCase().includes('relation') && msg.toLowerCase().includes('does not exist')
+        ? 'The design_sessions table is missing. Apply Supabase migrations from supabase/schema.sql or supabase/migrations so the studio can persist sessions.'
+        : undefined
+    return NextResponse.json(
+      { success: false, error: error.message, ...(hint ? { hint } : {}) },
+      { status: 500 }
+    )
   }
 
   if (!data?.current_designs) {
@@ -108,7 +116,17 @@ export async function POST(request: NextRequest) {
         .eq('id', existing.id)
       if (error) {
         console.error('design_sessions update:', error)
-        return NextResponse.json({ success: false, error: error.message }, { status: 500 })
+        const msg = error.message || ''
+        const hint =
+          msg.includes('profiles') && msg.includes('foreign key')
+            ? 'Your account profile row may be missing. Ensure the auth trigger handle_new_user is installed (see supabase/migrations/003_profiles_auth_users_alignment.sql).'
+            : msg.toLowerCase().includes('relation') && msg.toLowerCase().includes('does not exist')
+              ? 'Apply Supabase migrations so design_sessions exists.'
+              : undefined
+        return NextResponse.json(
+          { success: false, error: error.message, ...(hint ? { hint } : {}) },
+          { status: 500 }
+        )
       }
     } else {
       const { error } = await supabase.from('design_sessions').insert({
@@ -120,7 +138,17 @@ export async function POST(request: NextRequest) {
       })
       if (error) {
         console.error('design_sessions insert:', error)
-        return NextResponse.json({ success: false, error: error.message }, { status: 500 })
+        const msg = error.message || ''
+        const hint =
+          msg.includes('profiles') && msg.includes('foreign key')
+            ? 'Your account profile row may be missing. Ensure the auth trigger handle_new_user is installed (see supabase/migrations/003_profiles_auth_users_alignment.sql).'
+            : msg.toLowerCase().includes('relation') && msg.toLowerCase().includes('does not exist')
+              ? 'Apply Supabase migrations so design_sessions exists.'
+              : undefined
+        return NextResponse.json(
+          { success: false, error: error.message, ...(hint ? { hint } : {}) },
+          { status: 500 }
+        )
       }
     }
 

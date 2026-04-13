@@ -10,6 +10,9 @@ export type ImagePromptParts = {
   colorThemeKey: string
   moodKey: string
   compositionKey: string
+  detailLevelKey: string
+  backgroundKey: string
+  lineWeightKey: string
   extraDetails: string
   avoid: string
 }
@@ -50,12 +53,55 @@ export const COMPOSITION_OPTIONS: { id: string; label: string; fragment: string 
   { id: 'custom_comp', label: 'Custom (details)', fragment: '' },
 ]
 
+/** How busy / intricate the artwork should be (helps DTG hold detail). */
+export const DETAIL_LEVEL_OPTIONS: { id: string; label: string; fragment: string }[] = [
+  { id: 'simple', label: 'Simple & bold (best for small prints)', fragment: 'simple bold shapes, minimal fine detail, reads clearly at small print size' },
+  { id: 'balanced', label: 'Balanced detail', fragment: 'moderate detail level, clear focal hierarchy, still print-friendly' },
+  { id: 'rich', label: 'Rich / intricate', fragment: 'richer illustration detail with careful edge clarity for printing' },
+  { id: 'custom_detail', label: 'Custom (describe in details)', fragment: '' },
+]
+
+/** Background behind the subject — important for garment contrast. */
+export const BACKGROUND_OPTIONS: { id: string; label: string; fragment: string }[] = [
+  { id: 'transparent', label: 'Transparent / isolated subject', fragment: 'isolated graphic on transparent background, no backdrop, clean edges for garment overlay' },
+  { id: 'solid_dark', label: 'Solid dark backdrop', fragment: 'solid dark flat background behind the subject for contrast on light shirts' },
+  { id: 'solid_light', label: 'Solid light backdrop', fragment: 'solid light flat background behind the subject for contrast on dark shirts' },
+  { id: 'soft_gradient', label: 'Soft gradient backdrop', fragment: 'subtle smooth gradient backdrop that does not compete with the main subject' },
+  { id: 'custom_bg', label: 'Custom (details)', fragment: '' },
+]
+
+/** Line weight / ink feel for vector and line styles. */
+export const LINE_WEIGHT_OPTIONS: { id: string; label: string; fragment: string }[] = [
+  { id: 'heavy', label: 'Heavy / chunky lines', fragment: 'thick confident line weight, chunky strokes, very legible when printed' },
+  { id: 'medium', label: 'Medium weight', fragment: 'medium stroke weight, balanced for medium print sizes' },
+  { id: 'fine', label: 'Fine / delicate (larger art only)', fragment: 'finer line work; keep shapes large enough to survive DTG at print size' },
+  { id: 'no_lines', label: 'No specific line style', fragment: '' },
+]
+
+/** Keys that, when changed from defaults, count as “filled” without a subject line. */
+export const IMAGE_PROMPT_OPTION_KEYS = [
+  'styleKey',
+  'colorThemeKey',
+  'moodKey',
+  'compositionKey',
+  'detailLevelKey',
+  'backgroundKey',
+  'lineWeightKey',
+] as const
+
 function fragmentFromOptions<T extends { id: string; fragment: string }>(
   options: T[],
   key: string
 ): string {
   const o = options.find((x) => x.id === key)
   return o?.fragment?.trim() ?? ''
+}
+
+export function imagePromptBuilderLooksFilled(parts: ImagePromptParts): boolean {
+  if (parts.subject.trim()) return true
+  if (parts.extraDetails.trim() || parts.avoid.trim()) return true
+  const def = defaultImagePromptParts()
+  return IMAGE_PROMPT_OPTION_KEYS.some((k) => parts[k] !== def[k])
 }
 
 export function buildImagePromptFromParts(
@@ -78,6 +124,15 @@ export function buildImagePromptFromParts(
 
   const comp = fragmentFromOptions(COMPOSITION_OPTIONS, parts.compositionKey)
   if (comp) bits.push(comp)
+
+  const detail = fragmentFromOptions(DETAIL_LEVEL_OPTIONS, parts.detailLevelKey)
+  if (detail) bits.push(detail)
+
+  const bg = fragmentFromOptions(BACKGROUND_OPTIONS, parts.backgroundKey)
+  if (bg) bits.push(bg)
+
+  const line = fragmentFromOptions(LINE_WEIGHT_OPTIONS, parts.lineWeightKey)
+  if (line) bits.push(line)
 
   const extra = (parts.extraDetails || '').trim()
   if (extra) bits.push(extra)
@@ -111,6 +166,9 @@ export function defaultImagePromptParts(): ImagePromptParts {
     colorThemeKey: 'vibrant',
     moodKey: 'playful',
     compositionKey: 'centered_badge',
+    detailLevelKey: 'balanced',
+    backgroundKey: 'transparent',
+    lineWeightKey: 'medium',
     extraDetails: '',
     avoid: '',
   }

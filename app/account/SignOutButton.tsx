@@ -16,7 +16,7 @@ export default function SignOutButton() {
         setLoading(true)
         const supabase = createClient()
         await supabase.auth.signOut()
-        router.push('/')
+        router.push('/studio')
         router.refresh()
       }}
       className="rounded-lg border border-zinc-600 px-4 py-2 text-sm text-zinc-200 hover:bg-zinc-800 disabled:opacity-50"

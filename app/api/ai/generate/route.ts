@@ -4,6 +4,7 @@ import { validateImageUrlForPlacement } from '@/lib/design/validateArt'
 import {
   buildImagePromptFromParts,
   defaultImagePromptParts,
+  imagePromptBuilderLooksFilled,
   MAX_IMAGE_PROMPT_LENGTH,
   type ImagePromptParts,
 } from '@/lib/ai/imagePromptParts'
@@ -11,13 +12,6 @@ import { getProductConfig } from '@/lib/config/products.config'
 import { OpenAIImageServiceUnavailableError } from '@/lib/ai/openaiImageErrors'
 
 export const dynamic = 'force-dynamic'
-
-const OPTION_KEYS = [
-  'styleKey',
-  'colorThemeKey',
-  'moodKey',
-  'compositionKey',
-] as const
 
 function isNonEmptyString(v: unknown): v is string {
   return typeof v === 'string' && v.trim().length > 0
@@ -45,14 +39,16 @@ function parsePromptParts(raw: unknown): ImagePromptParts | null {
     colorThemeKey: pick('colorThemeKey', def.colorThemeKey),
     moodKey: pick('moodKey', def.moodKey),
     compositionKey: pick('compositionKey', def.compositionKey),
+    detailLevelKey: pick('detailLevelKey', def.detailLevelKey),
+    backgroundKey: pick('backgroundKey', def.backgroundKey),
+    lineWeightKey: pick('lineWeightKey', def.lineWeightKey),
     extraDetails: clampField(extraDetails, 1500),
     avoid: clampField(avoid, 500),
   }
 }
 
 function partsLookPresent(parts: ImagePromptParts): boolean {
-  if (parts.subject.trim()) return true
-  return OPTION_KEYS.some((k) => parts[k] !== defaultImagePromptParts()[k])
+  return imagePromptBuilderLooksFilled(parts)
 }
 
 export async function POST(request: NextRequest) {
